@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+venv/
+.venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# GDSII files (large binaries)
+gds_files/*.gds
+tests/fixtures/*.gds
+
+# Generated output
+generated_kicad_symbol_files/
+generated_kicad_footprint_files/
+
+# KiCad backup/cache files
+*.kicad_mod.bak
+*-cache.lib
+*-rescue.lib
+fp-info-cache
+
+# KiCad library footprints (user-managed)
+kicad_interposer_lib/
+
+# Logs
+*.log
+
+# Session tracking
+CHANGELOG.md
+
+# Registry data
+*_registry.json
+
+# the assistant
+.tooling/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,2 @@
+PyQt6>=6.6.0
+# klayout available via system install or pip: pip install klayout
