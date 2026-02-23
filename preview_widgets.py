@@ -29,7 +29,7 @@ class SymbolPreviewWidget(QWidget):
         self._pan_y = 0.0
         self._dragging = False
         self._drag_start = None
-        self.setMinimumSize(400, 400)
+        self.setMinimumSize(200, 150)
 
     def set_symbol(self, symbol: SymbolDefinition):
         self.symbol = symbol
@@ -169,7 +169,7 @@ class LayoutPreviewWidget(QWidget):
         self._pan_y = 0.0
         self._dragging = False
         self._drag_start = None
-        self.setMinimumSize(400, 400)
+        self.setMinimumSize(200, 150)
 
     def set_pads(self, pads: List[dict]):
         self.pads = pads

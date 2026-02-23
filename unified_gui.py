@@ -356,17 +356,24 @@ class UnifiedMainWindow(QMainWindow):
 
         splitter.addWidget(left)
 
-        # Right: preview
+        # Right: vertical splitter for preview (top) and pad layout ref (bottom)
         right = QWidget()
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
 
-        prev_label = QLabel("Live Preview")
+        right_splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # Top: symbol preview + zoom
+        preview_panel = QWidget()
+        preview_layout = QVBoxLayout(preview_panel)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+
+        prev_label = QLabel("Symbol Preview")
         prev_label.setFont(QFont("Monospace", 11, QFont.Weight.Bold))
-        right_layout.addWidget(prev_label)
+        preview_layout.addWidget(prev_label)
 
         self.preview_widget = SymbolPreviewWidget()
-        right_layout.addWidget(self.preview_widget)
+        preview_layout.addWidget(self.preview_widget)
 
         zoom_row = QHBoxLayout()
         zoom_row.addWidget(QLabel("Zoom:"))
@@ -382,17 +389,23 @@ class UnifiedMainWindow(QMainWindow):
             lambda v: self.zoom_label.setText(f"{v}%")
         )
         zoom_row.addWidget(self.zoom_label)
-        right_layout.addLayout(zoom_row)
+        preview_layout.addLayout(zoom_row)
 
         # Sync wheel zoom back to slider
         self.preview_widget.zoomChanged.connect(self._on_symbol_zoom_changed)
 
-        # Cross-reference: pad layout thumbnail
-        xref_group = QGroupBox("Pad Layout (ref.)")
-        xref_layout = QVBoxLayout(xref_group)
+        right_splitter.addWidget(preview_panel)
+
+        # Bottom: pad layout cross-reference
+        xref_panel = QWidget()
+        xref_layout = QVBoxLayout(xref_panel)
+        xref_layout.setContentsMargins(0, 0, 0, 0)
+
+        xref_label = QLabel("Pad Layout (ref.)")
+        xref_label.setFont(QFont("Monospace", 10, QFont.Weight.Bold))
+        xref_layout.addWidget(xref_label)
+
         self.sym_xref_layout_preview = LayoutPreviewWidget()
-        self.sym_xref_layout_preview.setMinimumSize(150, 100)
-        self.sym_xref_layout_preview.setMaximumHeight(150)
         xref_layout.addWidget(self.sym_xref_layout_preview)
         self.sym_xref_pad_count = QLabel("Pads: --")
         self.sym_xref_pad_count.setFont(QFont("Monospace", 9))
@@ -401,10 +414,14 @@ class UnifiedMainWindow(QMainWindow):
         self.sym_xref_mismatch.setFont(QFont("Monospace", 9))
         self.sym_xref_mismatch.setStyleSheet(f"color: {COLORS['warning']};")
         xref_layout.addWidget(self.sym_xref_mismatch)
-        right_layout.addWidget(xref_group)
+
+        right_splitter.addWidget(xref_panel)
+        right_splitter.setSizes([500, 200])
+
+        right_layout.addWidget(right_splitter)
 
         splitter.addWidget(right)
-        splitter.setSizes([500, 500])
+        splitter.setSizes([400, 600])
         layout.addWidget(splitter)
 
         # Bottom actions
@@ -474,22 +491,19 @@ class UnifiedMainWindow(QMainWindow):
         right_layout.addWidget(self.fp_pad_count_label)
 
         # Cross-reference: symbol thumbnail
-        fp_xref_group = QGroupBox("Symbol (ref.)")
-        fp_xref_layout = QVBoxLayout(fp_xref_group)
+        xref_label = QLabel("Symbol (ref.)")
+        xref_label.setFont(QFont("Monospace", 10, QFont.Weight.Bold))
+        right_layout.addWidget(xref_label)
+
         self.fp_xref_symbol_preview = SymbolPreviewWidget()
-        self.fp_xref_symbol_preview.setMinimumSize(150, 100)
-        self.fp_xref_symbol_preview.setMaximumHeight(150)
-        fp_xref_layout.addWidget(self.fp_xref_symbol_preview)
+        right_layout.addWidget(self.fp_xref_symbol_preview, stretch=1)
         self.fp_xref_pin_count = QLabel("Pins: --")
         self.fp_xref_pin_count.setFont(QFont("Monospace", 9))
-        fp_xref_layout.addWidget(self.fp_xref_pin_count)
+        right_layout.addWidget(self.fp_xref_pin_count)
         self.fp_xref_mismatch = QLabel("")
         self.fp_xref_mismatch.setFont(QFont("Monospace", 9))
         self.fp_xref_mismatch.setStyleSheet(f"color: {COLORS['warning']};")
-        fp_xref_layout.addWidget(self.fp_xref_mismatch)
-        right_layout.addWidget(fp_xref_group)
-
-        right_layout.addStretch()
+        right_layout.addWidget(self.fp_xref_mismatch)
 
         gen_fp_btn = QPushButton("Generate .kicad_mod")
         gen_fp_btn.setMinimumHeight(40)
