@@ -141,6 +141,7 @@ class UnifiedMainWindow(QMainWindow):
         self.main_splitter.addWidget(self.tabs)
 
         log_widget = QWidget()
+        log_widget.setMinimumHeight(30)  # keep header visible when splitter dragged small
         log_inner = QVBoxLayout(log_widget)
         log_inner.setContentsMargins(0, 0, 0, 0)
         log_inner.setSpacing(2)
@@ -161,6 +162,7 @@ class UnifiedMainWindow(QMainWindow):
         log_inner.addWidget(self.log_text)
 
         self.main_splitter.addWidget(log_widget)
+        self.main_splitter.setCollapsible(1, False)  # prevent collapsing past min height
         self.main_splitter.setSizes([700, 100])
         main_layout.addWidget(self.main_splitter)
 
@@ -187,6 +189,10 @@ class UnifiedMainWindow(QMainWindow):
         else:
             self.log_text.show()
             self.log_toggle_btn.setText("Hide")
+            # Restore log panel if splitter was dragged too small
+            sizes = self.main_splitter.sizes()
+            if sizes[1] < 100:
+                self.main_splitter.setSizes([sizes[0], 100])
 
     # =========================================================================
     # Tab 1: Extract Pins
