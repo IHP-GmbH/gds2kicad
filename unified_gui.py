@@ -250,8 +250,17 @@ class UnifiedMainWindow(QMainWindow):
 
         layout.addWidget(prep_group)
 
-        # Action
+        # Extraction source selector + action
         action_row = QHBoxLayout()
+        src_label = QLabel("Extract from:")
+        src_label.setFixedWidth(110)
+        self.extraction_source_combo = QComboBox()
+        self.extraction_source_combo.addItems(["Full GDS", "Stripped GDS"])
+        self.extraction_source_combo.setCurrentIndex(0)
+        self.extraction_source_combo.model().item(1).setEnabled(False)
+        action_row.addWidget(src_label)
+        action_row.addWidget(self.extraction_source_combo)
+
         self.extract_btn = QPushButton("Extract Pin List")
         self.extract_btn.setMinimumHeight(40)
         self.extract_btn.clicked.connect(self._extract_pin_list)
@@ -649,16 +658,15 @@ class UnifiedMainWindow(QMainWindow):
             text_name = text_display.split(' (')[0] if ' (' in text_display else text_display
             text_layer_names = [text_name]
 
-        # Use stripped GDS if it exists and is newer than the original
-        source_gds = gds_path
-        if (self.stripped_gds_path
-                and Path(self.stripped_gds_path).exists()
-                and Path(self.stripped_gds_path).stat().st_mtime
-                    >= Path(gds_path).stat().st_mtime):
+        # Determine extraction source from user selection
+        use_stripped = self.extraction_source_combo.currentIndex() == 1
+        if use_stripped and self.stripped_gds_path and Path(self.stripped_gds_path).exists():
             source_gds = self.stripped_gds_path
-            self._log(f"Using stripped GDS: {Path(source_gds).name}")
         else:
-            self._log(f"Extracting pins from {Path(source_gds).name}...")
+            source_gds = gds_path
+            if use_stripped:
+                self._log("Stripped GDS not found, falling back to full GDS", is_error=True)
+        self._log(f"Extracting pins from: {Path(source_gds).name}")
         QApplication.processEvents()
 
         try:
@@ -1132,6 +1140,8 @@ class UnifiedMainWindow(QMainWindow):
             self.stripped_gds_status.setText(
                 f"Stripped GDS: {Path(output_path).name} ({count} pad shapes)"
             )
+            self.extraction_source_combo.model().item(1).setEnabled(True)
+            self.extraction_source_combo.setCurrentIndex(1)
             self._log(f"Generated stripped GDS: {count} shapes -> {Path(output_path).name}")
             self._log("Edit in KLayout to remove non-pad structures, then Extract.")
 
