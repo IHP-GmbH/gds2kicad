@@ -1110,6 +1110,11 @@ class UnifiedMainWindow(QMainWindow):
 
         self._sync_editor_to_pin_list()
 
+        # Only pass pin_list if it actually has pins
+        pin_list = self.current_pin_list
+        if pin_list and not pin_list.pins:
+            pin_list = None
+
         stem = Path(gds_path).stem
         output_path = str(self.DEFAULT_OUTPUT_DIR / f"{stem}_stripped.gds")
 
@@ -1120,7 +1125,7 @@ class UnifiedMainWindow(QMainWindow):
                 pad_layer=pad_layer,
                 text_layer=text_layer,
                 text_layers=text_layers,
-                pin_list=self.current_pin_list,
+                pin_list=pin_list,
             )
             self.stripped_gds_path = output_path
             self.stripped_gds_status.setText(
