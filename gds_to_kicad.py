@@ -30,11 +30,13 @@ class GDSToKiCad:
 
     def __init__(self, lyp_parser: LYPParser, layer_name: str,
                  text_layer_name: Optional[str] = None,
-                 auto_detect_text: bool = False):
+                 auto_detect_text: bool = False,
+                 dbu: Optional[float] = None):
         self.lyp_parser = lyp_parser
         self.layer_name = layer_name
         self.text_layer_name = text_layer_name
         self.auto_detect_text = auto_detect_text
+        self._dbu_override = dbu
 
         # Get layer from LYP
         self.pad_layer = lyp_parser.get_layer(layer_name)
@@ -53,6 +55,20 @@ class GDSToKiCad:
         if text_layer_name:
             print(f"Using text layer: {text_layer_name}")
 
+    def _resolve_dbu(self, layout: db.Layout) -> float:
+        """Return the database unit in microns.
+
+        Uses explicit override if set, otherwise reads from layout.dbu.
+        """
+        if self._dbu_override is not None:
+            return self._dbu_override
+        return layout.dbu
+
+    def _get_dbu_to_mm(self, layout: db.Layout) -> float:
+        """Compute conversion factor from database units to millimeters."""
+        dbu_um = self._resolve_dbu(layout)
+        return dbu_um * 1e-3
+
     def convert(self, gds_path: str, output_path: str):
         """Convert GDS file to KiCad footprint"""
         print(f"\nConverting {gds_path} -> {output_path}")
@@ -70,6 +86,11 @@ class GDSToKiCad:
         # Flatten hierarchy to access all geometries
         top_cell.flatten(1)
         print(f"Top cell: {top_cell.name} (flattened)")
+
+        # Detect DBU conversion factor
+        dbu_to_mm = self._get_dbu_to_mm(layout)
+        dbu_um = self._resolve_dbu(layout)
+        print(f"DBU: {dbu_um} um ({dbu_to_mm:.3e} mm)")
 
         # Extract pads with optional text association
         pad_names = {}
@@ -119,11 +140,11 @@ class GDSToKiCad:
         print(f"Found {len(pads)} pads")
 
         # Calculate and display bounding box info for coordinate alignment verification
-        self._print_bounding_box_info(pads)
+        self._print_bounding_box_info(pads, dbu_to_mm=dbu_to_mm)
 
         # Generate footprint
         self._generate_kicad_footprint(top_cell.name, pads, output_path, gds_path,
-                                        pad_names=pad_names)
+                                        pad_names=pad_names, dbu_to_mm=dbu_to_mm)
 
         return True
 
@@ -143,7 +164,8 @@ class GDSToKiCad:
 
         return pads
 
-    def _print_bounding_box_info(self, pads: List[db.Box]):
+    def _print_bounding_box_info(self, pads: List[db.Box],
+                                dbu_to_mm: Optional[float] = None):
         """Calculate and print bounding box info for coordinate alignment verification.
 
         This helps users understand the relationship between the GDS origin (0,0)
@@ -153,8 +175,9 @@ class GDSToKiCad:
             print("\nNo pads found - cannot calculate bounding box")
             return
 
-        # GDS units: 1 DBU = 1 nm, convert to µm for display
-        DBU_TO_UM = 1e-3
+        if dbu_to_mm is None:
+            dbu_to_mm = 1e-6  # fallback: 1 DBU = 1nm
+        DBU_TO_UM = dbu_to_mm * 1e3
 
         # Calculate GDS bounding box
         gds_min_x = min(pad.left for pad in pads) * DBU_TO_UM
@@ -182,15 +205,17 @@ class GDSToKiCad:
         print(f"KiCad anchor at (0,0) = GDS origin (0,0)")
 
     def _generate_kicad_footprint(self, name: str, pads: List[db.Box], output_path: str,
-                                    gds_path: str, pad_names: Optional[Dict] = None):
+                                    gds_path: str, pad_names: Optional[Dict] = None,
+                                    dbu_to_mm: Optional[float] = None):
         """Generate KiCad footprint file with named or numbered pads"""
         print(f"Generating KiCad footprint: {output_path}")
 
         if pad_names is None:
             pad_names = {}
 
-        # GDS database units to mm conversion (assuming 1 DBU = 1nm, typical for this PDK)
-        DBU_TO_MM = 1e-6  # 1 database unit = 1nm = 1e-6 mm
+        if dbu_to_mm is None:
+            dbu_to_mm = 1e-6  # fallback: 1 DBU = 1nm
+        DBU_TO_MM = dbu_to_mm
 
         # Source file names for traceability properties
         gds_filename = Path(gds_path).name
@@ -265,6 +290,13 @@ class GDSToKiCad:
         """
         print(f"\nGenerating footprint from pad review GDS: {edited_gds}")
 
+        # Load layout to detect dbu
+        tmp_layout = db.Layout()
+        tmp_layout.read(edited_gds)
+        dbu_to_mm = self._get_dbu_to_mm(tmp_layout)
+        dbu_um = self._resolve_dbu(tmp_layout)
+        print(f"DBU: {dbu_um} um ({dbu_to_mm:.3e} mm)")
+
         # Read pads from edited GDS, match names from pin list
         pad_dicts = PadReview.read_edited_pads(
             edited_gds, self.pad_layer, pin_list=pin_list
@@ -286,13 +318,13 @@ class GDSToKiCad:
             left, bottom, right, top = pd["bbox"]
             boxes.append(db.Box(int(left), int(bottom), int(right), int(top)))
 
-        self._print_bounding_box_info(boxes)
+        self._print_bounding_box_info(boxes, dbu_to_mm=dbu_to_mm)
 
-        gds_filename = Path(edited_gds).name
         self._generate_kicad_footprint(
             pin_list.metadata.get("chiplet_name", Path(edited_gds).stem),
             boxes, output_path, edited_gds,
             pad_names=pad_names,
+            dbu_to_mm=dbu_to_mm,
         )
 
         return True
@@ -348,6 +380,8 @@ Pad review workflow (human-in-the-loop):
                        help='Text layer name for pin names (e.g., TopMetal2.text)')
     parser.add_argument('--auto-text', action='store_true',
                        help='Auto-detect text layers for pin names')
+    parser.add_argument('--dbu', type=float, default=None,
+                       help='Override database unit in microns (default: read from GDS)')
     parser.add_argument('--scan-layers', action='store_true',
                        help='Scan GDS and suggest best pad/text layers')
     parser.add_argument('--list-layers', action='store_true',
@@ -471,7 +505,7 @@ Pad review workflow (human-in-the-loop):
             args.output = str(output_dir / f"{stem}.kicad_mod")
 
         lyp_parser = LYPParser(args.lyp_file)
-        converter = GDSToKiCad(lyp_parser, args.layer)
+        converter = GDSToKiCad(lyp_parser, args.layer, dbu=args.dbu)
         success = converter.convert_from_pad_review(
             args.from_pad_review, pin_list, args.output
         )
@@ -503,7 +537,8 @@ Pad review workflow (human-in-the-loop):
     auto_detect = getattr(args, 'auto_text', False)
     converter = GDSToKiCad(lyp_parser, args.layer,
                             text_layer_name=text_layer,
-                            auto_detect_text=auto_detect)
+                            auto_detect_text=auto_detect,
+                            dbu=args.dbu)
     success = converter.convert(args.input, args.output)
 
     return 0 if success else 1
