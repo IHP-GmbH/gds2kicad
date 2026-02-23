@@ -37,6 +37,7 @@ from kicad_sym_writer import (
 )
 from symbol_layout import (
     create_default_layout, create_layout_from_pin_list, classify_pin, get_pin_type,
+    calculate_body_size,
 )
 from preview_widgets import SymbolPreviewWidget, LayoutPreviewWidget
 
@@ -983,7 +984,6 @@ class UnifiedMainWindow(QMainWindow):
         if not self.current_symbol:
             return
 
-        import math
         side_groups = {s: [] for s in PinSide}
 
         for row in range(self.sym_pin_table.rowCount()):
@@ -1000,18 +1000,15 @@ class UnifiedMainWindow(QMainWindow):
                             position_index=len(side_groups[side]))
             side_groups[side].append(pin)
 
+        # Set side_pin_count on each pin for centered positioning
         all_pins = []
         for side_pins in side_groups.values():
+            count = len(side_pins)
+            for pin in side_pins:
+                pin.side_pin_count = count
             all_pins.extend(side_pins)
 
-        counts = {s: len(pins) for s, pins in side_groups.items()}
-        max_v = max(counts[PinSide.LEFT], counts[PinSide.RIGHT], 1)
-        max_h = max(counts[PinSide.TOP], counts[PinSide.BOTTOM], 1)
-
-        body_h = math.ceil((max_v + 1) * PIN_SPACING / PIN_SPACING) * PIN_SPACING
-        body_w = max(math.ceil((max_h + 1) * PIN_SPACING / PIN_SPACING) * PIN_SPACING, body_h)
-        body_w = max(body_w, 5.08)
-        body_h = max(body_h, 5.08)
+        body_w, body_h = calculate_body_size(side_groups)
 
         self.current_symbol.pins = all_pins
         self.current_symbol.body_width = body_w

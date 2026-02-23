@@ -115,8 +115,8 @@ class TestFullPipeline:
         assert counts[PinSide.BOTTOM] == 2   # GND, VSSA
         assert counts[PinSide.LEFT] + counts[PinSide.RIGHT] == 2  # SIG1, SIG2
 
-    def test_pin_numbers_are_sequential(self, tmp_path, interposer_lyp):
-        """Pin numbers must be sequential integers starting at 1"""
+    def test_pin_numbers_match_names(self, tmp_path, interposer_lyp):
+        """Pin number must equal pin name for symbol-footprint traceability"""
         pad_names = ["VDD", "GND", "CLK"]
         gds_path = _create_test_gds(tmp_path / "match.gds", pad_names)
 
@@ -127,9 +127,9 @@ class TestFullPipeline:
 
         sym = create_default_layout(pads, "MATCH_TEST")
 
-        numbers = sorted(int(pin.number) for pin in sym.pins)
-        assert numbers == list(range(1, len(sym.pins) + 1)), \
-            f"Pin numbers should be sequential 1..N, got {numbers}"
+        for pin in sym.pins:
+            assert pin.name == pin.number, \
+                f"Pin name '{pin.name}' != number '{pin.number}'"
 
     def test_no_text_layers(self, tmp_path, interposer_lyp):
         """If no text layers contain data, pads get sequential numbers"""

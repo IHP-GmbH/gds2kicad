@@ -51,27 +51,33 @@ class SymbolPin:
     side: PinSide = PinSide.LEFT
     pin_type: PinType = PinType.PASSIVE
     position_index: int = 0  # index along its side (0 = first pin)
+    side_pin_count: int = 1  # total pins on this side (for centering)
 
     def get_coordinates(self, body_width: float, body_height: float) -> tuple:
         """Calculate pin endpoint coordinates given body dimensions.
 
-        Returns (x, y) for the pin endpoint (where the wire connects).
-        The body is centered at origin.
+        Pins are centered on each side. Returns (x, y) for the pin
+        endpoint (where the wire connects). The body is centered at origin.
         """
         half_w = body_width / 2.0
         half_h = body_height / 2.0
+        n = max(self.side_pin_count, 1)
 
         if self.side == PinSide.LEFT:
             x = -(half_w + PIN_LENGTH)
-            y = half_h - PIN_SPACING - self.position_index * PIN_SPACING
+            span = (n - 1) * PIN_SPACING
+            y = span / 2.0 - self.position_index * PIN_SPACING
         elif self.side == PinSide.RIGHT:
             x = half_w + PIN_LENGTH
-            y = half_h - PIN_SPACING - self.position_index * PIN_SPACING
+            span = (n - 1) * PIN_SPACING
+            y = span / 2.0 - self.position_index * PIN_SPACING
         elif self.side == PinSide.TOP:
-            x = -half_w + PIN_SPACING + self.position_index * PIN_SPACING
+            span = (n - 1) * PIN_SPACING
+            x = -span / 2.0 + self.position_index * PIN_SPACING
             y = half_h + PIN_LENGTH
         elif self.side == PinSide.BOTTOM:
-            x = -half_w + PIN_SPACING + self.position_index * PIN_SPACING
+            span = (n - 1) * PIN_SPACING
+            x = -span / 2.0 + self.position_index * PIN_SPACING
             y = -(half_h + PIN_LENGTH)
 
         return (x, y)

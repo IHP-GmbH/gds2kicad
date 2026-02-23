@@ -4,10 +4,15 @@ Symbol Layout Engine
 Creates default pin arrangements for KiCad schematic symbols based on
 extracted pad information. Power pins are placed on top/bottom, signal
 pins are distributed left/right alphabetically.
+
+Body dimensions are calculated to prevent pin name overlap: the width
+accommodates both the horizontal pin count and left/right text length,
+and the height accommodates the vertical pin count and top/bottom text.
 """
 
+import math
 import re
-from typing import List
+from typing import Dict, List
 
 from pin_extractor import PadInfo
 from kicad_sym_writer import (
@@ -25,6 +30,11 @@ POWER_HIGH_PATTERNS = [
 POWER_LOW_PATTERNS = [
     re.compile(r'^(GND|VSS|VSSA|VSSI|GNDA|DGND|AGND)', re.IGNORECASE),
 ]
+
+# Approximate width of one character at KiCad font size 1.27mm
+_CHAR_WIDTH = 0.80  # mm
+# Minimum gap between opposing pin name labels inside the body
+_TEXT_GAP = 2.54  # mm
 
 
 def classify_pin(name: str) -> PinSide:
@@ -52,6 +62,69 @@ def get_pin_type(name: str, side: PinSide) -> PinType:
     return PinType.PASSIVE
 
 
+def calculate_body_size(side_groups: Dict[PinSide, List[SymbolPin]]):
+    """Calculate body dimensions that prevent text overlap.
+
+    The body must be large enough for:
+    - Horizontal: all top/bottom pins at PIN_SPACING, AND left/right text
+    - Vertical: all left/right pins at PIN_SPACING, AND top/bottom text
+
+    Returns (body_width, body_height) snapped to the PIN_SPACING grid.
+    """
+    left_pins = side_groups.get(PinSide.LEFT, [])
+    right_pins = side_groups.get(PinSide.RIGHT, [])
+    top_pins = side_groups.get(PinSide.TOP, [])
+    bottom_pins = side_groups.get(PinSide.BOTTOM, [])
+
+    n_left = len(left_pins)
+    n_right = len(right_pins)
+    n_top = len(top_pins)
+    n_bottom = len(bottom_pins)
+
+    max_vertical = max(n_left, n_right, 1)
+    max_horizontal = max(n_top, n_bottom, 1)
+
+    # Longest pin name on each side
+    max_left_len = max((len(p.name) for p in left_pins), default=0)
+    max_right_len = max((len(p.name) for p in right_pins), default=0)
+    max_top_len = max((len(p.name) for p in top_pins), default=0)
+    max_bottom_len = max((len(p.name) for p in bottom_pins), default=0)
+
+    # Width: enough for horizontal pin slots AND left+right text
+    width_for_pins = (max_horizontal + 1) * PIN_SPACING
+    width_for_text = (max_left_len + max_right_len) * _CHAR_WIDTH + _TEXT_GAP
+    body_width = max(width_for_pins, width_for_text)
+
+    # Height: enough for vertical pin slots AND top+bottom text
+    height_for_pins = (max_vertical + 1) * PIN_SPACING
+    height_for_text = (max_top_len + max_bottom_len) * _CHAR_WIDTH + _TEXT_GAP
+    body_height = max(height_for_pins, height_for_text)
+
+    # Snap to grid and enforce minimum
+    body_width = _snap_to_grid(body_width)
+    body_height = _snap_to_grid(body_height)
+    body_width = max(body_width, 5.08)
+    body_height = max(body_height, 5.08)
+
+    return body_width, body_height
+
+
+def _finalize_pins(side_groups: Dict[PinSide, List[SymbolPin]]):
+    """Assign position indices, side_pin_count, and number=name on all pins.
+
+    Returns a flat list of all pins (left, right, top, bottom).
+    """
+    all_pins = []
+    for side, side_pins in side_groups.items():
+        count = len(side_pins)
+        for idx, pin in enumerate(side_pins):
+            pin.position_index = idx
+            pin.side_pin_count = count
+            pin.number = pin.name
+        all_pins.extend(side_pins)
+    return all_pins
+
+
 def create_default_layout(pads: List[PadInfo], symbol_name: str,
                           footprint_ref: str = "") -> SymbolDefinition:
     """Create a default symbol layout from extracted pad information.
@@ -60,7 +133,7 @@ def create_default_layout(pads: List[PadInfo], symbol_name: str,
     - VDD/VCC/VDDA -> top side
     - GND/VSS/VSSA -> bottom side
     - Remaining signal pins split evenly left/right, sorted alphabetically
-    - Body size proportional to max pins on any side
+    - Body sized to prevent text overlap
 
     Args:
         pads: List of PadInfo objects (with .name populated where possible)
@@ -82,7 +155,7 @@ def create_default_layout(pads: List[PadInfo], symbol_name: str,
 
         pin = SymbolPin(
             name=pin_name,
-            number="",  # assigned sequentially after ordering
+            number=pin_name,  # number == name for symbol-footprint matching
             side=side,
             pin_type=pin_type,
         )
@@ -110,43 +183,15 @@ def create_default_layout(pads: List[PadInfo], symbol_name: str,
     top_pins.sort(key=lambda p: p.name.lower())
     bottom_pins.sort(key=lambda p: p.name.lower())
 
-    # Assign position indices
-    for idx, pin in enumerate(left_pins):
-        pin.position_index = idx
-    for idx, pin in enumerate(right_pins):
-        pin.position_index = idx
-    for idx, pin in enumerate(top_pins):
-        pin.position_index = idx
-    for idx, pin in enumerate(bottom_pins):
-        pin.position_index = idx
-
-    # Assign sequential pin numbers after final ordering
-    all_pins = left_pins + right_pins + top_pins + bottom_pins
-    for i, pin in enumerate(all_pins):
-        pin.number = str(i + 1)
-
-    counts = {
-        PinSide.LEFT: len(left_pins),
-        PinSide.RIGHT: len(right_pins),
-        PinSide.TOP: len(top_pins),
-        PinSide.BOTTOM: len(bottom_pins),
+    side_groups = {
+        PinSide.LEFT: left_pins,
+        PinSide.RIGHT: right_pins,
+        PinSide.TOP: top_pins,
+        PinSide.BOTTOM: bottom_pins,
     }
 
-    max_vertical = max(counts[PinSide.LEFT], counts[PinSide.RIGHT], 1)
-    max_horizontal = max(counts[PinSide.TOP], counts[PinSide.BOTTOM], 1)
-
-    # Body height: enough room for vertical pins + margins
-    body_height = (max_vertical + 1) * PIN_SPACING
-    # Body width: enough room for horizontal pins + margins, minimum reasonable
-    body_width = max((max_horizontal + 1) * PIN_SPACING, body_height)
-
-    # Snap to grid
-    body_width = _snap_to_grid(body_width)
-    body_height = _snap_to_grid(body_height)
-
-    # Minimum size
-    body_width = max(body_width, 5.08)
-    body_height = max(body_height, 5.08)
+    all_pins = _finalize_pins(side_groups)
+    body_width, body_height = calculate_body_size(side_groups)
 
     return SymbolDefinition(
         name=symbol_name,
@@ -192,7 +237,7 @@ def create_layout_from_pin_list(pin_list, symbol_name: str,
 
         pin = SymbolPin(
             name=entry.name,
-            number="",  # assigned sequentially after ordering
+            number=entry.name,  # number == name for traceability
             side=side,
             pin_type=pin_type,
         )
@@ -202,31 +247,8 @@ def create_layout_from_pin_list(pin_list, symbol_name: str,
     for side_pins in side_groups.values():
         side_pins.sort(key=lambda p: p.name.lower())
 
-    # Assign position indices
-    for side_pins in side_groups.values():
-        for idx, pin in enumerate(side_pins):
-            pin.position_index = idx
-
-    all_pins = []
-    for side_pins in side_groups.values():
-        all_pins.extend(side_pins)
-
-    # Assign sequential pin numbers after final ordering
-    for i, pin in enumerate(all_pins):
-        pin.number = str(i + 1)
-
-    # Calculate body size
-    counts = {s: len(pins) for s, pins in side_groups.items()}
-    max_vertical = max(counts[PinSide.LEFT], counts[PinSide.RIGHT], 1)
-    max_horizontal = max(counts[PinSide.TOP], counts[PinSide.BOTTOM], 1)
-
-    body_height = (max_vertical + 1) * PIN_SPACING
-    body_width = max((max_horizontal + 1) * PIN_SPACING, body_height)
-
-    body_width = _snap_to_grid(body_width)
-    body_height = _snap_to_grid(body_height)
-    body_width = max(body_width, 5.08)
-    body_height = max(body_height, 5.08)
+    all_pins = _finalize_pins(side_groups)
+    body_width, body_height = calculate_body_size(side_groups)
 
     return SymbolDefinition(
         name=symbol_name,
@@ -240,5 +262,4 @@ def create_layout_from_pin_list(pin_list, symbol_name: str,
 
 def _snap_to_grid(value: float, grid: float = PIN_SPACING) -> float:
     """Snap a value up to the nearest grid multiple"""
-    import math
     return math.ceil(value / grid) * grid

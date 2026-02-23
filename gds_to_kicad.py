@@ -265,7 +265,8 @@ class GDSToKiCad:
 
             # Generate pads (named if text layer provided, otherwise sequential)
             for idx, pd in enumerate(pad_dicts):
-                pad_name = str(idx + 1)
+                # Use text label name if available, otherwise sequential number
+                pad_name = pad_names.get(idx, str(idx + 1))
                 pad = pd["bbox"]
                 is_polygon = pd.get("is_polygon", False)
                 polygon_points = pd.get("polygon_points")

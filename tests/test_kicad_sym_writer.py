@@ -15,27 +15,35 @@ from kicad_sym_writer import (
 
 class TestSymbolPin:
     def test_left_pin_coordinates(self):
-        pin = SymbolPin("A", "A", PinSide.LEFT, PinType.PASSIVE, position_index=0)
+        """Single left pin is centered vertically (y=0)"""
+        pin = SymbolPin("A", "A", PinSide.LEFT, PinType.PASSIVE,
+                         position_index=0, side_pin_count=1)
         x, y = pin.get_coordinates(10.16, 10.16)
         assert x == -(10.16 / 2 + PIN_LENGTH)
-        assert y == 10.16 / 2 - PIN_SPACING
+        assert y == 0.0  # centered
 
     def test_right_pin_coordinates(self):
-        pin = SymbolPin("B", "B", PinSide.RIGHT, PinType.PASSIVE, position_index=0)
+        """Single right pin is centered vertically (y=0)"""
+        pin = SymbolPin("B", "B", PinSide.RIGHT, PinType.PASSIVE,
+                         position_index=0, side_pin_count=1)
         x, y = pin.get_coordinates(10.16, 10.16)
         assert x == (10.16 / 2 + PIN_LENGTH)
-        assert y == 10.16 / 2 - PIN_SPACING
+        assert y == 0.0  # centered
 
     def test_top_pin_coordinates(self):
-        pin = SymbolPin("VDD", "VDD", PinSide.TOP, PinType.POWER_IN, position_index=0)
+        """Single top pin is centered horizontally (x=0)"""
+        pin = SymbolPin("VDD", "VDD", PinSide.TOP, PinType.POWER_IN,
+                         position_index=0, side_pin_count=1)
         x, y = pin.get_coordinates(10.16, 10.16)
-        assert x == -10.16 / 2 + PIN_SPACING
+        assert x == 0.0  # centered
         assert y == 10.16 / 2 + PIN_LENGTH
 
     def test_bottom_pin_coordinates(self):
-        pin = SymbolPin("GND", "GND", PinSide.BOTTOM, PinType.POWER_IN, position_index=0)
+        """Single bottom pin is centered horizontally (x=0)"""
+        pin = SymbolPin("GND", "GND", PinSide.BOTTOM, PinType.POWER_IN,
+                         position_index=0, side_pin_count=1)
         x, y = pin.get_coordinates(10.16, 10.16)
-        assert x == -10.16 / 2 + PIN_SPACING
+        assert x == 0.0  # centered
         assert y == -(10.16 / 2 + PIN_LENGTH)
 
     def test_pin_angle(self):
@@ -46,11 +54,22 @@ class TestSymbolPin:
 
     def test_pin_spacing_along_side(self):
         """Consecutive pins should be spaced by PIN_SPACING"""
-        pin0 = SymbolPin("A", "A", PinSide.LEFT, position_index=0)
-        pin1 = SymbolPin("B", "B", PinSide.LEFT, position_index=1)
+        pin0 = SymbolPin("A", "A", PinSide.LEFT, position_index=0, side_pin_count=2)
+        pin1 = SymbolPin("B", "B", PinSide.LEFT, position_index=1, side_pin_count=2)
         _, y0 = pin0.get_coordinates(10.16, 10.16)
         _, y1 = pin1.get_coordinates(10.16, 10.16)
         assert abs(y0 - y1 - PIN_SPACING) < 0.001
+
+    def test_multiple_pins_centered(self):
+        """Three left pins should be centered around y=0"""
+        pins = [SymbolPin("A", "A", PinSide.LEFT, position_index=i, side_pin_count=3)
+                for i in range(3)]
+        coords = [p.get_coordinates(10.16, 10.16) for p in pins]
+        ys = [c[1] for c in coords]
+        # 3 pins: y = +2.54, 0, -2.54
+        assert abs(ys[0] - PIN_SPACING) < 0.001
+        assert abs(ys[1]) < 0.001
+        assert abs(ys[2] + PIN_SPACING) < 0.001
 
 
 class TestSymbolDefinition:
