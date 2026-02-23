@@ -1110,9 +1110,10 @@ class UnifiedMainWindow(QMainWindow):
 
         self._sync_editor_to_pin_list()
 
-        # Only pass pin_list if it actually has pins
+        # Only pass pin_list if it actually has pins;
+        # PinList.__bool__ returns False when empty, so check is not None first
         pin_list = self.current_pin_list
-        if pin_list and not pin_list.pins:
+        if pin_list is None or not pin_list.pins:
             pin_list = None
 
         stem = Path(gds_path).stem
