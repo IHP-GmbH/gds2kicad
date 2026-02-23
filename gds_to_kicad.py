@@ -220,11 +220,13 @@ class GDSToKiCad:
 
     def _generate_kicad_footprint(self, name: str, pad_dicts: List[dict], output_path: str,
                                     gds_path: str, pad_names: Optional[Dict] = None,
-                                    dbu_to_mm: Optional[float] = None):
-        """Generate KiCad footprint file with named or numbered pads.
+                                    dbu_to_mm: Optional[float] = None,
+                                    gds_property_path: Optional[str] = None):
+        """Generate KiCad footprint file with numbered pads.
 
         pad_dicts: list of dicts with keys:
             bbox (db.Box), is_polygon (bool), polygon_points (list or None)
+        gds_property_path: if set, used for GDS_FILE property instead of gds_path
         """
         print(f"Generating KiCad footprint: {output_path}")
 
@@ -235,9 +237,10 @@ class GDSToKiCad:
             dbu_to_mm = 1e-6  # fallback: 1 DBU = 1nm
         DBU_TO_MM = dbu_to_mm
 
-        # Source file names for traceability properties
-        gds_filename = Path(gds_path).name
-        lyp_filename = Path(self.lyp_parser.lyp_path).name
+        # Source file paths for traceability properties (absolute)
+        gds_property_source = gds_property_path if gds_property_path else gds_path
+        gds_filename = str(Path(gds_property_source).resolve())
+        lyp_filename = str(Path(self.lyp_parser.lyp_path).resolve())
         layer_num, layer_dt = self.pad_layer
 
         with open(output_path, 'w') as f:
@@ -262,8 +265,7 @@ class GDSToKiCad:
 
             # Generate pads (named if text layer provided, otherwise sequential)
             for idx, pd in enumerate(pad_dicts):
-                # Use text label name if available, otherwise sequential number
-                pad_name = pad_names.get(idx, str(idx + 1))
+                pad_name = str(idx + 1)
                 pad = pd["bbox"]
                 is_polygon = pd.get("is_polygon", False)
                 polygon_points = pd.get("polygon_points")
@@ -318,7 +320,8 @@ class GDSToKiCad:
         print(f"Generated {len(pad_dicts)} pads")
 
     def convert_from_pad_review(self, edited_gds: str, pin_list: PinList,
-                                output_path: str):
+                                output_path: str,
+                                gds_property_path: Optional[str] = None):
         """Generate footprint from a user-edited pad review GDS.
 
         Uses pin_list for pad naming instead of text extraction from the
@@ -329,6 +332,7 @@ class GDSToKiCad:
             edited_gds: Path to user-edited pad review GDS
             pin_list: PinList with authoritative pad names
             output_path: Output .kicad_mod path
+            gds_property_path: If set, used for GDS_FILE property instead of edited_gds
         """
         print(f"\nGenerating footprint from pad review GDS: {edited_gds}")
 
@@ -373,6 +377,7 @@ class GDSToKiCad:
             fp_pads, output_path, edited_gds,
             pad_names=pad_names,
             dbu_to_mm=dbu_to_mm,
+            gds_property_path=gds_property_path,
         )
 
         return True

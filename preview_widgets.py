@@ -142,11 +142,21 @@ class SymbolPreviewWidget(QWidget):
                                  Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
                                  pin.name)
             elif pin.side == PinSide.TOP:
-                painter.drawText(QRectF(x - 4, -y - PIN_LENGTH - 1.2, 8, 1),
-                                 Qt.AlignmentFlag.AlignCenter, pin.name)
+                painter.save()
+                painter.translate(x, -y)
+                painter.rotate(-90)
+                painter.drawText(QRectF(PIN_LENGTH + 0.3, -0.5, 8, 1),
+                                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                                 pin.name)
+                painter.restore()
             elif pin.side == PinSide.BOTTOM:
-                painter.drawText(QRectF(x - 4, -y + PIN_LENGTH + 0.2, 8, 1),
-                                 Qt.AlignmentFlag.AlignCenter, pin.name)
+                painter.save()
+                painter.translate(x, -y)
+                painter.rotate(-90)
+                painter.drawText(QRectF(-PIN_LENGTH - 8.3, -0.5, 8, 1),
+                                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                                 pin.name)
+                painter.restore()
 
             painter.restore()
 

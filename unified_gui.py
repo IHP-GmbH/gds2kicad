@@ -1274,8 +1274,11 @@ class UnifiedMainWindow(QMainWindow):
         try:
             from gds_to_kicad import GDSToKiCad
             converter = GDSToKiCad(self.lyp_parser, pad_layer_name)
+            # Pass full GDS path for the GDS_FILE property (not the stripped one)
+            full_gds = gds_path if gds_path and Path(gds_path).exists() else None
             success = converter.convert_from_pad_review(
-                source_gds, self.current_pin_list, path
+                source_gds, self.current_pin_list, path,
+                gds_property_path=full_gds,
             )
 
             if success:

@@ -77,14 +77,12 @@ def create_default_layout(pads: List[PadInfo], symbol_name: str,
     for pad in pads:
         # Use name if available, else sequential number
         pin_name = pad.name if pad.name else str(pad.index + 1)
-        pin_number = pin_name  # number == name for symbol-footprint matching
-
         side = classify_pin(pin_name)
         pin_type = get_pin_type(pin_name, side)
 
         pin = SymbolPin(
             name=pin_name,
-            number=pin_number,
+            number="",  # assigned sequentially after ordering
             side=side,
             pin_type=pin_type,
         )
@@ -122,8 +120,11 @@ def create_default_layout(pads: List[PadInfo], symbol_name: str,
     for idx, pin in enumerate(bottom_pins):
         pin.position_index = idx
 
-    # Calculate body size
+    # Assign sequential pin numbers after final ordering
     all_pins = left_pins + right_pins + top_pins + bottom_pins
+    for i, pin in enumerate(all_pins):
+        pin.number = str(i + 1)
+
     counts = {
         PinSide.LEFT: len(left_pins),
         PinSide.RIGHT: len(right_pins),
@@ -191,7 +192,7 @@ def create_layout_from_pin_list(pin_list, symbol_name: str,
 
         pin = SymbolPin(
             name=entry.name,
-            number=entry.name,  # number == name for traceability
+            number="",  # assigned sequentially after ordering
             side=side,
             pin_type=pin_type,
         )
@@ -209,6 +210,10 @@ def create_layout_from_pin_list(pin_list, symbol_name: str,
     all_pins = []
     for side_pins in side_groups.values():
         all_pins.extend(side_pins)
+
+    # Assign sequential pin numbers after final ordering
+    for i, pin in enumerate(all_pins):
+        pin.number = str(i + 1)
 
     # Calculate body size
     counts = {s: len(pins) for s, pins in side_groups.items()}
