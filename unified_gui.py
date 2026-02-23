@@ -129,7 +129,6 @@ class UnifiedMainWindow(QMainWindow):
         main_layout.addWidget(title)
 
         self.tabs = QTabWidget()
-        main_layout.addWidget(self.tabs)
 
         self._build_extract_tab()
         self._build_pin_editor_tab()
@@ -137,14 +136,33 @@ class UnifiedMainWindow(QMainWindow):
         self._build_footprint_tab()
         self._build_history_tab()
 
-        # Shared log at bottom
-        log_group = QGroupBox("Log")
-        log_layout = QVBoxLayout(log_group)
+        # Vertical splitter: tabs (top) + log (bottom) -- user can drag to resize
+        self.main_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.main_splitter.addWidget(self.tabs)
+
+        log_widget = QWidget()
+        log_inner = QVBoxLayout(log_widget)
+        log_inner.setContentsMargins(0, 0, 0, 0)
+        log_inner.setSpacing(2)
+
+        log_header = QHBoxLayout()
+        log_label = QLabel("Log")
+        log_label.setFont(QFont("Monospace", 10, QFont.Weight.Bold))
+        log_header.addWidget(log_label)
+        log_header.addStretch()
+        self.log_toggle_btn = QPushButton("Hide")
+        self.log_toggle_btn.setFixedWidth(60)
+        self.log_toggle_btn.clicked.connect(self._toggle_log)
+        log_header.addWidget(self.log_toggle_btn)
+        log_inner.addLayout(log_header)
+
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setMaximumHeight(150)
-        log_layout.addWidget(self.log_text)
-        main_layout.addWidget(log_group)
+        log_inner.addWidget(self.log_text)
+
+        self.main_splitter.addWidget(log_widget)
+        self.main_splitter.setSizes([700, 100])
+        main_layout.addWidget(self.main_splitter)
 
         self.statusBar().showMessage("Ready")
         self.statusBar().setStyleSheet(f"color: {COLORS['text_secondary']};")
@@ -161,6 +179,14 @@ class UnifiedMainWindow(QMainWindow):
             f'<span style="color: {COLORS["text_secondary"]}">[{timestamp}]</span> '
             f'<span style="color: {color}">{message}</span>'
         )
+
+    def _toggle_log(self):
+        if self.log_text.isVisible():
+            self.log_text.hide()
+            self.log_toggle_btn.setText("Show")
+        else:
+            self.log_text.show()
+            self.log_toggle_btn.setText("Hide")
 
     # =========================================================================
     # Tab 1: Extract Pins
@@ -356,24 +382,17 @@ class UnifiedMainWindow(QMainWindow):
 
         splitter.addWidget(left)
 
-        # Right: vertical splitter for preview (top) and pad layout ref (bottom)
+        # Right: symbol preview
         right = QWidget()
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
 
-        right_splitter = QSplitter(Qt.Orientation.Vertical)
-
-        # Top: symbol preview + zoom
-        preview_panel = QWidget()
-        preview_layout = QVBoxLayout(preview_panel)
-        preview_layout.setContentsMargins(0, 0, 0, 0)
-
         prev_label = QLabel("Symbol Preview")
         prev_label.setFont(QFont("Monospace", 11, QFont.Weight.Bold))
-        preview_layout.addWidget(prev_label)
+        right_layout.addWidget(prev_label)
 
         self.preview_widget = SymbolPreviewWidget()
-        preview_layout.addWidget(self.preview_widget)
+        right_layout.addWidget(self.preview_widget, stretch=1)
 
         zoom_row = QHBoxLayout()
         zoom_row.addWidget(QLabel("Zoom:"))
@@ -389,36 +408,10 @@ class UnifiedMainWindow(QMainWindow):
             lambda v: self.zoom_label.setText(f"{v}%")
         )
         zoom_row.addWidget(self.zoom_label)
-        preview_layout.addLayout(zoom_row)
+        right_layout.addLayout(zoom_row)
 
         # Sync wheel zoom back to slider
         self.preview_widget.zoomChanged.connect(self._on_symbol_zoom_changed)
-
-        right_splitter.addWidget(preview_panel)
-
-        # Bottom: pad layout cross-reference
-        xref_panel = QWidget()
-        xref_layout = QVBoxLayout(xref_panel)
-        xref_layout.setContentsMargins(0, 0, 0, 0)
-
-        xref_label = QLabel("Pad Layout (ref.)")
-        xref_label.setFont(QFont("Monospace", 10, QFont.Weight.Bold))
-        xref_layout.addWidget(xref_label)
-
-        self.sym_xref_layout_preview = LayoutPreviewWidget()
-        xref_layout.addWidget(self.sym_xref_layout_preview)
-        self.sym_xref_pad_count = QLabel("Pads: --")
-        self.sym_xref_pad_count.setFont(QFont("Monospace", 9))
-        xref_layout.addWidget(self.sym_xref_pad_count)
-        self.sym_xref_mismatch = QLabel("")
-        self.sym_xref_mismatch.setFont(QFont("Monospace", 9))
-        self.sym_xref_mismatch.setStyleSheet(f"color: {COLORS['warning']};")
-        xref_layout.addWidget(self.sym_xref_mismatch)
-
-        right_splitter.addWidget(xref_panel)
-        right_splitter.setSizes([500, 200])
-
-        right_layout.addWidget(right_splitter)
 
         splitter.addWidget(right)
         splitter.setSizes([400, 600])
@@ -458,7 +451,7 @@ class UnifiedMainWindow(QMainWindow):
         left_layout.addWidget(fp_label)
 
         self.layout_preview = LayoutPreviewWidget()
-        left_layout.addWidget(self.layout_preview)
+        left_layout.addWidget(self.layout_preview, stretch=1)
 
         fp_zoom_row = QHBoxLayout()
         fp_zoom_row.addWidget(QLabel("Zoom:"))
@@ -1068,13 +1061,6 @@ class UnifiedMainWindow(QMainWindow):
         pin_count = len(self.current_symbol.pins) if self.current_symbol else 0
         pad_count = len(self.pad_dicts)
 
-        # Symbol tab: show pad layout thumbnail
-        if self.pad_dicts:
-            self.sym_xref_layout_preview.set_pads(self.pad_dicts)
-            self.sym_xref_pad_count.setText(f"Pads: {pad_count}")
-        else:
-            self.sym_xref_pad_count.setText("Pads: --")
-
         # Footprint tab: show symbol thumbnail
         if self.current_symbol:
             self.fp_xref_symbol_preview.set_symbol(self.current_symbol)
@@ -1082,13 +1068,11 @@ class UnifiedMainWindow(QMainWindow):
         else:
             self.fp_xref_pin_count.setText("Pins: --")
 
-        # Mismatch warnings
+        # Mismatch warning
         if pin_count > 0 and pad_count > 0 and pin_count != pad_count:
             msg = f"Mismatch: {pin_count} pins vs {pad_count} pads"
-            self.sym_xref_mismatch.setText(msg)
             self.fp_xref_mismatch.setText(msg)
         else:
-            self.sym_xref_mismatch.setText("")
             self.fp_xref_mismatch.setText("")
 
     # =========================================================================

@@ -8,7 +8,7 @@ via the zoomChanged signal.
 
 from typing import Optional, List
 
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QWidget, QSizePolicy
 from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QPen, QBrush, QPolygonF
 
@@ -30,6 +30,7 @@ class SymbolPreviewWidget(QWidget):
         self._dragging = False
         self._drag_start = None
         self.setMinimumSize(200, 150)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     def set_symbol(self, symbol: SymbolDefinition):
         self.symbol = symbol
@@ -75,10 +76,18 @@ class SymbolPreviewWidget(QWidget):
         h = self.height()
         painter.translate(w / 2 + self._pan_x, h / 2 + self._pan_y)
 
-        scale = 15.0 * self._zoom
-        painter.scale(scale, -scale)
-
         sym = self.symbol
+
+        # Auto-fit: scale so the symbol fills the widget at zoom=1.0
+        extent_w = sym.body_width + 2 * (PIN_LENGTH + 8)  # pins + text labels
+        extent_h = sym.body_height + 2 * (PIN_LENGTH + 2)
+        margin = 20
+        avail_w = max(w - 2 * margin, 1)
+        avail_h = max(h - 2 * margin, 1)
+        fit_scale = min(avail_w / extent_w, avail_h / extent_h)
+        scale = fit_scale * self._zoom
+
+        painter.scale(scale, -scale)
         half_w = sym.body_width / 2.0
         half_h = sym.body_height / 2.0
 
@@ -170,6 +179,7 @@ class LayoutPreviewWidget(QWidget):
         self._dragging = False
         self._drag_start = None
         self.setMinimumSize(200, 150)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     def set_pads(self, pads: List[dict]):
         self.pads = pads
