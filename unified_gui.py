@@ -2,12 +2,11 @@
 """
 Unified GDS to KiCad Workflow GUI
 
-Single application with 5 tabs implementing the human-in-the-loop
-pin & footprint workflow:
-  1. Extract Pins - scan GDS and generate pin list JSON
+Single application with 5 tabs:
+  1. Extract Pins - load GDS/LYP, prepare stripped GDS, extract pin list
   2. Pin List Editor - review/edit pin names, types, sides
   3. Symbol Designer - generate .kicad_sym from pin list
-  4. Footprint Generator - pad review GDS editing + .kicad_mod generation
+  4. Footprint Generator - generate .kicad_mod from extraction data
   5. History - conversion registry
 """
 
@@ -111,7 +110,8 @@ class UnifiedMainWindow(QMainWindow):
         self.lyp_parser: Optional[LYPParser] = None
         self.current_pin_list: Optional[PinList] = None
         self.current_symbol: Optional[SymbolDefinition] = None
-        self.pad_review_pads: List[dict] = []
+        self.stripped_gds_path: Optional[str] = None
+        self.pad_dicts: List[dict] = []
 
         self._setup_ui()
         self.setStyleSheet(STYLESHEET)
@@ -228,17 +228,34 @@ class UnifiedMainWindow(QMainWindow):
 
         layout.addWidget(input_group)
 
+        # GDS Preparation
+        prep_group = QGroupBox("Prepare GDS for Extraction")
+        prep_layout = QVBoxLayout(prep_group)
+
+        prep_btn_row = QHBoxLayout()
+        gen_stripped_btn = QPushButton("Generate Stripped GDS")
+        gen_stripped_btn.clicked.connect(self._generate_stripped_gds)
+        open_stripped_btn = QPushButton("Open Stripped GDS in KLayout")
+        open_stripped_btn.clicked.connect(self._open_stripped_in_klayout)
+        open_full_btn = QPushButton("Open Full GDS in KLayout")
+        open_full_btn.clicked.connect(self._open_full_in_klayout)
+        prep_btn_row.addWidget(gen_stripped_btn)
+        prep_btn_row.addWidget(open_stripped_btn)
+        prep_btn_row.addWidget(open_full_btn)
+        prep_layout.addLayout(prep_btn_row)
+
+        self.stripped_gds_status = QLabel("No stripped GDS generated yet")
+        self.stripped_gds_status.setFont(QFont("Monospace", 9))
+        prep_layout.addWidget(self.stripped_gds_status)
+
+        layout.addWidget(prep_group)
+
         # Action
         action_row = QHBoxLayout()
         self.extract_btn = QPushButton("Extract Pin List")
         self.extract_btn.setMinimumHeight(40)
         self.extract_btn.clicked.connect(self._extract_pin_list)
         action_row.addWidget(self.extract_btn)
-
-        sync_extract_btn = QPushButton("Sync from Pad Review")
-        sync_extract_btn.setMinimumHeight(40)
-        sync_extract_btn.clicked.connect(lambda: self._sync_from_pad_review())
-        action_row.addWidget(sync_extract_btn)
 
         layout.addLayout(action_row)
 
@@ -262,12 +279,9 @@ class UnifiedMainWindow(QMainWindow):
         add_btn.clicked.connect(self._add_pin_row)
         del_btn = QPushButton("Delete Row")
         del_btn.clicked.connect(self._delete_pin_row)
-        sync_editor_btn = QPushButton("Sync from Pad Review")
-        sync_editor_btn.clicked.connect(lambda: self._sync_from_pad_review())
 
         toolbar.addWidget(load_btn)
         toolbar.addWidget(save_btn)
-        toolbar.addWidget(sync_editor_btn)
         toolbar.addWidget(add_btn)
         toolbar.addWidget(del_btn)
         toolbar.addStretch()
@@ -386,9 +400,6 @@ class UnifiedMainWindow(QMainWindow):
 
         # Bottom actions
         action_row = QHBoxLayout()
-        sync_regen_btn = QPushButton("Sync && Regenerate")
-        sync_regen_btn.setMinimumHeight(40)
-        sync_regen_btn.clicked.connect(self._sync_and_regenerate_symbol)
         gen_sym_btn = QPushButton("Generate from Pin List")
         gen_sym_btn.setMinimumHeight(40)
         gen_sym_btn.clicked.connect(self._generate_symbol_from_pin_list)
@@ -396,7 +407,6 @@ class UnifiedMainWindow(QMainWindow):
         self.export_sym_btn.setMinimumHeight(40)
         self.export_sym_btn.setEnabled(False)
         self.export_sym_btn.clicked.connect(self._export_symbol)
-        action_row.addWidget(sync_regen_btn)
         action_row.addWidget(gen_sym_btn)
         action_row.addWidget(self.export_sym_btn)
         layout.addLayout(action_row)
@@ -448,43 +458,6 @@ class UnifiedMainWindow(QMainWindow):
         ctrl_label = QLabel("Footprint Controls")
         ctrl_label.setFont(QFont("Monospace", 11, QFont.Weight.Bold))
         right_layout.addWidget(ctrl_label)
-
-        # Pad layer selector (independent combo, seeded from tab 1)
-        fp_pad_row = QHBoxLayout()
-        fp_pad_lbl = QLabel("Pad Layer:")
-        fp_pad_lbl.setFixedWidth(110)
-        self.fp_pad_layer_combo = FilterableComboBox()
-        self.fp_pad_layer_combo.setPlaceholderText("Load LYP in Extract tab first...")
-        self.fp_pad_layer_combo.setEnabled(False)
-        fp_pad_row.addWidget(fp_pad_lbl)
-        fp_pad_row.addWidget(self.fp_pad_layer_combo)
-        right_layout.addLayout(fp_pad_row)
-
-        # Pad review GDS path
-        inter_row = QHBoxLayout()
-        inter_lbl = QLabel("Pad Review:")
-        inter_lbl.setFixedWidth(110)
-        self.pad_review_path_edit = QLineEdit()
-        self.pad_review_path_edit.setPlaceholderText("Path for pad review GDS...")
-        inter_browse_btn = QPushButton("Browse...")
-        inter_browse_btn.clicked.connect(self._browse_pad_review_path)
-        inter_row.addWidget(inter_lbl)
-        inter_row.addWidget(self.pad_review_path_edit)
-        inter_row.addWidget(inter_browse_btn)
-        right_layout.addLayout(inter_row)
-
-        # Buttons
-        gen_inter_btn = QPushButton("Generate Pad Review GDS")
-        gen_inter_btn.clicked.connect(self._generate_pad_review_gds)
-        right_layout.addWidget(gen_inter_btn)
-
-        open_kl_btn = QPushButton("Open in KLayout")
-        open_kl_btn.clicked.connect(self._open_in_klayout)
-        right_layout.addWidget(open_kl_btn)
-
-        refresh_btn = QPushButton("Refresh from File")
-        refresh_btn.clicked.connect(self._refresh_pad_review)
-        right_layout.addWidget(refresh_btn)
 
         # Pad count
         self.fp_pad_count_label = QLabel("Pads: --")
@@ -591,17 +564,12 @@ class UnifiedMainWindow(QMainWindow):
 
             self._log(f"Loaded {len(display_names)} layers from {Path(lyp_path).name}")
 
-            # Also populate footprint tab's pad layer combo
-            self.fp_pad_layer_combo.setEnabled(True)
-            self.fp_pad_layer_combo.setItems(display_names)
-
             gds_path = self.gds_path_edit.text().strip()
             self.scan_btn.setEnabled(bool(gds_path and Path(gds_path).exists()))
 
             for i, name in enumerate(display_names):
                 if 'TopMetal2.drawing' in name:
                     self.pad_layer_combo.setCurrentIndex(i)
-                    self.fp_pad_layer_combo.setCurrentIndex(i)
                     break
 
         except Exception as e:
@@ -681,7 +649,16 @@ class UnifiedMainWindow(QMainWindow):
             text_name = text_display.split(' (')[0] if ' (' in text_display else text_display
             text_layer_names = [text_name]
 
-        self._log(f"Extracting pins from {Path(gds_path).name}...")
+        # Use stripped GDS if it exists and is newer than the original
+        source_gds = gds_path
+        if (self.stripped_gds_path
+                and Path(self.stripped_gds_path).exists()
+                and Path(self.stripped_gds_path).stat().st_mtime
+                    >= Path(gds_path).stat().st_mtime):
+            source_gds = self.stripped_gds_path
+            self._log(f"Using stripped GDS: {Path(source_gds).name}")
+        else:
+            self._log(f"Extracting pins from {Path(source_gds).name}...")
         QApplication.processEvents()
 
         try:
@@ -692,7 +669,7 @@ class UnifiedMainWindow(QMainWindow):
             f = io.StringIO()
             with contextlib.redirect_stdout(f):
                 pads, cell_name = extractor.extract_named_pads(
-                    gds_path, pad_layer_name,
+                    source_gds, pad_layer_name,
                     text_layer_names=text_layer_names,
                 )
 
@@ -703,7 +680,7 @@ class UnifiedMainWindow(QMainWindow):
             pin_list = PinList.from_extracted_pads(
                 pads,
                 chiplet_name=cell_name,
-                gds_source=Path(gds_path).name,
+                gds_source=Path(source_gds).name,
                 lyp_file=Path(lyp_path).name,
                 pad_layer=pad_layer_name,
                 text_layers=text_layer_names,
@@ -711,15 +688,8 @@ class UnifiedMainWindow(QMainWindow):
 
             self.current_pin_list = pin_list
             self._load_pin_list_into_editor()
+            self._build_pad_dicts_from_pin_list()
             self._log(f"Extracted {len(pin_list)} pins. Switch to Pin List Editor to review.")
-
-            # Auto-set pad review GDS path
-            stem = Path(gds_path).stem
-            self.pad_review_path_edit.setText(
-                str(self.DEFAULT_OUTPUT_DIR / f"{stem}_pad_review.gds")
-            )
-            # Sync footprint tab's pad layer combo
-            self.fp_pad_layer_combo.setCurrentText(pad_display)
 
             self.tabs.setCurrentIndex(1)
 
@@ -1074,11 +1044,11 @@ class UnifiedMainWindow(QMainWindow):
     def _update_cross_references(self):
         """Update cross-reference thumbnails and mismatch warnings."""
         pin_count = len(self.current_symbol.pins) if self.current_symbol else 0
-        pad_count = len(self.pad_review_pads)
+        pad_count = len(self.pad_dicts)
 
         # Symbol tab: show pad layout thumbnail
-        if self.pad_review_pads:
-            self.sym_xref_layout_preview.set_pads(self.pad_review_pads)
+        if self.pad_dicts:
+            self.sym_xref_layout_preview.set_pads(self.pad_dicts)
             self.sym_xref_pad_count.setText(f"Pads: {pad_count}")
         else:
             self.sym_xref_pad_count.setText("Pads: --")
@@ -1100,49 +1070,25 @@ class UnifiedMainWindow(QMainWindow):
             self.fp_xref_mismatch.setText("")
 
     # =========================================================================
-    # Browse for pad review GDS path
+    # GDS Preparation (Tab 1)
     # =========================================================================
-    def _browse_pad_review_path(self):
+    def _generate_stripped_gds(self):
+        """Generate a stripped GDS with only pad + text layers."""
         gds_path = self.gds_path_edit.text().strip()
-        if gds_path:
-            stem = Path(gds_path).stem
-            default_path = str(self.DEFAULT_OUTPUT_DIR / f"{stem}_pad_review.gds")
-        else:
-            default_path = str(self.DEFAULT_OUTPUT_DIR)
-
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Pad Review GDS Location",
-            default_path,
-            "GDSII Files (*.gds);;All Files (*)"
-        )
-        if path:
-            self.pad_review_path_edit.setText(path)
-
-    # =========================================================================
-    # Footprint Generator Operations (Tab 4)
-    # =========================================================================
-    def _generate_pad_review_gds(self):
-        gds_path = self.gds_path_edit.text().strip()
-        inter_path = self.pad_review_path_edit.text().strip()
-
         if not gds_path or not Path(gds_path).exists():
-            self._log("Set GDS path in Extract tab first", is_error=True)
-            return
-        if not inter_path:
-            self._log("Set pad review GDS output path", is_error=True)
+            self._log("Select a GDS file first", is_error=True)
             return
         if not self.lyp_parser:
-            self._log("Load LYP file first", is_error=True)
+            self._log("Load a LYP file first", is_error=True)
             return
 
-        pad_display = self.fp_pad_layer_combo.getSelectedItem()
+        pad_display = self.pad_layer_combo.getSelectedItem()
         pad_layer_name = pad_display.split(' (')[0] if ' (' in pad_display else pad_display
         pad_layer = self.lyp_parser.get_layer(pad_layer_name)
         if not pad_layer:
             self._log(f"Pad layer '{pad_layer_name}' not found", is_error=True)
             return
 
-        # Resolve text layer
         text_layer = None
         text_display = self.text_layer_combo.getSelectedItem()
         if text_display and text_display != "(Auto-detect)":
@@ -1151,161 +1097,100 @@ class UnifiedMainWindow(QMainWindow):
 
         self._sync_editor_to_pin_list()
 
+        stem = Path(gds_path).stem
+        output_path = str(self.DEFAULT_OUTPUT_DIR / f"{stem}_stripped.gds")
+
         try:
-            Path(inter_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
             count = PadReview.generate(
-                gds_path, inter_path,
+                gds_path, output_path,
                 pad_layer=pad_layer,
                 text_layer=text_layer,
                 pin_list=self.current_pin_list,
             )
-            self._log(f"Generated pad review GDS: {count} shapes -> {Path(inter_path).name}")
-            self._log("Edit in KLayout to remove non-pad structures, then Refresh.")
-
-            # Auto-refresh preview
-            self._refresh_pad_review()
+            self.stripped_gds_path = output_path
+            self.stripped_gds_status.setText(
+                f"Stripped GDS: {Path(output_path).name} ({count} pad shapes)"
+            )
+            self._log(f"Generated stripped GDS: {count} shapes -> {Path(output_path).name}")
+            self._log("Edit in KLayout to remove non-pad structures, then Extract.")
 
         except Exception as e:
-            self._log(f"Error generating pad review GDS: {e}", is_error=True)
+            self._log(f"Error generating stripped GDS: {e}", is_error=True)
 
-    def _open_in_klayout(self):
-        inter_path = self.pad_review_path_edit.text().strip()
-        if not inter_path or not Path(inter_path).exists():
-            self._log("Generate pad review GDS first", is_error=True)
+    def _open_stripped_in_klayout(self):
+        """Open the stripped GDS in KLayout for editing."""
+        if not self.stripped_gds_path or not Path(self.stripped_gds_path).exists():
+            self._log("Generate a stripped GDS first", is_error=True)
             return
 
         lyp_path = self.lyp_path_edit.text().strip()
         try:
             PadReview.open_in_klayout(
-                inter_path,
+                self.stripped_gds_path,
                 lyp_path=lyp_path if lyp_path else None,
             )
-            self._log(f"Opened KLayout with {Path(inter_path).name}")
+            self._log(f"Opened KLayout with {Path(self.stripped_gds_path).name}")
         except FileNotFoundError as e:
             self._log(str(e), is_error=True)
 
-    def _refresh_pad_review(self):
-        inter_path = self.pad_review_path_edit.text().strip()
-        if not inter_path or not Path(inter_path).exists():
-            self._log("Pad review GDS file not found", is_error=True)
-            return
-        if not self.lyp_parser:
-            self._log("Load LYP file first", is_error=True)
+    def _open_full_in_klayout(self):
+        """Open the original GDS in KLayout for reference."""
+        gds_path = self.gds_path_edit.text().strip()
+        if not gds_path or not Path(gds_path).exists():
+            self._log("Select a GDS file first", is_error=True)
             return
 
-        pad_display = self.fp_pad_layer_combo.getSelectedItem()
-        pad_layer_name = pad_display.split(' (')[0] if ' (' in pad_display else pad_display
-        pad_layer = self.lyp_parser.get_layer(pad_layer_name)
-        if not pad_layer:
-            self._log(f"Pad layer not resolved", is_error=True)
-            return
-
-        self._sync_editor_to_pin_list()
-
+        lyp_path = self.lyp_path_edit.text().strip()
         try:
-            pads = PadReview.read_edited_pads(
-                inter_path, pad_layer,
-                pin_list=self.current_pin_list,
+            PadReview.open_in_klayout(
+                gds_path,
+                lyp_path=lyp_path if lyp_path else None,
             )
-            self.pad_review_pads = pads
-            self.layout_preview.set_pads(pads)
-
-            named = sum(1 for p in pads if p["name"])
-            self.fp_pad_count_label.setText(f"Pads: {len(pads)} ({named} named)")
-            self._log(f"Refreshed: {len(pads)} pads from {Path(inter_path).name}")
-            self._update_cross_references()
-
-        except Exception as e:
-            self._log(f"Error reading pad review GDS: {e}", is_error=True)
+            self._log(f"Opened KLayout with {Path(gds_path).name}")
+        except FileNotFoundError as e:
+            self._log(str(e), is_error=True)
 
     # =========================================================================
-    # Bidirectional Sync: Pad Review GDS -> Pin List
+    # Build pad dicts from pin list (replaces pad review refresh)
     # =========================================================================
-    def _sync_from_pad_review(self, reload_table=True) -> bool:
-        """Sync pin list with current pad review GDS state.
-
-        Removes pin entries for pads deleted in pad review GDS.
-        Preserves user edits to names, types, sides.
-        Updates pad geometry from pad review.
-
-        Returns True if sync succeeded.
-        """
-        inter_path = self.pad_review_path_edit.text().strip()
-        if not inter_path or not Path(inter_path).exists():
-            self._log("Pad review GDS not found. Generate one first.", is_error=True)
-            return False
-        if not self.lyp_parser:
-            self._log("Load LYP file first", is_error=True)
-            return False
+    def _build_pad_dicts_from_pin_list(self):
+        """Convert pin list entries to pad dicts for layout preview and cross-refs."""
         if not self.current_pin_list or not self.current_pin_list.pins:
-            self._log("No pin list to sync against", is_error=True)
-            return False
-
-        # Sync editor table -> pin list before matching
-        self._sync_editor_to_pin_list()
-
-        # Resolve pad layer
-        pad_display = self.fp_pad_layer_combo.getSelectedItem()
-        pad_layer_name = pad_display.split(' (')[0] if ' (' in pad_display else pad_display
-        pad_layer = self.lyp_parser.get_layer(pad_layer_name)
-        if not pad_layer:
-            self._log(f"Pad layer '{pad_layer_name}' not resolved", is_error=True)
-            return False
-
-        try:
-            pads = PadReview.read_edited_pads(
-                inter_path, pad_layer,
-                pin_list=self.current_pin_list,
-            )
-        except Exception as e:
-            self._log(f"Error reading pad review GDS: {e}", is_error=True)
-            return False
-
-        # Build set of matched pin list indices and updated geometry
-        matched_indices = set()
-        pad_geometry = {}
-        for pad in pads:
-            pli = pad.get("pin_list_index")
-            if pli is not None:
-                matched_indices.add(pli)
-                pad_geometry[pli] = (
-                    pad["center_x"], pad["center_y"],
-                    pad["width"], pad["height"],
-                )
-
-        original_count = len(self.current_pin_list.pins)
-
-        # Filter: keep matched entries, update geometry, preserve user edits
-        surviving = []
-        for i, pin in enumerate(self.current_pin_list.pins):
-            if i in matched_indices:
-                if i in pad_geometry:
-                    cx, cy, w, h = pad_geometry[i]
-                    pin.center_x_dbu = cx
-                    pin.center_y_dbu = cy
-                    pin.width_dbu = w
-                    pin.height_dbu = h
-                surviving.append(pin)
-
-        removed = original_count - len(surviving)
-        self.current_pin_list.pins = surviving
-
-        if reload_table:
-            self._load_pin_list_into_editor()
-
-        self._log(f"Sync: {removed} pins removed, {len(surviving)} surviving")
-        return True
-
-    def _sync_and_regenerate_symbol(self):
-        """Sync from pad review GDS then regenerate the symbol."""
-        if self._sync_from_pad_review(reload_table=True):
-            self._generate_symbol_from_pin_list()
-
-    def _generate_footprint(self):
-        inter_path = self.pad_review_path_edit.text().strip()
-        if not inter_path or not Path(inter_path).exists():
-            self._log("Generate and edit pad review GDS first", is_error=True)
+            self.pad_dicts = []
+            self.fp_pad_count_label.setText("Pads: --")
             return
+
+        self.pad_dicts = []
+        for i, pin in enumerate(self.current_pin_list.pins):
+            cx = pin.center_x_dbu
+            cy = pin.center_y_dbu
+            w = pin.width_dbu
+            h = pin.height_dbu
+            half_w = w / 2.0
+            half_h = h / 2.0
+
+            self.pad_dicts.append({
+                "index": i,
+                "name": pin.name,
+                "center_x": cx,
+                "center_y": cy,
+                "width": w,
+                "height": h,
+                "bbox": (cx - half_w, cy - half_h, cx + half_w, cy + half_h),
+                "is_polygon": False,
+                "polygon_points": None,
+            })
+
+        self.layout_preview.set_pads(self.pad_dicts)
+        named = sum(1 for p in self.pad_dicts if p["name"])
+        self.fp_pad_count_label.setText(f"Pads: {len(self.pad_dicts)} ({named} named)")
+        self._update_cross_references()
+
+    # =========================================================================
+    # Footprint Generator (Tab 4)
+    # =========================================================================
+    def _generate_footprint(self):
         if not self.lyp_parser:
             self._log("Load LYP file first", is_error=True)
             return
@@ -1315,7 +1200,20 @@ class UnifiedMainWindow(QMainWindow):
             self._log("No pin list available", is_error=True)
             return
 
-        pad_display = self.fp_pad_layer_combo.getSelectedItem()
+        # Determine source GDS for footprint generation
+        gds_path = self.gds_path_edit.text().strip()
+        source_gds = None
+        if (self.stripped_gds_path
+                and Path(self.stripped_gds_path).exists()):
+            source_gds = self.stripped_gds_path
+        elif gds_path and Path(gds_path).exists():
+            source_gds = gds_path
+
+        if not source_gds:
+            self._log("No GDS file available for footprint generation", is_error=True)
+            return
+
+        pad_display = self.pad_layer_combo.getSelectedItem()
         pad_layer_name = pad_display.split(' (')[0] if ' (' in pad_display else pad_display
 
         chiplet = self.current_pin_list.metadata.get("chiplet_name", "footprint")
@@ -1333,16 +1231,16 @@ class UnifiedMainWindow(QMainWindow):
             from gds_to_kicad import GDSToKiCad
             converter = GDSToKiCad(self.lyp_parser, pad_layer_name)
             success = converter.convert_from_pad_review(
-                inter_path, self.current_pin_list, path
+                source_gds, self.current_pin_list, path
             )
 
             if success:
                 self._log(f"Generated footprint: {path}")
                 self.registry.add_entry(
                     "footprint",
-                    source=Path(inter_path).name,
+                    source=Path(source_gds).name,
                     output=Path(path).name,
-                    pin_count=len(self.pad_review_pads),
+                    pin_count=len(self.current_pin_list),
                 )
                 self._refresh_history()
 
