@@ -28,20 +28,22 @@ class PadReview:
     def generate(source_gds: str, output_gds: str,
                  pad_layer: Tuple[int, int],
                  text_layer: Optional[Tuple[int, int]] = None,
+                 text_layers: Optional[List[Tuple[int, int]]] = None,
                  pin_list: Optional[PinList] = None,
                  flatten: bool = True):
         """Create a pad review GDS with only pad layer shapes and text labels.
 
         Copies all shapes from the pad layer in the source GDS into a new GDS.
         Text labels are either:
-        - Copied from text_layer (if provided and no pin_list)
+        - Copied from text_layer/text_layers (if provided and no pin_list)
         - Generated from pin_list at pad centers (if pin_list provided)
 
         Args:
             source_gds: Path to original GDS file
             output_gds: Path for the pad review GDS output
             pad_layer: (layer_num, datatype) for pad shapes
-            text_layer: (layer_num, datatype) for text labels (optional)
+            text_layer: (layer_num, datatype) for a single text layer (optional)
+            text_layers: list of (layer_num, datatype) for multiple text layers
             pin_list: PinList to use for text labels at pad centers
             flatten: Whether to flatten cell hierarchy before extraction
         """
@@ -72,10 +74,15 @@ class PadReview:
                 out_cell.shapes(out_pad_layer).insert(shape.polygon)
                 pad_count += 1
 
+        # Merge text_layer into text_layers list
+        all_text_layers = list(text_layers or [])
+        if text_layer is not None and text_layer not in all_text_layers:
+            all_text_layers.append(text_layer)
+
         # Text labels
         if pin_list is not None:
             # Generate text from pin list at pad centers
-            text_target = text_layer if text_layer else pad_layer
+            text_target = all_text_layers[0] if all_text_layers else pad_layer
             out_text_layer = out_layout.layer(*text_target)
 
             for pin in pin_list.pins:
@@ -85,15 +92,14 @@ class PadReview:
                     out_cell.shapes(out_text_layer).insert(
                         db.Text(pin.name, db.Trans(db.Point(cx, cy)))
                     )
-        elif text_layer is not None:
-            # Copy existing text shapes from source
-            out_text_layer = out_layout.layer(*text_layer)
-            src_text_idx = src_layout.layer(*text_layer)
-            src_text_shapes = src_top.shapes(src_text_idx)
-
-            for shape in src_text_shapes.each():
-                if shape.is_text():
-                    out_cell.shapes(out_text_layer).insert(shape.text)
+        elif all_text_layers:
+            # Copy existing text shapes from all text layers
+            for tl in all_text_layers:
+                out_tl = out_layout.layer(*tl)
+                src_tl_idx = src_layout.layer(*tl)
+                for shape in src_top.shapes(src_tl_idx).each():
+                    if shape.is_text():
+                        out_cell.shapes(out_tl).insert(shape.text)
 
         out_layout.write(output_gds)
         return pad_count

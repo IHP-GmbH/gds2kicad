@@ -1089,11 +1089,24 @@ class UnifiedMainWindow(QMainWindow):
             self._log(f"Pad layer '{pad_layer_name}' not found", is_error=True)
             return
 
+        # Resolve text layers
         text_layer = None
+        text_layers = None
         text_display = self.text_layer_combo.getSelectedItem()
         if text_display and text_display != "(Auto-detect)":
             text_name = text_display.split(' (')[0] if ' (' in text_display else text_display
             text_layer = self.lyp_parser.get_layer(text_name)
+        else:
+            # Auto-detect: find all candidate text layers for this pad layer
+            candidates = self.lyp_parser.find_text_layers_for(pad_layer_name)
+            resolved = []
+            for name in candidates:
+                info = self.lyp_parser.get_layer(name)
+                if info:
+                    resolved.append(info)
+                    self._log(f"  Auto-detected text layer: {name} ({info[0]}/{info[1]})")
+            if resolved:
+                text_layers = resolved
 
         self._sync_editor_to_pin_list()
 
@@ -1106,6 +1119,7 @@ class UnifiedMainWindow(QMainWindow):
                 gds_path, output_path,
                 pad_layer=pad_layer,
                 text_layer=text_layer,
+                text_layers=text_layers,
                 pin_list=self.current_pin_list,
             )
             self.stripped_gds_path = output_path
