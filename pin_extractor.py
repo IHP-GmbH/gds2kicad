@@ -30,6 +30,8 @@ class PadInfo:
     width: float     # in DBU
     height: float    # in DBU
     name: Optional[str] = None
+    is_polygon: bool = False
+    polygon_points: Optional[List[Tuple[int, int]]] = None
 
     @classmethod
     def from_box(cls, index: int, box) -> 'PadInfo':
@@ -41,6 +43,22 @@ class PadInfo:
             center_y=(box.bottom + box.top) / 2.0,
             width=box.right - box.left,
             height=box.top - box.bottom,
+        )
+
+    @classmethod
+    def from_polygon(cls, index: int, polygon) -> 'PadInfo':
+        """Create PadInfo from a klayout Polygon object, preserving vertices."""
+        bbox = polygon.bbox()
+        points = [(int(p.x), int(p.y)) for p in polygon.each_point_hull()]
+        return cls(
+            index=index,
+            bbox=(bbox.left, bbox.bottom, bbox.right, bbox.top),
+            center_x=(bbox.left + bbox.right) / 2.0,
+            center_y=(bbox.bottom + bbox.top) / 2.0,
+            width=bbox.right - bbox.left,
+            height=bbox.top - bbox.bottom,
+            is_polygon=True,
+            polygon_points=points,
         )
 
 
@@ -82,7 +100,7 @@ class PinExtractor:
                 pads.append(PadInfo.from_box(idx, shape.box))
                 idx += 1
             elif shape.is_polygon():
-                pads.append(PadInfo.from_box(idx, shape.polygon.bbox()))
+                pads.append(PadInfo.from_polygon(idx, shape.polygon))
                 idx += 1
 
         return pads

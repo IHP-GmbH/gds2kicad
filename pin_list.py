@@ -37,9 +37,13 @@ class PinEntry:
     center_y_dbu: float = 0.0
     width_dbu: float = 0.0
     height_dbu: float = 0.0
+    polygon_points_dbu: Optional[List[List[float]]] = None
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        if d.get("polygon_points_dbu") is None:
+            del d["polygon_points_dbu"]
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> 'PinEntry':
@@ -52,6 +56,7 @@ class PinEntry:
             center_y_dbu=d.get("center_y_dbu", 0.0),
             width_dbu=d.get("width_dbu", 0.0),
             height_dbu=d.get("height_dbu", 0.0),
+            polygon_points_dbu=d.get("polygon_points_dbu"),
         )
 
 
@@ -106,6 +111,10 @@ class PinList:
             side = classify_pin(pin_name)
             pin_type = get_pin_type(pin_name, side)
 
+            poly_pts = None
+            if getattr(pad, 'polygon_points', None):
+                poly_pts = [[float(x), float(y)] for x, y in pad.polygon_points]
+
             entries.append(PinEntry(
                 name=pin_name,
                 type=pin_type.value,
@@ -115,6 +124,7 @@ class PinList:
                 center_y_dbu=pad.center_y,
                 width_dbu=pad.width,
                 height_dbu=pad.height,
+                polygon_points_dbu=poly_pts,
             ))
 
         # Distribute signal pins equitably across all 4 sides.

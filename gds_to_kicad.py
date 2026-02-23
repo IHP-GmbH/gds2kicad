@@ -136,20 +136,25 @@ class GDSToKiCad:
             except ImportError:
                 print("Warning: pin_extractor module not available, using sequential numbering")
 
-        pads = self._extract_pads(layout, top_cell)
-        print(f"Found {len(pads)} pads")
+        pad_dicts = self._extract_pads(layout, top_cell)
+        print(f"Found {len(pad_dicts)} pads")
 
         # Calculate and display bounding box info for coordinate alignment verification
-        self._print_bounding_box_info(pads, dbu_to_mm=dbu_to_mm)
+        boxes = [pd["bbox"] for pd in pad_dicts]
+        self._print_bounding_box_info(boxes, dbu_to_mm=dbu_to_mm)
 
         # Generate footprint
-        self._generate_kicad_footprint(top_cell.name, pads, output_path, gds_path,
+        self._generate_kicad_footprint(top_cell.name, pad_dicts, output_path, gds_path,
                                         pad_names=pad_names, dbu_to_mm=dbu_to_mm)
 
         return True
 
-    def _extract_pads(self, layout: db.Layout, cell: db.Cell) -> List[db.Box]:
-        """Extract pad geometries from specified metal layer"""
+    def _extract_pads(self, layout: db.Layout, cell: db.Cell) -> List[dict]:
+        """Extract pad geometries from specified metal layer.
+
+        Returns list of dicts with keys: bbox (db.Box), is_polygon (bool),
+        polygon_points (list of (x,y) tuples or None).
+        """
         pads = []
 
         layer_index = layout.layer(*self.pad_layer)
@@ -157,10 +162,19 @@ class GDSToKiCad:
 
         for shape in shapes.each():
             if shape.is_box():
-                pads.append(shape.box)
+                pads.append({
+                    "bbox": shape.box,
+                    "is_polygon": False,
+                    "polygon_points": None,
+                })
             elif shape.is_polygon():
-                # For polygons, use bounding box
-                pads.append(shape.polygon.bbox())
+                poly = shape.polygon
+                points = [(int(p.x), int(p.y)) for p in poly.each_point_hull()]
+                pads.append({
+                    "bbox": poly.bbox(),
+                    "is_polygon": True,
+                    "polygon_points": points,
+                })
 
         return pads
 
@@ -204,10 +218,14 @@ class GDSToKiCad:
         print(f"\nCoordinate transformation: GDS (Y-up) -> KiCad (Y-down)")
         print(f"KiCad anchor at (0,0) = GDS origin (0,0)")
 
-    def _generate_kicad_footprint(self, name: str, pads: List[db.Box], output_path: str,
+    def _generate_kicad_footprint(self, name: str, pad_dicts: List[dict], output_path: str,
                                     gds_path: str, pad_names: Optional[Dict] = None,
                                     dbu_to_mm: Optional[float] = None):
-        """Generate KiCad footprint file with named or numbered pads"""
+        """Generate KiCad footprint file with named or numbered pads.
+
+        pad_dicts: list of dicts with keys:
+            bbox (db.Box), is_polygon (bool), polygon_points (list or None)
+        """
         print(f"Generating KiCad footprint: {output_path}")
 
         if pad_names is None:
@@ -243,9 +261,12 @@ class GDSToKiCad:
             f.write('  )\n\n')
 
             # Generate pads (named if text layer provided, otherwise sequential)
-            for idx, pad in enumerate(pads):
+            for idx, pd in enumerate(pad_dicts):
                 # Use text label name if available, otherwise sequential number
                 pad_name = pad_names.get(idx, str(idx + 1))
+                pad = pd["bbox"]
+                is_polygon = pd.get("is_polygon", False)
+                polygon_points = pd.get("polygon_points")
 
                 # Calculate pad center and size in mm
                 # Note: Y is negated to convert from GDS (Y-up) to KiCad (Y-down) convention
@@ -254,18 +275,39 @@ class GDSToKiCad:
                 width = (pad.right - pad.left) * DBU_TO_MM
                 height = (pad.top - pad.bottom) * DBU_TO_MM
 
-                # Write pad definition
-                f.write(f'  (pad "{pad_name}" smd rect (at {center_x:.6f} {center_y:.6f})\n')
-                f.write(f'    (size {width:.6f} {height:.6f})\n')
-                f.write('    (layers "F.Cu" "F.Paste" "F.Mask")\n')
-                f.write('  )\n')
+                if is_polygon and polygon_points:
+                    # Custom polygon pad
+                    f.write(f'  (pad "{pad_name}" smd custom (at {center_x:.6f} {center_y:.6f})\n')
+                    f.write(f'    (size {width:.6f} {height:.6f})\n')
+                    f.write('    (layers "F.Cu" "F.Paste" "F.Mask")\n')
+                    # Polygon vertices relative to pad center, Y negated
+                    cx_dbu = (pad.left + pad.right) / 2.0
+                    cy_dbu = (pad.bottom + pad.top) / 2.0
+                    f.write('    (primitives\n')
+                    f.write('      (gr_poly\n')
+                    f.write('        (pts\n')
+                    for px, py in polygon_points:
+                        rx = (px - cx_dbu) * DBU_TO_MM
+                        ry = -((py - cy_dbu) * DBU_TO_MM)
+                        f.write(f'          (xy {rx:.6f} {ry:.6f})\n')
+                    f.write('        )\n')
+                    f.write('        (width 0) (fill yes)\n')
+                    f.write('      )\n')
+                    f.write('    )\n')
+                    f.write('  )\n')
+                else:
+                    # Rectangular pad
+                    f.write(f'  (pad "{pad_name}" smd rect (at {center_x:.6f} {center_y:.6f})\n')
+                    f.write(f'    (size {width:.6f} {height:.6f})\n')
+                    f.write('    (layers "F.Cu" "F.Paste" "F.Mask")\n')
+                    f.write('  )\n')
 
             # Courtyard from pad bounding box (no margin -- exact chiplet boundary)
-            if pads:
-                min_x = min(pad.left for pad in pads) * DBU_TO_MM
-                max_x = max(pad.right for pad in pads) * DBU_TO_MM
-                min_y = -max(pad.top for pad in pads) * DBU_TO_MM    # Y negated
-                max_y = -min(pad.bottom for pad in pads) * DBU_TO_MM
+            if pad_dicts:
+                min_x = min(pd["bbox"].left for pd in pad_dicts) * DBU_TO_MM
+                max_x = max(pd["bbox"].right for pd in pad_dicts) * DBU_TO_MM
+                min_y = -max(pd["bbox"].top for pd in pad_dicts) * DBU_TO_MM    # Y negated
+                max_y = -min(pd["bbox"].bottom for pd in pad_dicts) * DBU_TO_MM
                 f.write(f'\n  (fp_rect (start {min_x:.6f} {min_y:.6f}) (end {max_x:.6f} {max_y:.6f})\n')
                 f.write('    (stroke (width 0.05) (type solid)) (fill none) (layer "F.CrtYd")\n')
                 f.write('  )\n')
@@ -273,7 +315,7 @@ class GDSToKiCad:
             # Footer
             f.write(')\n')
 
-        print(f"Generated {len(pads)} pads")
+        print(f"Generated {len(pad_dicts)} pads")
 
     def convert_from_pad_review(self, edited_gds: str, pin_list: PinList,
                                 output_path: str):
@@ -309,20 +351,26 @@ class GDSToKiCad:
         named = sum(1 for p in pad_dicts if p["name"])
         print(f"Found {len(pad_dicts)} pads ({named} named from pin list)")
 
-        # Build pad_names dict and create Box-like objects for footprint gen
+        # Build pad_names dict and pad dicts for footprint gen
         pad_names = {}
-        boxes = []
+        fp_pads = []
         for i, pd in enumerate(pad_dicts):
             if pd["name"]:
                 pad_names[i] = pd["name"]
             left, bottom, right, top = pd["bbox"]
-            boxes.append(db.Box(int(left), int(bottom), int(right), int(top)))
+            box = db.Box(int(left), int(bottom), int(right), int(top))
+            fp_pads.append({
+                "bbox": box,
+                "is_polygon": pd.get("is_polygon", False),
+                "polygon_points": pd.get("polygon_points"),
+            })
 
+        boxes = [pd["bbox"] for pd in fp_pads]
         self._print_bounding_box_info(boxes, dbu_to_mm=dbu_to_mm)
 
         self._generate_kicad_footprint(
             pin_list.metadata.get("chiplet_name", Path(edited_gds).stem),
-            boxes, output_path, edited_gds,
+            fp_pads, output_path, edited_gds,
             pad_names=pad_names,
             dbu_to_mm=dbu_to_mm,
         )

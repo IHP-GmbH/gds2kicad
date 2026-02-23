@@ -133,10 +133,16 @@ class PadReview:
         idx = 0
         for shape in shapes.each():
             box = None
+            is_polygon = False
+            polygon_points = None
             if shape.is_box():
                 box = shape.box
             elif shape.is_polygon():
-                box = shape.polygon.bbox()
+                poly = shape.polygon
+                box = poly.bbox()
+                is_polygon = True
+                polygon_points = [(int(p.x), int(p.y))
+                                  for p in poly.each_point_hull()]
 
             if box is not None:
                 pads.append({
@@ -147,6 +153,8 @@ class PadReview:
                     "width": box.right - box.left,
                     "height": box.top - box.bottom,
                     "bbox": (box.left, box.bottom, box.right, box.top),
+                    "is_polygon": is_polygon,
+                    "polygon_points": polygon_points,
                 })
                 idx += 1
 

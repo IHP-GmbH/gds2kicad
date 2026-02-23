@@ -9,8 +9,8 @@ via the zoomChanged signal.
 from typing import Optional, List
 
 from PyQt6.QtWidgets import QWidget
-from PyQt6.QtCore import Qt, QRectF, pyqtSignal
-from PyQt6.QtGui import QColor, QPainter, QPen, QBrush
+from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
+from PyQt6.QtGui import QColor, QPainter, QPen, QBrush, QPolygonF
 
 from theme import COLORS
 from kicad_sym_writer import SymbolDefinition, SymbolPin, PinSide, PinType, PIN_SPACING, PIN_LENGTH
@@ -247,7 +247,15 @@ class LayoutPreviewWidget(QWidget):
             painter.setPen(pad_pen)
             painter.setBrush(pad_brush)
             painter.setOpacity(0.5)
-            painter.drawRect(QRectF(left, bottom, w, h))
+
+            poly_pts = pad.get("polygon_points")
+            if poly_pts and pad.get("is_polygon", False):
+                qpoly = QPolygonF([QPointF(float(px), float(py))
+                                   for px, py in poly_pts])
+                painter.drawPolygon(qpoly)
+            else:
+                painter.drawRect(QRectF(left, bottom, w, h))
+
             painter.setOpacity(1.0)
 
             # Draw name -- scale font by name length so long names fit
