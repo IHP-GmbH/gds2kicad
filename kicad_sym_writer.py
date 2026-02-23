@@ -138,6 +138,7 @@ class KiCadSymWriter:
         safe_name = self._sanitize_name(sym.name)
 
         f.write(f'\n  (symbol "{safe_name}"\n')
+        f.write(f'    (pin_numbers hide)\n')
 
         # Properties
         self._write_property(f, "Reference", "U", 0, 0,
@@ -203,7 +204,7 @@ class KiCadSymWriter:
         f.write(f'          (effects (font (size 1.27 1.27)))\n')
         f.write(f'        )\n')
         f.write(f'        (number "{safe_number}"\n')
-        f.write(f'          (effects (font (size 1.27 1.27)) hide)\n')
+        f.write(f'          (effects (font (size 1.27 1.27)))\n')
         f.write(f'        )\n')
         f.write(f'      )\n')
 

@@ -100,6 +100,24 @@ def calculate_body_size(side_groups: Dict[PinSide, List[SymbolPin]]):
     height_for_text = (max_top_len + max_bottom_len) * _CHAR_WIDTH + _TEXT_GAP
     body_height = max(height_for_pins, height_for_text)
 
+    # Corner margins: perpendicular text from adjacent sides must not collide.
+    # The topmost left/right pin must sit below the longest top pin text,
+    # and the leftmost top/bottom pin must sit right of the longest left text.
+    max_tb_text = max(max_top_len, max_bottom_len)
+    max_lr_text = max(max_left_len, max_right_len)
+
+    if max_tb_text > 0 and max_vertical > 0:
+        height_for_corners = ((max_vertical - 1) * PIN_SPACING
+                              + 2 * max_tb_text * _CHAR_WIDTH
+                              + 2 * _TEXT_GAP)
+        body_height = max(body_height, height_for_corners)
+
+    if max_lr_text > 0 and max_horizontal > 0:
+        width_for_corners = ((max_horizontal - 1) * TB_PIN_SPACING
+                             + 2 * max_lr_text * _CHAR_WIDTH
+                             + 2 * _TEXT_GAP)
+        body_width = max(body_width, width_for_corners)
+
     # Snap to grid and enforce minimum
     body_width = _snap_to_grid(body_width)
     body_height = _snap_to_grid(body_height)
