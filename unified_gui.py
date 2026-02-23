@@ -364,6 +364,22 @@ class UnifiedMainWindow(QMainWindow):
         # Sync wheel zoom back to slider
         self.preview_widget.zoomChanged.connect(self._on_symbol_zoom_changed)
 
+        # Cross-reference: pad layout thumbnail
+        xref_group = QGroupBox("Pad Layout (ref.)")
+        xref_layout = QVBoxLayout(xref_group)
+        self.sym_xref_layout_preview = LayoutPreviewWidget()
+        self.sym_xref_layout_preview.setMinimumSize(150, 100)
+        self.sym_xref_layout_preview.setMaximumHeight(150)
+        xref_layout.addWidget(self.sym_xref_layout_preview)
+        self.sym_xref_pad_count = QLabel("Pads: --")
+        self.sym_xref_pad_count.setFont(QFont("Monospace", 9))
+        xref_layout.addWidget(self.sym_xref_pad_count)
+        self.sym_xref_mismatch = QLabel("")
+        self.sym_xref_mismatch.setFont(QFont("Monospace", 9))
+        self.sym_xref_mismatch.setStyleSheet(f"color: {COLORS['warning']};")
+        xref_layout.addWidget(self.sym_xref_mismatch)
+        right_layout.addWidget(xref_group)
+
         splitter.addWidget(right)
         splitter.setSizes([500, 500])
         layout.addWidget(splitter)
@@ -474,6 +490,22 @@ class UnifiedMainWindow(QMainWindow):
         self.fp_pad_count_label = QLabel("Pads: --")
         self.fp_pad_count_label.setFont(QFont("Monospace", 10))
         right_layout.addWidget(self.fp_pad_count_label)
+
+        # Cross-reference: symbol thumbnail
+        fp_xref_group = QGroupBox("Symbol (ref.)")
+        fp_xref_layout = QVBoxLayout(fp_xref_group)
+        self.fp_xref_symbol_preview = SymbolPreviewWidget()
+        self.fp_xref_symbol_preview.setMinimumSize(150, 100)
+        self.fp_xref_symbol_preview.setMaximumHeight(150)
+        fp_xref_layout.addWidget(self.fp_xref_symbol_preview)
+        self.fp_xref_pin_count = QLabel("Pins: --")
+        self.fp_xref_pin_count.setFont(QFont("Monospace", 9))
+        fp_xref_layout.addWidget(self.fp_xref_pin_count)
+        self.fp_xref_mismatch = QLabel("")
+        self.fp_xref_mismatch.setFont(QFont("Monospace", 9))
+        self.fp_xref_mismatch.setStyleSheet(f"color: {COLORS['warning']};")
+        fp_xref_layout.addWidget(self.fp_xref_mismatch)
+        right_layout.addWidget(fp_xref_group)
 
         right_layout.addStretch()
 
@@ -918,6 +950,7 @@ class UnifiedMainWindow(QMainWindow):
         self.current_symbol = symbol
         self.preview_widget.set_symbol(symbol)
         self.export_sym_btn.setEnabled(True)
+        self._update_cross_references()
 
         self.sym_pin_table.blockSignals(True)
         self.sym_pin_table.setRowCount(len(symbol.pins))
@@ -988,6 +1021,7 @@ class UnifiedMainWindow(QMainWindow):
         self.current_symbol.body_width = body_w
         self.current_symbol.body_height = body_h
         self.preview_widget.set_symbol(self.current_symbol)
+        self._update_cross_references()
 
     def _move_sym_pin_side(self, target_side: PinSide):
         selected = self.sym_pin_table.selectedItems()
@@ -1033,6 +1067,37 @@ class UnifiedMainWindow(QMainWindow):
         self.fp_zoom_slider.blockSignals(True)
         self.fp_zoom_slider.setValue(int(zoom * 100))
         self.fp_zoom_slider.blockSignals(False)
+
+    # =========================================================================
+    # Cross-reference Thumbnails
+    # =========================================================================
+    def _update_cross_references(self):
+        """Update cross-reference thumbnails and mismatch warnings."""
+        pin_count = len(self.current_symbol.pins) if self.current_symbol else 0
+        pad_count = len(self.pad_review_pads)
+
+        # Symbol tab: show pad layout thumbnail
+        if self.pad_review_pads:
+            self.sym_xref_layout_preview.set_pads(self.pad_review_pads)
+            self.sym_xref_pad_count.setText(f"Pads: {pad_count}")
+        else:
+            self.sym_xref_pad_count.setText("Pads: --")
+
+        # Footprint tab: show symbol thumbnail
+        if self.current_symbol:
+            self.fp_xref_symbol_preview.set_symbol(self.current_symbol)
+            self.fp_xref_pin_count.setText(f"Pins: {pin_count}")
+        else:
+            self.fp_xref_pin_count.setText("Pins: --")
+
+        # Mismatch warnings
+        if pin_count > 0 and pad_count > 0 and pin_count != pad_count:
+            msg = f"Mismatch: {pin_count} pins vs {pad_count} pads"
+            self.sym_xref_mismatch.setText(msg)
+            self.fp_xref_mismatch.setText(msg)
+        else:
+            self.sym_xref_mismatch.setText("")
+            self.fp_xref_mismatch.setText("")
 
     # =========================================================================
     # Browse for pad review GDS path
@@ -1148,6 +1213,7 @@ class UnifiedMainWindow(QMainWindow):
             named = sum(1 for p in pads if p["name"])
             self.fp_pad_count_label.setText(f"Pads: {len(pads)} ({named} named)")
             self._log(f"Refreshed: {len(pads)} pads from {Path(inter_path).name}")
+            self._update_cross_references()
 
         except Exception as e:
             self._log(f"Error reading pad review GDS: {e}", is_error=True)
