@@ -39,8 +39,9 @@ PIN_ANGLES = {
 }
 
 # Standard KiCad grid spacing for pins
-PIN_SPACING = 2.54  # mm
-PIN_LENGTH = 2.54   # mm
+PIN_SPACING = 2.54      # mm -- left/right pin vertical spacing
+TB_PIN_SPACING = 5.08   # mm -- top/bottom pin horizontal spacing (wider for vertical text)
+PIN_LENGTH = 2.54       # mm
 
 
 @dataclass
@@ -72,12 +73,12 @@ class SymbolPin:
             span = (n - 1) * PIN_SPACING
             y = span / 2.0 - self.position_index * PIN_SPACING
         elif self.side == PinSide.TOP:
-            span = (n - 1) * PIN_SPACING
-            x = -span / 2.0 + self.position_index * PIN_SPACING
+            span = (n - 1) * TB_PIN_SPACING
+            x = -span / 2.0 + self.position_index * TB_PIN_SPACING
             y = half_h + PIN_LENGTH
         elif self.side == PinSide.BOTTOM:
-            span = (n - 1) * PIN_SPACING
-            x = -span / 2.0 + self.position_index * PIN_SPACING
+            span = (n - 1) * TB_PIN_SPACING
+            x = -span / 2.0 + self.position_index * TB_PIN_SPACING
             y = -(half_h + PIN_LENGTH)
 
         return (x, y)
@@ -202,7 +203,7 @@ class KiCadSymWriter:
         f.write(f'          (effects (font (size 1.27 1.27)))\n')
         f.write(f'        )\n')
         f.write(f'        (number "{safe_number}"\n')
-        f.write(f'          (effects (font (size 1.27 1.27)))\n')
+        f.write(f'          (effects (font (size 1.27 1.27)) hide)\n')
         f.write(f'        )\n')
         f.write(f'      )\n')
 

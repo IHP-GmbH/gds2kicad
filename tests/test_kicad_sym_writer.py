@@ -9,7 +9,7 @@ import pytest
 
 from kicad_sym_writer import (
     PinSide, PinType, SymbolPin, SymbolDefinition, KiCadSymWriter,
-    PIN_SPACING, PIN_LENGTH,
+    PIN_SPACING, TB_PIN_SPACING, PIN_LENGTH,
 )
 
 
@@ -70,6 +70,14 @@ class TestSymbolPin:
         assert abs(ys[0] - PIN_SPACING) < 0.001
         assert abs(ys[1]) < 0.001
         assert abs(ys[2] + PIN_SPACING) < 0.001
+
+    def test_top_bottom_uses_wider_spacing(self):
+        """Top/bottom pins use TB_PIN_SPACING (5.08mm) between pins"""
+        pin0 = SymbolPin("V1", "V1", PinSide.TOP, position_index=0, side_pin_count=2)
+        pin1 = SymbolPin("V2", "V2", PinSide.TOP, position_index=1, side_pin_count=2)
+        x0, _ = pin0.get_coordinates(20.0, 10.0)
+        x1, _ = pin1.get_coordinates(20.0, 10.0)
+        assert abs(x1 - x0 - TB_PIN_SPACING) < 0.001
 
 
 class TestSymbolDefinition:

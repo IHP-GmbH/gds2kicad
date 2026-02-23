@@ -16,7 +16,7 @@ from typing import Dict, List
 
 from pin_extractor import PadInfo
 from kicad_sym_writer import (
-    PinSide, PinType, SymbolPin, SymbolDefinition, PIN_SPACING,
+    PinSide, PinType, SymbolPin, SymbolDefinition, PIN_SPACING, TB_PIN_SPACING,
 )
 
 # Regex patterns for power pin detection
@@ -32,7 +32,7 @@ POWER_LOW_PATTERNS = [
 ]
 
 # Approximate width of one character at KiCad font size 1.27mm
-_CHAR_WIDTH = 0.80  # mm
+_CHAR_WIDTH = 1.0  # mm (conservative to avoid overlap)
 # Minimum gap between opposing pin name labels inside the body
 _TEXT_GAP = 2.54  # mm
 
@@ -90,8 +90,8 @@ def calculate_body_size(side_groups: Dict[PinSide, List[SymbolPin]]):
     max_top_len = max((len(p.name) for p in top_pins), default=0)
     max_bottom_len = max((len(p.name) for p in bottom_pins), default=0)
 
-    # Width: enough for horizontal pin slots AND left+right text
-    width_for_pins = (max_horizontal + 1) * PIN_SPACING
+    # Width: enough for horizontal pin slots (wider spacing) AND left+right text
+    width_for_pins = (max_horizontal + 1) * TB_PIN_SPACING
     width_for_text = (max_left_len + max_right_len) * _CHAR_WIDTH + _TEXT_GAP
     body_width = max(width_for_pins, width_for_text)
 
