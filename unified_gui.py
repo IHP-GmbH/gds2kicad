@@ -560,6 +560,11 @@ class UnifiedMainWindow(QMainWindow):
             self.gds_path_edit.setText(path)
             self._log(f"Selected GDS: {Path(path).name}")
             self.scan_btn.setEnabled(bool(self.lyp_parser))
+            # Reset state from previous GDS
+            self.current_pin_list = None
+            self.current_symbol = None
+            self.stripped_gds_path = None
+            self.pad_dicts = []
 
     def _select_lyp_file(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -1122,9 +1127,14 @@ class UnifiedMainWindow(QMainWindow):
 
         self._sync_editor_to_pin_list()
 
-        # Only pass pin_list if it actually has pins;
-        # PinList.__bool__ returns False when empty, so check is not None first
+        # Only pass pin_list if it has pins AND matches the current GDS
         pin_list = self.current_pin_list
+        if pin_list is not None:
+            pl_source = pin_list.metadata.get("gds_source", "")
+            current_gds_name = Path(gds_path).name
+            if pl_source and pl_source != current_gds_name:
+                self._log(f"Pin list is from {pl_source}, using original text labels")
+                pin_list = None
         if pin_list is None or not pin_list.pins:
             pin_list = None
 
