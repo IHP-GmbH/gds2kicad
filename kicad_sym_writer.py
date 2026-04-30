@@ -97,6 +97,7 @@ class SymbolDefinition:
     body_height: float = 10.16  # mm
     footprint_ref: str = ""     # e.g. "MyLib:Footprint"
     description: str = ""
+    reference_prefix: str = "U"  # KiCad ref prefix (U=IC, J=connector, etc.)
 
     def pin_count_per_side(self) -> dict:
         """Count pins on each side"""
@@ -141,7 +142,7 @@ class KiCadSymWriter:
         f.write(f'    (pin_numbers hide)\n')
 
         # Properties
-        self._write_property(f, "Reference", "U", 0, 0,
+        self._write_property(f, "Reference", sym.reference_prefix, 0, 0,
                              y_offset=sym.body_height / 2 + 2.54)
         self._write_property(f, "Value", safe_name, 1, 0,
                              y_offset=-(sym.body_height / 2 + 2.54))

@@ -1,0 +1,44 @@
+(kicad_symbol_lib
+  (version 20211014)
+  (generator "gds_to_kicad_symbol")
+
+  (symbol "IOPad_WireBond_100x100"
+    (pin_numbers hide)
+    (property "Reference" "J"
+      (at 0.0000 5.0800 0)
+      (effects (font (size 1.27 1.27)))
+    )
+    (property "Value" "IOPad_WireBond_100x100"
+      (at 0.0000 -5.0800 0)
+      (effects (font (size 1.27 1.27)))
+    )
+    (property "Footprint" "io_pads:IOPad_WireBond_100x100"
+      (at 0.0000 -7.6200 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (property "Description" "wire_bond I/O pad, 100x100 um (rendered as TopMetal2 square in the interposer GDS)"
+      (at 0.0000 -10.1600 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (symbol "IOPad_WireBond_100x100_0_1"
+      (rectangle
+        (start -2.5400 2.5400)
+        (end 2.5400 -2.5400)
+        (stroke (width 0.254) (type default))
+        (fill (type background))
+      )
+    )
+    (symbol "IOPad_WireBond_100x100_1_1"
+      (pin passive line
+        (at -5.0800 0.0000 0)
+        (length 2.5400)
+        (name "1"
+          (effects (font (size 1.27 1.27)))
+        )
+        (number "1"
+          (effects (font (size 1.27 1.27)))
+        )
+      )
+    )
+  )
+)
