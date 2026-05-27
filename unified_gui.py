@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QTextEdit, QFileDialog,
     QGroupBox, QMessageBox, QTabWidget, QTableWidget, QTableWidgetItem,
-    QHeaderView, QAbstractItemView, QComboBox, QSplitter, QSlider,
+    QHeaderView, QAbstractItemView, QComboBox, QSplitter, QSlider, QCheckBox,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor
@@ -356,6 +356,19 @@ class UnifiedMainWindow(QMainWindow):
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
+        # Action buttons at top (always visible)
+        action_row = QHBoxLayout()
+        gen_sym_btn = QPushButton("Generate from Pin List")
+        gen_sym_btn.setMinimumHeight(36)
+        gen_sym_btn.clicked.connect(self._generate_symbol_from_pin_list)
+        self.export_sym_btn = QPushButton("Export .kicad_sym")
+        self.export_sym_btn.setMinimumHeight(36)
+        self.export_sym_btn.setEnabled(False)
+        self.export_sym_btn.clicked.connect(self._export_symbol)
+        action_row.addWidget(gen_sym_btn)
+        action_row.addWidget(self.export_sym_btn)
+        layout.addLayout(action_row)
+
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # Left: pin table
@@ -424,19 +437,6 @@ class UnifiedMainWindow(QMainWindow):
         splitter.setSizes([400, 600])
         layout.addWidget(splitter)
 
-        # Bottom actions
-        action_row = QHBoxLayout()
-        gen_sym_btn = QPushButton("Generate from Pin List")
-        gen_sym_btn.setMinimumHeight(40)
-        gen_sym_btn.clicked.connect(self._generate_symbol_from_pin_list)
-        self.export_sym_btn = QPushButton("Export .kicad_sym")
-        self.export_sym_btn.setMinimumHeight(40)
-        self.export_sym_btn.setEnabled(False)
-        self.export_sym_btn.clicked.connect(self._export_symbol)
-        action_row.addWidget(gen_sym_btn)
-        action_row.addWidget(self.export_sym_btn)
-        layout.addLayout(action_row)
-
         self.tabs.addTab(tab, "3. Symbol Designer")
 
     # =========================================================================
@@ -446,6 +446,24 @@ class UnifiedMainWindow(QMainWindow):
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
+        # Action row at top (always visible)
+        action_row = QHBoxLayout()
+        self.flip_chip_checkbox = QCheckBox("Flip-chip (mirror-X)")
+        self.flip_chip_checkbox.setFont(QFont("Monospace", 10))
+        self.flip_chip_checkbox.setToolTip(
+            "Mirror pad X coordinates for face-down die orientation.\n"
+            "Enable for dies mounted via Cu-pillar on interposer.\n"
+            "The footprint will show pads as seen from the interposer side."
+        )
+        self.flip_chip_checkbox.stateChanged.connect(self._on_flip_chip_toggled)
+        action_row.addWidget(self.flip_chip_checkbox)
+        action_row.addStretch()
+        gen_fp_btn = QPushButton("Generate .kicad_mod")
+        gen_fp_btn.setMinimumHeight(36)
+        gen_fp_btn.clicked.connect(self._generate_footprint)
+        action_row.addWidget(gen_fp_btn)
+        layout.addLayout(action_row)
+
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # Left: layout preview
@@ -453,9 +471,9 @@ class UnifiedMainWindow(QMainWindow):
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
 
-        fp_label = QLabel("Pad Layout Preview")
-        fp_label.setFont(QFont("Monospace", 11, QFont.Weight.Bold))
-        left_layout.addWidget(fp_label)
+        self.fp_view_label = QLabel("Pad Layout Preview -- Die View (original)")
+        self.fp_view_label.setFont(QFont("Monospace", 11, QFont.Weight.Bold))
+        left_layout.addWidget(self.fp_view_label)
 
         self.layout_preview = LayoutPreviewWidget()
         left_layout.addWidget(self.layout_preview, stretch=1)
@@ -504,11 +522,6 @@ class UnifiedMainWindow(QMainWindow):
         self.fp_xref_mismatch.setFont(QFont("Monospace", 9))
         self.fp_xref_mismatch.setStyleSheet(f"color: {COLORS['warning']};")
         right_layout.addWidget(self.fp_xref_mismatch)
-
-        gen_fp_btn = QPushButton("Generate .kicad_mod")
-        gen_fp_btn.setMinimumHeight(40)
-        gen_fp_btn.clicked.connect(self._generate_footprint)
-        right_layout.addWidget(gen_fp_btn)
 
         splitter.addWidget(right)
         splitter.setSizes([600, 400])
@@ -1061,6 +1074,17 @@ class UnifiedMainWindow(QMainWindow):
         self.fp_zoom_slider.setValue(int(zoom * 100))
         self.fp_zoom_slider.blockSignals(False)
 
+    def _on_flip_chip_toggled(self, state):
+        """Toggle between Die View and Interposer View."""
+        mirrored = state == Qt.CheckState.Checked.value
+        self.layout_preview.set_mirror_x(mirrored)
+        if mirrored:
+            self.fp_view_label.setText(
+                "Pad Layout Preview -- Interposer View (mirror-X)")
+        else:
+            self.fp_view_label.setText(
+                "Pad Layout Preview -- Die View (original)")
+
     # =========================================================================
     # Cross-reference Thumbnails
     # =========================================================================
@@ -1273,9 +1297,11 @@ class UnifiedMainWindow(QMainWindow):
             converter = GDSToKiCad(self.lyp_parser, pad_layer_name)
             # Pass full GDS path for the GDS_FILE property (not the stripped one)
             full_gds = gds_path if gds_path and Path(gds_path).exists() else None
+            flip = self.flip_chip_checkbox.isChecked()
             success = converter.convert_from_pad_review(
                 source_gds, self.current_pin_list, path,
                 gds_property_path=full_gds,
+                flip_chip=flip,
             )
 
             if success:

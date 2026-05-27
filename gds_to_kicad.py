@@ -69,9 +69,16 @@ class GDSToKiCad:
         dbu_um = self._resolve_dbu(layout)
         return dbu_um * 1e-3
 
-    def convert(self, gds_path: str, output_path: str):
-        """Convert GDS file to KiCad footprint"""
-        print(f"\nConverting {gds_path} -> {output_path}")
+    def convert(self, gds_path: str, output_path: str, flip_chip: bool = False):
+        """Convert GDS file to KiCad footprint.
+
+        Args:
+            flip_chip: If True, mirror pad X coordinates for flip-chip (face-down)
+                       orientation. The footprint represents the die as seen from
+                       the interposer looking up.
+        """
+        orientation = "flip-chip (mirror-X)" if flip_chip else "face-up"
+        print(f"\nConverting {gds_path} -> {output_path} [{orientation}]")
 
         # Load GDSII file
         layout = db.Layout()
@@ -145,7 +152,8 @@ class GDSToKiCad:
 
         # Generate footprint
         self._generate_kicad_footprint(top_cell.name, pad_dicts, output_path, gds_path,
-                                        pad_names=pad_names, dbu_to_mm=dbu_to_mm)
+                                        pad_names=pad_names, dbu_to_mm=dbu_to_mm,
+                                        flip_chip=flip_chip)
 
         return True
 
@@ -221,12 +229,14 @@ class GDSToKiCad:
     def _generate_kicad_footprint(self, name: str, pad_dicts: List[dict], output_path: str,
                                     gds_path: str, pad_names: Optional[Dict] = None,
                                     dbu_to_mm: Optional[float] = None,
-                                    gds_property_path: Optional[str] = None):
+                                    gds_property_path: Optional[str] = None,
+                                    flip_chip: bool = False):
         """Generate KiCad footprint file with numbered pads.
 
         pad_dicts: list of dicts with keys:
             bbox (db.Box), is_polygon (bool), polygon_points (list or None)
         gds_property_path: if set, used for GDS_FILE property instead of gds_path
+        flip_chip: if True, mirror X coordinates (die seen from interposer side)
         """
         print(f"Generating KiCad footprint: {output_path}")
 
@@ -236,6 +246,9 @@ class GDSToKiCad:
         if dbu_to_mm is None:
             dbu_to_mm = 1e-6  # fallback: 1 DBU = 1nm
         DBU_TO_MM = dbu_to_mm
+
+        # Flip-chip: mirror factor for X axis (-1 for flip, +1 for normal)
+        mx = -1 if flip_chip else 1
 
         # Source file paths for traceability properties (absolute)
         gds_property_source = gds_property_path if gds_property_path else gds_path
@@ -253,7 +266,9 @@ class GDSToKiCad:
             # Traceability properties
             f.write(f'  (property "GDS_FILE" "{gds_filename}")\n')
             f.write(f'  (property "LYP_FILE" "{lyp_filename}")\n')
-            f.write(f'  (property "GDS_LAYER" "{self.layer_name} ({layer_num}/{layer_dt})")\n\n')
+            f.write(f'  (property "GDS_LAYER" "{self.layer_name} ({layer_num}/{layer_dt})")\n')
+            orientation = "flip_chip" if flip_chip else "face_up"
+            f.write(f'  (property "ORIENTATION" "{orientation}")\n\n')
 
             # Reference and value text
             f.write('  (fp_text reference "REF**" (at 0 0) (layer "F.SilkS")\n')
@@ -272,8 +287,9 @@ class GDSToKiCad:
                 polygon_points = pd.get("polygon_points")
 
                 # Calculate pad center and size in mm
-                # Note: Y is negated to convert from GDS (Y-up) to KiCad (Y-down) convention
-                center_x = ((pad.left + pad.right) / 2) * DBU_TO_MM
+                # Y negated: GDS (Y-up) -> KiCad (Y-down)
+                # X negated when flip_chip: die face-down mirror
+                center_x = mx * ((pad.left + pad.right) / 2) * DBU_TO_MM
                 center_y = -((pad.bottom + pad.top) / 2) * DBU_TO_MM
                 width = (pad.right - pad.left) * DBU_TO_MM
                 height = (pad.top - pad.bottom) * DBU_TO_MM
@@ -283,14 +299,14 @@ class GDSToKiCad:
                     f.write(f'  (pad "{pad_name}" smd custom (at {center_x:.6f} {center_y:.6f})\n')
                     f.write(f'    (size {width:.6f} {height:.6f})\n')
                     f.write('    (layers "F.Cu" "F.Paste" "F.Mask")\n')
-                    # Polygon vertices relative to pad center, Y negated
+                    # Polygon vertices relative to pad center
                     cx_dbu = (pad.left + pad.right) / 2.0
                     cy_dbu = (pad.bottom + pad.top) / 2.0
                     f.write('    (primitives\n')
                     f.write('      (gr_poly\n')
                     f.write('        (pts\n')
                     for px, py in polygon_points:
-                        rx = (px - cx_dbu) * DBU_TO_MM
+                        rx = mx * ((px - cx_dbu) * DBU_TO_MM)
                         ry = -((py - cy_dbu) * DBU_TO_MM)
                         f.write(f'          (xy {rx:.6f} {ry:.6f})\n')
                     f.write('        )\n')
@@ -305,11 +321,18 @@ class GDSToKiCad:
                     f.write('    (layers "F.Cu" "F.Paste" "F.Mask")\n')
                     f.write('  )\n')
 
-            # Courtyard from pad bounding box (no margin -- exact chiplet boundary)
+            # Courtyard from pad bounding box
             if pad_dicts:
-                min_x = min(pd["bbox"].left for pd in pad_dicts) * DBU_TO_MM
-                max_x = max(pd["bbox"].right for pd in pad_dicts) * DBU_TO_MM
-                min_y = -max(pd["bbox"].top for pd in pad_dicts) * DBU_TO_MM    # Y negated
+                all_left = [pd["bbox"].left for pd in pad_dicts]
+                all_right = [pd["bbox"].right for pd in pad_dicts]
+                if flip_chip:
+                    # After X-mirror, min/max swap
+                    min_x = -max(all_right) * DBU_TO_MM
+                    max_x = -min(all_left) * DBU_TO_MM
+                else:
+                    min_x = min(all_left) * DBU_TO_MM
+                    max_x = max(all_right) * DBU_TO_MM
+                min_y = -max(pd["bbox"].top for pd in pad_dicts) * DBU_TO_MM
                 max_y = -min(pd["bbox"].bottom for pd in pad_dicts) * DBU_TO_MM
                 f.write(f'\n  (fp_rect (start {min_x:.6f} {min_y:.6f}) (end {max_x:.6f} {max_y:.6f})\n')
                 f.write('    (stroke (width 0.05) (type solid)) (fill none) (layer "F.CrtYd")\n')
@@ -322,7 +345,8 @@ class GDSToKiCad:
 
     def convert_from_pad_review(self, edited_gds: str, pin_list: PinList,
                                 output_path: str,
-                                gds_property_path: Optional[str] = None):
+                                gds_property_path: Optional[str] = None,
+                                flip_chip: bool = False):
         """Generate footprint from a user-edited pad review GDS.
 
         Uses pin_list for pad naming instead of text extraction from the
@@ -334,6 +358,7 @@ class GDSToKiCad:
             pin_list: PinList with authoritative pad names
             output_path: Output .kicad_mod path
             gds_property_path: If set, used for GDS_FILE property instead of edited_gds
+            flip_chip: If True, mirror X for flip-chip orientation
         """
         print(f"\nGenerating footprint from pad review GDS: {edited_gds}")
 
@@ -379,6 +404,7 @@ class GDSToKiCad:
             pad_names=pad_names,
             dbu_to_mm=dbu_to_mm,
             gds_property_path=gds_property_path,
+            flip_chip=flip_chip,
         )
 
         return True
@@ -442,6 +468,11 @@ Pad review workflow (human-in-the-loop):
                        help='List all layers in the LYP file and exit')
     parser.add_argument('--generate-test-gds', action='store_true',
                        help='Generate a test GDS file for development')
+
+    # Flip-chip orientation
+    parser.add_argument('--flip-chip', action='store_true',
+                       help='Mirror X coordinates for flip-chip (face-down) die orientation. '
+                            'Generates footprint as seen from interposer side.')
 
     # Pad review GDS workflow flags
     parser.add_argument('--generate-pad-review', metavar='OUTPUT_GDS',
@@ -561,7 +592,8 @@ Pad review workflow (human-in-the-loop):
         lyp_parser = LYPParser(args.lyp_file)
         converter = GDSToKiCad(lyp_parser, args.layer, dbu=args.dbu)
         success = converter.convert_from_pad_review(
-            args.from_pad_review, pin_list, args.output
+            args.from_pad_review, pin_list, args.output,
+            flip_chip=getattr(args, 'flip_chip', False),
         )
         return 0 if success else 1
 
@@ -593,7 +625,8 @@ Pad review workflow (human-in-the-loop):
                             text_layer_name=text_layer,
                             auto_detect_text=auto_detect,
                             dbu=args.dbu)
-    success = converter.convert(args.input, args.output)
+    success = converter.convert(args.input, args.output,
+                                flip_chip=getattr(args, 'flip_chip', False))
 
     return 0 if success else 1
 
