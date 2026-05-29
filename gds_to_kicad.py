@@ -432,6 +432,27 @@ def generate_test_gds():
     print(f"Generated: {output_file}")
 
 
+def resolve_footprint_output(output: Optional[str],
+                             design_dir: Optional[str],
+                             stem: str) -> str:
+    """Resolve the .kicad_mod output path per the per-design file-layout convention.
+
+    Priority: explicit ``output`` > ``design_dir`` (KiCad ``<design>.pretty/`` library)
+    > the legacy ``generated_kicad_footprint_files/`` fallback. Creates the target
+    directory as a side effect.
+    """
+    if output:
+        return output
+    if design_dir:
+        ddir = Path(design_dir)
+        pretty = ddir / ("%s.pretty" % ddir.name)
+        pretty.mkdir(parents=True, exist_ok=True)
+        return str(pretty / ("%s.kicad_mod" % stem))
+    default_dir = Path("generated_kicad_footprint_files")
+    default_dir.mkdir(exist_ok=True)
+    return str(default_dir / ("%s.kicad_mod" % stem))
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Convert GDSII files to KiCad footprints using layer definitions from .lyp files",
@@ -454,6 +475,10 @@ Pad review workflow (human-in-the-loop):
 
     parser.add_argument('input', nargs='?', help='Input GDSII file')
     parser.add_argument('-o', '--output', help='Output KiCad footprint file')
+    parser.add_argument('--design-dir', metavar='DIR',
+                       help='Per-design directory; footprints are written to '
+                            '<DIR>/<design>.pretty/ per the project file-layout '
+                            'convention. Ignored when -o/--output is given.')
     parser.add_argument('--lyp-file', help='KLayout .lyp file with layer definitions')
     parser.add_argument('--layer', help='Layer name to extract (e.g., TopMetal2.drawing)')
     parser.add_argument('--text-layer',
@@ -583,11 +608,8 @@ Pad review workflow (human-in-the-loop):
         pin_list = PinList.load(args.pin_list)
         print(f"Loaded pin list: {len(pin_list)} pins")
 
-        if not args.output:
-            output_dir = Path("generated_kicad_footprint_files")
-            output_dir.mkdir(exist_ok=True)
-            stem = Path(args.from_pad_review).stem
-            args.output = str(output_dir / f"{stem}.kicad_mod")
+        args.output = resolve_footprint_output(
+            args.output, args.design_dir, Path(args.from_pad_review).stem)
 
         lyp_parser = LYPParser(args.lyp_file)
         converter = GDSToKiCad(lyp_parser, args.layer, dbu=args.dbu)
@@ -607,12 +629,8 @@ Pad review workflow (human-in-the-loop):
     if not args.layer:
         parser.error("--layer is required for conversion")
 
-    if not args.output:
-        # Auto-generate output filename in generated_kicad_footprint_files/
-        input_path = Path(args.input)
-        output_dir = Path("generated_kicad_footprint_files")
-        output_dir.mkdir(exist_ok=True)
-        args.output = str(output_dir / input_path.with_suffix('.kicad_mod').name)
+    args.output = resolve_footprint_output(
+        args.output, args.design_dir, Path(args.input).stem)
 
     # Load LYP file
     lyp_parser = LYPParser(args.lyp_file)
