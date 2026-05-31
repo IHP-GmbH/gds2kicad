@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ADK generic chiplet layer properties. Auto-generated; do not edit by hand.
+  Generic chiplet layer properties (black-box / pads-only default).
 
-  Source:    adk/config/chiplet_pads.json
-  Generator: adk/klayout/lyp/generate_generic_lyp.py
+  Hand-maintained. The canonical layer numbers are the source of truth in
+  adk/config/chiplet_pads.json; keep this file in sync by hand. A drift test
+  in tests/test_generic_lyp.py enforces that they match.
 
   Minimal "black-box / pads-only" vocabulary for chiplets from commercial or
   closed PDK nodes whose GDS carries only metal pads + pad names and no .lyp.

@@ -33,3 +33,16 @@ def test_generic_lyp_text_pairing():
     pad.drawing -- this is what makes the black-box round-trip name its pads."""
     p = LYPParser(str(GENERIC_LYP))
     assert p.find_text_layers_for("pad.drawing") == ["pad.text"]
+
+
+def test_generic_lyp_mirrors_canonical_vocabulary():
+    """generic.lyp must mirror the ADK canonical numbers (the source of truth
+    in adk/config/chiplet_pads.json). load_canonical_layers() reads that file
+    (or its hardcoded fallback if the ADK is absent); the committed lyp must
+    match. This drift guard replaced the generator's golden test."""
+    from blackbox_chiplet import load_canonical_layers
+    L = load_canonical_layers()
+    p = LYPParser(str(GENERIC_LYP))
+    assert p.get_layer("pad.drawing") == L["pad_drawing"]
+    assert p.get_layer("pad.text") == L["pad_text"]
+    assert p.get_layer("outline.drawing") == L["outline"]
