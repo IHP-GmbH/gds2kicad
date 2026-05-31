@@ -24,36 +24,53 @@ from lyp_parser import LYPParser
 from pin_list import PinList
 from pad_review import PadReview
 
+# Default LYP used when --lyp-file is omitted: the bundled generic pads-only
+# vocabulary (pad.drawing 205/0, pad.text 205/25, outline.drawing 206/0). Lets
+# the converter process a chiplet GDS that has no real PDK .lyp (commercial /
+# closed-node "black-box" chiplets). Source of truth: adk/config/chiplet_pads.json.
+DEFAULT_GENERIC_LYP = Path(__file__).resolve().parent / "pdks" / "generic.lyp"
+
 
 class GDSToKiCad:
     """Main converter class"""
 
-    def __init__(self, lyp_parser: LYPParser, layer_name: str,
+    def __init__(self, lyp_parser: LYPParser, layer_name: Optional[str] = None,
                  text_layer_name: Optional[str] = None,
                  auto_detect_text: bool = False,
-                 dbu: Optional[float] = None):
+                 dbu: Optional[float] = None,
+                 pad_layer: Optional[Tuple[int, int]] = None,
+                 text_layer: Optional[Tuple[int, int]] = None):
         self.lyp_parser = lyp_parser
-        self.layer_name = layer_name
         self.text_layer_name = text_layer_name
         self.auto_detect_text = auto_detect_text
         self._dbu_override = dbu
+        # Optional raw (layer, datatype) text override (bypasses name lookup).
+        self._text_layer_override = text_layer
 
-        # Get layer from LYP
-        self.pad_layer = lyp_parser.get_layer(layer_name)
+        if pad_layer is not None:
+            # Raw layer-number path: use the given (layer, datatype) directly,
+            # bypassing the LYP name lookup. For chiplet GDS with no named entry.
+            self.pad_layer = pad_layer
+            self.layer_name = layer_name or f"{pad_layer[0]}/{pad_layer[1]}"
+        else:
+            # Name path: resolve the layer name against the LYP.
+            self.layer_name = layer_name
+            self.pad_layer = lyp_parser.get_layer(layer_name) if layer_name else None
+            if not self.pad_layer:
+                print(f"Error: Layer '{layer_name}' not found in LYP file", file=sys.stderr)
+                print(f"Available layers:", file=sys.stderr)
+                for name in lyp_parser.get_layer_names()[:10]:
+                    layer, dt = lyp_parser.get_layer(name)
+                    print(f"  {name} ({layer}/{dt})", file=sys.stderr)
+                if len(lyp_parser.get_layer_names()) > 10:
+                    print(f"  ... and {len(lyp_parser.get_layer_names()) - 10} more", file=sys.stderr)
+                sys.exit(1)
 
-        if not self.pad_layer:
-            print(f"Error: Layer '{layer_name}' not found in LYP file", file=sys.stderr)
-            print(f"Available layers:", file=sys.stderr)
-            for name in lyp_parser.get_layer_names()[:10]:
-                layer, dt = lyp_parser.get_layer(name)
-                print(f"  {name} ({layer}/{dt})", file=sys.stderr)
-            if len(lyp_parser.get_layer_names()) > 10:
-                print(f"  ... and {len(lyp_parser.get_layer_names()) - 10} more", file=sys.stderr)
-            sys.exit(1)
-
-        print(f"Using layer: {layer_name} {self.pad_layer}")
+        print(f"Using layer: {self.layer_name} {self.pad_layer}")
         if text_layer_name:
             print(f"Using text layer: {text_layer_name}")
+        elif self._text_layer_override:
+            print(f"Using text layer: {self._text_layer_override[0]}/{self._text_layer_override[1]}")
 
     def _resolve_dbu(self, layout: db.Layout) -> float:
         """Return the database unit in microns.
@@ -101,7 +118,7 @@ class GDSToKiCad:
 
         # Extract pads with optional text association
         pad_names = {}
-        if self.text_layer_name or self.auto_detect_text:
+        if self.text_layer_name or self.auto_detect_text or self._text_layer_override:
             try:
                 from pin_extractor import PinExtractor
                 extractor = PinExtractor(self.lyp_parser)
@@ -109,7 +126,11 @@ class GDSToKiCad:
                 # Use PinExtractor on the already-loaded/flattened layout
                 pads_raw = extractor.extract_pads(layout, top_cell, self.pad_layer)
 
-                if self.text_layer_name:
+                if self._text_layer_override is not None:
+                    # Raw text layer (layer, datatype) override
+                    tl = self._text_layer_override
+                    text_layers = [(f"{tl[0]}/{tl[1]}", tl)]
+                elif self.text_layer_name:
                     # Explicit text layer
                     text_layer_info = self.lyp_parser.get_layer(self.text_layer_name)
                     if text_layer_info:
@@ -453,6 +474,72 @@ def resolve_footprint_output(output: Optional[str],
     return str(default_dir / ("%s.kicad_mod" % stem))
 
 
+def parse_layer_spec(spec: str) -> Tuple[int, int]:
+    """Parse a raw GDS layer spec 'N/D' (or bare 'N' -> (N, 0)) into a tuple."""
+    parts = str(spec).split('/')
+    try:
+        layer = int(parts[0])
+        datatype = int(parts[1]) if len(parts) > 1 and parts[1] != '' else 0
+    except (ValueError, IndexError):
+        raise argparse.ArgumentTypeError(
+            f"Invalid layer spec '{spec}'; expected 'N/D' or 'N'")
+    return (layer, datatype)
+
+
+def resolve_pad_layer(args, lyp_parser, gds_path):
+    """Resolve the pad layer for a conversion.
+
+    Precedence:
+      1. --pad-layer-number N/D  (raw number, bypasses the LYP)
+      2. --layer NAME            (resolved against the LYP)
+      3. densest-layer auto-detect via PinExtractor.scan_gds_layers
+
+    Returns (pad_layer, layer_name, text_layer): pad_layer is a (layer,
+    datatype) tuple or None; layer_name is a display/name string or None;
+    text_layer is a raw (layer, datatype) tuple suggested for pad names, or
+    None (only populated on the auto-detect path). When pad_layer is None but
+    layer_name is set, the caller lets GDSToKiCad raise the detailed
+    'layer not found' error. text_layer is ignored by the explicit paths.
+    """
+    if getattr(args, 'pad_layer_number', None):
+        pad = parse_layer_spec(args.pad_layer_number)
+        return pad, (args.layer or f"{pad[0]}/{pad[1]}"), None
+
+    if args.layer:
+        return lyp_parser.get_layer(args.layer), args.layer, None
+
+    # Auto-detect: pick the densest pad layer plus a text layer for names.
+    from pin_extractor import PinExtractor
+    scan = PinExtractor.scan_gds_layers(gds_path, lyp_parser)
+    suggested = scan.get('suggested_pad_layer')
+    if not suggested:
+        return None, None, None
+    pad = lyp_parser.get_layer(suggested) if lyp_parser else None
+    if pad is None:
+        # suggested is a bare "N/D" string (layer not named in the LYP)
+        pad = parse_layer_spec(suggested)
+
+    # Text layer: prefer a LYP-named suggestion; else the densest text
+    # candidate that is not the pad layer itself (commercial GDS with
+    # arbitrary, unnamed layers still yields pad names this way).
+    text_layer = None
+    suggested_text = scan.get('suggested_text_layers') or []
+    if suggested_text and lyp_parser:
+        text_layer = lyp_parser.get_layer(suggested_text[0])
+    if text_layer is None:
+        for c in scan.get('text_candidates', []):
+            cand = (c['layer_num'], c['datatype'])
+            if cand != pad:
+                text_layer = cand
+                break
+
+    msg = f"Auto-detected pad layer: {suggested} {pad}"
+    if text_layer:
+        msg += f", text layer {text_layer[0]}/{text_layer[1]}"
+    print(msg)
+    return pad, suggested, text_layer
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Convert GDSII files to KiCad footprints using layer definitions from .lyp files",
@@ -479,10 +566,19 @@ Pad review workflow (human-in-the-loop):
                        help='Per-design directory; footprints are written to '
                             '<DIR>/<design>.pretty/ per the project file-layout '
                             'convention. Ignored when -o/--output is given.')
-    parser.add_argument('--lyp-file', help='KLayout .lyp file with layer definitions')
+    parser.add_argument('--lyp-file', default=str(DEFAULT_GENERIC_LYP),
+                       help='KLayout .lyp file with layer definitions (default: '
+                            'bundled generic pads-only lyp, for a chiplet GDS with no PDK lyp)')
     parser.add_argument('--layer', help='Layer name to extract (e.g., TopMetal2.drawing)')
+    parser.add_argument('--pad-layer-number', metavar='N/D',
+                       help='Raw GDS pad layer as N/D (e.g., 134/0). Bypasses --layer '
+                            'name lookup; use for a chiplet GDS with no named LYP entry. '
+                            'If neither --layer nor this is given, the densest pad layer '
+                            'is auto-detected.')
     parser.add_argument('--text-layer',
                        help='Text layer name for pin names (e.g., TopMetal2.text)')
+    parser.add_argument('--text-layer-number', metavar='N/D',
+                       help='Raw GDS text layer as N/D (e.g., 134/25) for pad names.')
     parser.add_argument('--auto-text', action='store_true',
                        help='Auto-detect text layers for pin names')
     parser.add_argument('--dbu', type=float, default=None,
@@ -516,8 +612,6 @@ Pad review workflow (human-in-the-loop):
 
     # Handle list-layers
     if args.list_layers:
-        if not args.lyp_file:
-            parser.error("--lyp-file is required with --list-layers")
         lyp = LYPParser(args.lyp_file)
         print(f"Layers in {args.lyp_file}:")
         print("-" * 50)
@@ -567,20 +661,21 @@ Pad review workflow (human-in-the-loop):
     if args.generate_pad_review:
         if not args.input:
             parser.error("Input GDS file required with --generate-pad-review")
-        if not args.lyp_file:
-            parser.error("--lyp-file is required with --generate-pad-review")
-        if not args.layer:
-            parser.error("--layer is required with --generate-pad-review")
 
         lyp_parser = LYPParser(args.lyp_file)
-        pad_layer = lyp_parser.get_layer(args.layer)
-        if not pad_layer:
-            parser.error(f"Layer '{args.layer}' not found in LYP file")
+        pad_layer, layer_name, auto_text_layer = resolve_pad_layer(args, lyp_parser, args.input)
+        if pad_layer is None:
+            parser.error(f"Could not resolve a pad layer (layer '{layer_name}' not in "
+                         f"LYP, or no pad geometry to auto-detect)")
 
         # Resolve text layer
         text_layer_info = None
-        if args.text_layer:
+        if args.text_layer_number:
+            text_layer_info = parse_layer_spec(args.text_layer_number)
+        elif args.text_layer:
             text_layer_info = lyp_parser.get_layer(args.text_layer)
+        else:
+            text_layer_info = auto_text_layer
 
         # Load pin list if provided
         pl = PinList.load(args.pin_list) if args.pin_list else None
@@ -598,10 +693,6 @@ Pad review workflow (human-in-the-loop):
 
     # Footprint from pad review GDS
     if args.from_pad_review:
-        if not args.lyp_file:
-            parser.error("--lyp-file is required with --from-pad-review")
-        if not args.layer:
-            parser.error("--layer is required with --from-pad-review")
         if not args.pin_list:
             parser.error("--pin-list is required with --from-pad-review")
 
@@ -612,7 +703,11 @@ Pad review workflow (human-in-the-loop):
             args.output, args.design_dir, Path(args.from_pad_review).stem)
 
         lyp_parser = LYPParser(args.lyp_file)
-        converter = GDSToKiCad(lyp_parser, args.layer, dbu=args.dbu)
+        pad_layer, layer_name, _ = resolve_pad_layer(args, lyp_parser, args.from_pad_review)
+        if pad_layer is None:
+            parser.error(f"Could not resolve a pad layer (layer '{layer_name}' not in "
+                         f"LYP, or no pad geometry to auto-detect)")
+        converter = GDSToKiCad(lyp_parser, layer_name, dbu=args.dbu, pad_layer=pad_layer)
         success = converter.convert_from_pad_review(
             args.from_pad_review, pin_list, args.output,
             flip_chip=getattr(args, 'flip_chip', False),
@@ -623,26 +718,34 @@ Pad review workflow (human-in-the-loop):
     if not args.input:
         parser.error("Input GDS file required (or use --generate-test-gds or --list-layers)")
 
-    if not args.lyp_file:
-        parser.error("--lyp-file is required for conversion")
-
-    if not args.layer:
-        parser.error("--layer is required for conversion")
-
     args.output = resolve_footprint_output(
         args.output, args.design_dir, Path(args.input).stem)
 
-    # Load LYP file
+    # Load LYP file (defaults to the bundled generic pads-only lyp)
     lyp_parser = LYPParser(args.lyp_file)
     print(f"Loaded {lyp_parser}")
 
-    # Convert
-    text_layer = getattr(args, 'text_layer', None)
-    auto_detect = getattr(args, 'auto_text', False)
-    converter = GDSToKiCad(lyp_parser, args.layer,
-                            text_layer_name=text_layer,
-                            auto_detect_text=auto_detect,
-                            dbu=args.dbu)
+    # Resolve the pad layer: --pad-layer-number > --layer > densest auto-detect
+    pad_layer, layer_name, auto_text_layer = resolve_pad_layer(args, lyp_parser, args.input)
+    if pad_layer is None and layer_name is None:
+        parser.error("Could not determine a pad layer. Pass --layer NAME, "
+                     "--pad-layer-number N/D, or ensure the GDS has pad geometry "
+                     "to auto-detect.")
+
+    # Text layer precedence: --text-layer-number > --text-layer (name) >
+    # auto-detected raw text layer (pad names are the point of black-box mode).
+    text_layer_tuple = None
+    if args.text_layer_number:
+        text_layer_tuple = parse_layer_spec(args.text_layer_number)
+    elif args.text_layer is None:
+        text_layer_tuple = auto_text_layer
+
+    converter = GDSToKiCad(lyp_parser, layer_name,
+                            text_layer_name=args.text_layer,
+                            auto_detect_text=args.auto_text,
+                            dbu=args.dbu,
+                            pad_layer=pad_layer,
+                            text_layer=text_layer_tuple)
     success = converter.convert(args.input, args.output,
                                 flip_chip=getattr(args, 'flip_chip', False))
 
