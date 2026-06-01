@@ -197,7 +197,6 @@ TEXT,drawing,63,0,Macro cell name, element text layer
 gds_kicad/
 ├── gds_to_kicad.py         # Main converter script
 ├── layer_table.csv          # IHP SG13G2 layer definitions (359 layers)
-├── NOTES.md                # Project context and instructions
 ├── KLayout_with_python.html # KLayout Python API reference
 └── README.md                # This file
 ```
