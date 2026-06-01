@@ -14,8 +14,9 @@ Canonical layers (adk/config/chiplet_pads.json, with hardcoded fallback):
   pad_drawing 205/0    pad metal
   pad_text    205/25   pad-name labels
   outline     206/0    die mechanical outline
-The die outline is also mirrored onto exchange0 (190/0, adk/config/layers.json)
-so the ADK assembly DRC and hyp_to_gds see the die boundary.
+A <stem>.boundaries.json manifest is written beside the GDS carrying the die
+outline as the chiplet boundary (ADK assembly metadata, outside any fab-layer
+namespace) so the ADK assembly DRC can check the standalone die.
 
 Input spec (JSON):
   {
@@ -46,7 +47,6 @@ _FALLBACK = {
     "pad_drawing": (205, 0),
     "pad_text": (205, 25),
     "outline": (206, 0),
-    "exchange0": (190, 0),
 }
 
 
@@ -74,10 +74,6 @@ def load_canonical_layers(adk_root: Optional[str] = None) -> Dict[str, Tuple[int
         for key in ("pad_drawing", "pad_text", "outline"):
             if key in pads:
                 layers[key] = (pads[key]["gds_layer"], pads[key]["gds_datatype"])
-        asm = json.loads((root / "config" / "layers.json").read_text())["layers"]
-        if "exchange0" in asm:
-            layers["exchange0"] = (asm["exchange0"]["gds_layer"],
-                                   asm["exchange0"]["gds_datatype"])
     except (OSError, KeyError, json.JSONDecodeError) as e:
         print(f"Warning: could not read ADK layer config ({e}); using hardcoded fallback",
               file=sys.stderr)
@@ -121,10 +117,45 @@ def _die_bbox_um(spec: Dict, margin_um: float = 50.0) -> Tuple[float, float, flo
             max(xs1) + margin_um, max(ys1) + margin_um)
 
 
+def _write_blackbox_manifest(out_gds: str, die_name: str, dbu: float,
+                             outline_box) -> Path:
+    """Write a one-entry boundary manifest beside the die GDS: its mechanical
+    outline as the chiplet boundary, in die-local DBU with identity transform.
+    Lets the ADK assembly DRC check the standalone die without putting the
+    boundary on any fabrication layer."""
+    out = Path(out_gds)
+    b = outline_box  # db.Box in DBU
+    poly_dbu = [[b.left, b.bottom], [b.right, b.bottom],
+                [b.right, b.top], [b.left, b.top]]
+    poly_um = [[round(x * dbu, 6), round(y * dbu, 6)] for x, y in poly_dbu]
+    manifest = {
+        "schema": "adk-boundary-manifest",
+        "version": "1.0.0",
+        "generator": "blackbox_chiplet.py",
+        "assembly_gds": out.name,
+        "dbu_um": dbu,
+        "top_cell": die_name,
+        "boundaries": [{
+            "instance": die_name,
+            "source_die": die_name,
+            "class": "chiplet",
+            "transform": {"origin_um": [0.0, 0.0], "rotation_deg": 0.0,
+                          "mirror_x": False, "magnification": 1.0},
+            "polygon_dbu": poly_dbu,
+            "polygon_um": poly_um,
+        }],
+    }
+    mpath = out.with_name(out.stem + ".boundaries.json")
+    mpath.write_text(json.dumps(manifest, indent=2))
+    return mpath
+
+
 def generate_blackbox_gds(spec: Dict, out_gds: str,
                           layers: Dict[str, Tuple[int, int]],
-                          stamp_exchange0: bool = True) -> int:
-    """Write the die + pads + names GDS on the canonical layers.
+                          write_manifest: bool = True) -> int:
+    """Write the die + pads + names GDS on the canonical layers, plus a
+    <stem>.boundaries.json manifest carrying the die outline as the chiplet
+    boundary (ADK assembly metadata, not a fabrication layer).
 
     Returns the number of pads stamped.
     """
@@ -151,10 +182,10 @@ def generate_blackbox_gds(spec: Dict, out_gds: str,
     x0, y0, x1, y1 = _die_bbox_um(spec)
     outline = db.Box(_um(x0), _um(y0), _um(x1), _um(y1))
     top.shapes(out_l).insert(outline)
-    if stamp_exchange0:
-        top.shapes(ly.layer(*layers["exchange0"])).insert(outline)
 
     ly.write(out_gds)
+    if write_manifest:
+        _write_blackbox_manifest(out_gds, top.name, ly.dbu, outline)
     return len(spec["pads"])
 
 
@@ -165,11 +196,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="Examples:\n"
                "  %(prog)s spec.json -o ACME_PHY.gds\n"
-               "  %(prog)s pads.csv -o chip.gds --no-exchange0\n")
+               "  %(prog)s pads.csv -o chip.gds --no-manifest\n")
     ap.add_argument("spec", help="Pad spec: JSON or CSV (see module docstring).")
     ap.add_argument("-o", "--output", required=True, help="Output GDS path.")
-    ap.add_argument("--no-exchange0", action="store_true",
-                    help="Do not mirror the die outline onto exchange0 (190/0).")
+    ap.add_argument("--no-manifest", action="store_true",
+                    help="Do not write the <stem>.boundaries.json boundary manifest.")
     ap.add_argument("--adk-root", default=None,
                     help="ADK repo root (default: $ADK_ROOT or ../adk).")
     args = ap.parse_args()
@@ -179,14 +210,13 @@ def main():
         ap.error("spec has no pads")
     layers = load_canonical_layers(args.adk_root)
     n = generate_blackbox_gds(spec, args.output, layers,
-                              stamp_exchange0=not args.no_exchange0)
+                              write_manifest=not args.no_manifest)
 
     pd, pt, ol = layers["pad_drawing"], layers["pad_text"], layers["outline"]
     msg = (f"Wrote {args.output}: {n} pads on {pd[0]}/{pd[1]}, names on "
            f"{pt[0]}/{pt[1]}, outline on {ol[0]}/{ol[1]}")
-    if not args.no_exchange0:
-        ex = layers["exchange0"]
-        msg += f" + exchange0 {ex[0]}/{ex[1]}"
+    if not args.no_manifest:
+        msg += f" + boundary manifest {Path(args.output).stem}.boundaries.json"
     print(msg)
     return 0
 

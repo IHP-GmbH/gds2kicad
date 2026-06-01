@@ -2,6 +2,7 @@
 footprint converter.
 """
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -46,7 +47,7 @@ def test_canonical_layers_from_adk():
     assert L["pad_drawing"] == (205, 0)
     assert L["pad_text"] == (205, 25)
     assert L["outline"] == (206, 0)
-    assert L["exchange0"] == (190, 0)
+    assert "exchange0" not in L  # boundary lives in the manifest, not a fab layer
 
 
 def test_generate_stamps_canonical_layers(tmp_path):
@@ -56,15 +57,32 @@ def test_generate_stamps_canonical_layers(tmp_path):
     assert _count_on(gds, 205, 0) == 4    # pads
     assert _count_on(gds, 205, 25) == 4   # pad-name labels
     assert _count_on(gds, 206, 0) == 1    # die outline
-    assert _count_on(gds, 190, 0) == 1    # exchange0 mirror
+    assert _count_on(gds, 190, 0) == 0    # never stamps the exchange0 fab layer
 
 
-def test_generate_no_exchange0(tmp_path):
+def test_generate_writes_boundary_manifest(tmp_path):
+    """The die outline is exported as the chiplet boundary in a sidecar
+    manifest (not a fab layer), with die-local DBU coordinates."""
+    gds = tmp_path / "acme.gds"
+    generate_blackbox_gds(SPEC, str(gds), load_canonical_layers())
+    manifest = json.loads((tmp_path / "acme.boundaries.json").read_text())
+    assert manifest["schema"] == "adk-boundary-manifest"
+    assert len(manifest["boundaries"]) == 1
+    b = manifest["boundaries"][0]
+    assert b["source_die"] == "ACME_PHY"
+    # 1000x800 um die centered at origin -> [-500,-400]..[500,400] um in DBU.
+    xs = [p[0] for p in b["polygon_dbu"]]
+    ys = [p[1] for p in b["polygon_dbu"]]
+    assert min(xs) == -500000 and max(xs) == 500000
+    assert min(ys) == -400000 and max(ys) == 400000
+
+
+def test_no_manifest_flag_suppresses_sidecar(tmp_path):
     gds = tmp_path / "acme.gds"
     generate_blackbox_gds(SPEC, str(gds), load_canonical_layers(),
-                          stamp_exchange0=False)
+                          write_manifest=False)
+    assert not (tmp_path / "acme.boundaries.json").exists()
     assert _count_on(gds, 190, 0) == 0
-    assert _count_on(gds, 206, 0) == 1
 
 
 def test_csv_spec(tmp_path):
