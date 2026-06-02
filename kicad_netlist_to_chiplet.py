@@ -112,6 +112,7 @@ class Net:
     name: str
     net_class: str = "signal"
     connections: list = field(default_factory=list)
+    external: bool = False  # True if the net touches an I/O pad component
 
 
 # ── Netlist parser ──────────────────────────────────────────────────
@@ -143,16 +144,51 @@ def get_value(node, tag, default=""):
     return default
 
 
-def parse_kicad_netlist(net_file_path, skip_unconnected=True, layer_map=None):
+def discover_io_pad_refs(tree, io_pad_libs=("io_pads",), extra_ref_prefixes=()):
+    """
+    Walk the (components) section of a KiCad netlist and return the set of
+    refs (e.g. {"J1", "J2"}) that look like external I/O pads.
+
+    A component is treated as an I/O pad when:
+    - its footprint identifier starts with one of `io_pad_libs` followed by ':'
+      (default "io_pads:..." -- matches the library produced by
+      gds_to_kicad/io_pads/), OR
+    - its ref starts with any of `extra_ref_prefixes` (e.g. "J" if you want
+      every connector treated as external).
+    """
+    components_section = find_child(tree, "components")
+    if components_section is None:
+        return set()
+    refs = set()
+    lib_prefixes = tuple(f"{lib}:" for lib in io_pad_libs)
+    for comp in find_all_children(components_section, "comp"):
+        ref = get_value(comp, "ref")
+        if not ref:
+            continue
+        if extra_ref_prefixes and ref.startswith(tuple(extra_ref_prefixes)):
+            refs.add(ref)
+            continue
+        fp = get_value(comp, "footprint")
+        if fp and fp.startswith(lib_prefixes):
+            refs.add(ref)
+    return refs
+
+
+def parse_kicad_netlist(net_file_path, skip_unconnected=True, layer_map=None,
+                         io_pad_libs=("io_pads",), extra_ref_prefixes=()):
     """
     Parse a KiCad S-expression netlist file.
 
-    Returns a list of Net objects.
+    Returns a list of Net objects. Nets touching I/O pad components
+    (see discover_io_pad_refs) are flagged with `external=True`.
     """
     with open(net_file_path, "r") as f:
         content = f.read()
 
     tree = parse_all_sexpr(content)
+
+    io_pad_refs = discover_io_pad_refs(
+        tree, io_pad_libs=io_pad_libs, extra_ref_prefixes=extra_ref_prefixes)
 
     # tree is ['export', ...]
     nets_section = find_child(tree, "nets")
@@ -198,10 +234,14 @@ def parse_kicad_netlist(net_file_path, skip_unconnected=True, layer_map=None):
         # Classify net
         net_class = classify_net(net_name, pin_types)
 
+        # External: any connection lands on an I/O pad component.
+        external = any(c.component in io_pad_refs for c in connections)
+
         parsed_nets.append(Net(
             name=net_name,
             net_class=net_class,
             connections=connections,
+            external=external,
         ))
 
     return parsed_nets
@@ -217,6 +257,8 @@ def nets_to_yaml(nets, external_csv_name=None):
     for net in nets:
         lines.append(f"    - name: {net.name}")
         lines.append(f"      class: {net.net_class}")
+        if net.external:
+            lines.append("      external: true")
         lines.append("      connections:")
         for conn in net.connections:
             parts = [f"component: {conn.component}", f"pin: {conn.pin}"]
@@ -289,6 +331,16 @@ def main():
                         help='Component-to-layer mapping as JSON, e.g. \'{"U2":"TopMetal2"}\'')
     parser.add_argument("--external-csv", metavar="NAME",
                         help="CSV filename to reference in YAML external_netlist field")
+    parser.add_argument("--io-pad-lib", action="append", default=[],
+                        metavar="LIB",
+                        help="Footprint library name whose components are I/O pads "
+                             "(default: io_pads). Their nets are flagged "
+                             "external: true. Repeat for multiple libs.")
+    parser.add_argument("--external-ref-prefix", action="append", default=[],
+                        metavar="PREFIX",
+                        help="Additional ref-designator prefix to treat as I/O pad "
+                             "(e.g. 'J' to flag every connector as external). "
+                             "Repeat for multiple prefixes.")
     parser.add_argument("--summary", action="store_true",
                         help="Print summary of parsed nets")
 
@@ -301,7 +353,10 @@ def main():
     if args.layer_map:
         layer_map = json.loads(args.layer_map)
 
-    nets = parse_kicad_netlist(args.netlist, args.skip_unconnected, layer_map)
+    io_pad_libs = args.io_pad_lib or ["io_pads"]
+    nets = parse_kicad_netlist(args.netlist, args.skip_unconnected, layer_map,
+                                io_pad_libs=tuple(io_pad_libs),
+                                extra_ref_prefixes=tuple(args.external_ref_prefix))
 
     if not nets:
         print("WARNING: No nets found in netlist", file=sys.stderr)

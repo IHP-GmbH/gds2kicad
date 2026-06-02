@@ -1045,7 +1045,6 @@ options:
 
 ### Local Files
 
-- `NOTES.md` - Project context and development guidelines
 - `README.md` - User documentation
 - `TESTING.md` - Testing procedures and verification checklist
 - `KLayout_with_python.html` - Offline KLayout API reference

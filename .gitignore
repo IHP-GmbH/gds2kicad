@@ -41,14 +41,8 @@ kicad_interposer_lib/
 # Logs
 *.log
 
-# Session tracking
-CHANGELOG.md
-
 # Registry data
 *_registry.json
-
-# the assistant
-.tooling/
 
 # OS
 .DS_Store

@@ -186,6 +186,7 @@ class LayoutPreviewWidget(QWidget):
         self._zoom = 1.0
         self._pan_x = 0.0
         self._pan_y = 0.0
+        self._mirror_x = False
         self._dragging = False
         self._drag_start = None
         self.setMinimumSize(200, 150)
@@ -193,6 +194,11 @@ class LayoutPreviewWidget(QWidget):
 
     def set_pads(self, pads: List[dict]):
         self.pads = pads
+        self.update()
+
+    def set_mirror_x(self, mirror: bool):
+        """Toggle X-axis mirroring for flip-chip interposer view."""
+        self._mirror_x = mirror
         self.update()
 
     def set_zoom(self, zoom: float):
@@ -251,7 +257,8 @@ class LayoutPreviewWidget(QWidget):
         cy = (min_y + max_y) / 2.0
 
         painter.translate(self.width() / 2 + self._pan_x, self.height() / 2 + self._pan_y)
-        painter.scale(scale, -scale)  # Y-up
+        mx = -1 if self._mirror_x else 1
+        painter.scale(mx * scale, -scale)  # Y-up, optional X-mirror
         painter.translate(-cx, -cy)
 
         # Draw pads
