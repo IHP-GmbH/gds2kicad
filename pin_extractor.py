@@ -434,3 +434,38 @@ class PinExtractor:
             print("No text layers found, pads will be numbered sequentially")
 
         return pads, top_cell.name
+
+    def extract_named_pads_raw(self, gds_path: str,
+                               pad_layer: Tuple[int, int],
+                               text_layer: Optional[Tuple[int, int]] = None,
+                               max_distance: Optional[float] = None,
+                               flatten: bool = True) -> Tuple[List[PadInfo], str]:
+        """Extract pads with names addressing layers by raw (layer, datatype)
+        instead of LYP names -- for black-box / closed-PDK GDS with no .lyp.
+
+        Pads come from pad_layer; if text_layer is given its texts are
+        associated as pad names (else pads are left to be numbered).
+        """
+        layout = db.Layout()
+        layout.read(gds_path)
+
+        top_cell = layout.top_cell()
+        if not top_cell:
+            raise ValueError(f"No top cell found in {gds_path}")
+
+        if flatten:
+            top_cell.flatten(1)
+
+        pads = self.extract_pads(layout, top_cell, pad_layer)
+
+        if text_layer is not None:
+            label = f"{text_layer[0]}/{text_layer[1]}"
+            texts = self.extract_texts(layout, top_cell, [(label, text_layer)])
+            pads = self.associate_texts_with_pads(pads, texts, max_distance)
+            named = sum(1 for p in pads if p.name is not None)
+            print(f"Text layer {label}: {len(texts)} texts, "
+                  f"{named}/{len(pads)} pads named")
+        else:
+            print("No text layer given; pads will be numbered sequentially")
+
+        return pads, top_cell.name

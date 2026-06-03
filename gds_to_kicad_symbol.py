@@ -22,6 +22,7 @@ from pin_extractor import PinExtractor
 from kicad_sym_writer import KiCadSymWriter, SymbolDefinition, PinSide
 from symbol_layout import create_default_layout, create_layout_from_pin_list
 from pin_list import PinList
+from gds_to_kicad import parse_layer_spec, resolve_pad_layer, DEFAULT_GENERIC_LYP
 
 
 def generate_test_gds():
@@ -188,6 +189,46 @@ def list_text_layers(lyp_parser: LYPParser, gds_path: str, pad_layer_name: str):
         print("Auto-detected: none (no text found on candidate layers)")
 
 
+def _resolve_pad_and_text(args, lyp_parser):
+    """Resolve pad + text layers for extraction, black-box aware.
+
+    Returns (pad_layer, pad_name, text_layer, use_name):
+      pad_layer  -- raw (layer, datatype) tuple, or None if a name was given
+                    that the LYP cannot resolve;
+      pad_name   -- resolved name or "N/D" string (metadata / messages);
+      text_layer -- raw (layer, datatype) tuple for pin names, or None;
+      use_name   -- True if pad_name is a real LYP layer name (use the
+                    name-based extractor, preserving multi text-layer + name
+                    auto-detect); False for the raw black-box path.
+    """
+    pad_layer, pad_name, auto_text = resolve_pad_layer(args, lyp_parser, args.input)
+
+    if getattr(args, 'text_layer_number', None):
+        text_layer = parse_layer_spec(args.text_layer_number)
+    elif args.text_layer:
+        text_layer = None
+        for nm in args.text_layer:
+            t = lyp_parser.get_layer(nm)
+            if t:
+                text_layer = t
+                break
+    else:
+        text_layer = auto_text
+
+    use_name = bool(pad_name) and lyp_parser.get_layer(pad_name) is not None
+    return pad_layer, pad_name, text_layer, use_name
+
+
+def _pad_resolution_error(lyp_file, pad_name):
+    if pad_name:
+        print(f"Error: pad layer '{pad_name}' not found in LYP ({lyp_file}). "
+              f"Use --pad-layer-number N/D for a raw layer.", file=sys.stderr)
+    else:
+        print("Error: could not determine a pad layer. Pass --pad-layer NAME, "
+              "--pad-layer-number N/D, or ensure the GDS has pad geometry to "
+              "auto-detect.", file=sys.stderr)
+
+
 def extract_pins(args):
     """Extract pin list from GDS and write to JSON."""
     lyp_parser = LYPParser(args.lyp_file)
@@ -195,15 +236,26 @@ def extract_pins(args):
 
     extractor = PinExtractor(lyp_parser)
 
-    text_layers = args.text_layer if args.text_layer else None
+    pad_layer, pad_name, text_layer, use_name = _resolve_pad_and_text(args, lyp_parser)
+    if pad_layer is None:
+        _pad_resolution_error(args.lyp_file, pad_name)
+        return False
+
     max_dist = float(args.max_text_distance) if args.max_text_distance else None
 
-    pads, cell_name = extractor.extract_named_pads(
-        args.input,
-        args.pad_layer,
-        text_layer_names=text_layers,
-        max_distance=max_dist,
-    )
+    if use_name:
+        text_layers = args.text_layer if args.text_layer else None
+        pads, cell_name = extractor.extract_named_pads(
+            args.input, pad_name, text_layer_names=text_layers,
+            max_distance=max_dist)
+        meta_pad_layer = pad_name
+        meta_text_layers = text_layers
+    else:
+        pads, cell_name = extractor.extract_named_pads_raw(
+            args.input, pad_layer, text_layer=text_layer, max_distance=max_dist)
+        meta_pad_layer = pad_name or f"{pad_layer[0]}/{pad_layer[1]}"
+        meta_text_layers = ([f"{text_layer[0]}/{text_layer[1]}"]
+                            if text_layer else None)
 
     print(f"\nTop cell: {cell_name}")
     print(f"Extracted {len(pads)} pads")
@@ -213,8 +265,8 @@ def extract_pins(args):
         chiplet_name=cell_name,
         gds_source=Path(args.input).name,
         lyp_file=Path(args.lyp_file).name,
-        pad_layer=args.pad_layer,
-        text_layers=text_layers,
+        pad_layer=meta_pad_layer,
+        text_layers=meta_text_layers,
     )
 
     # Validate and warn
@@ -273,16 +325,21 @@ def convert(args):
 
     extractor = PinExtractor(lyp_parser)
 
-    # Extract pads with names
-    text_layers = args.text_layer if args.text_layer else None
+    pad_layer, pad_name, text_layer, use_name = _resolve_pad_and_text(args, lyp_parser)
+    if pad_layer is None:
+        _pad_resolution_error(args.lyp_file, pad_name)
+        return False
+
     max_dist = float(args.max_text_distance) if args.max_text_distance else None
 
-    pads, cell_name = extractor.extract_named_pads(
-        args.input,
-        args.pad_layer,
-        text_layer_names=text_layers,
-        max_distance=max_dist,
-    )
+    if use_name:
+        text_layers = args.text_layer if args.text_layer else None
+        pads, cell_name = extractor.extract_named_pads(
+            args.input, pad_name, text_layer_names=text_layers,
+            max_distance=max_dist)
+    else:
+        pads, cell_name = extractor.extract_named_pads_raw(
+            args.input, pad_layer, text_layer=text_layer, max_distance=max_dist)
 
     print(f"\nTop cell: {cell_name}")
     print(f"Extracted {len(pads)} pads")
@@ -343,10 +400,16 @@ Pin list workflow (human-in-the-loop):
 
     parser.add_argument('input', nargs='?', help='Input GDSII file')
     parser.add_argument('-o', '--output', help='Output .kicad_sym file')
-    parser.add_argument('--lyp-file', help='KLayout .lyp file with layer definitions')
+    parser.add_argument('--lyp-file', default=str(DEFAULT_GENERIC_LYP),
+                        help='KLayout .lyp file with layer definitions '
+                             '(default: bundled generic pads-only lyp)')
     parser.add_argument('--pad-layer', help='Layer name for pads (e.g., TopMetal2.drawing)')
+    parser.add_argument('--pad-layer-number', metavar='N/D',
+                        help='Raw pad layer number N/D (black-box; bypasses the LYP)')
     parser.add_argument('--text-layer', action='append',
                         help='Text layer name(s) for pin names (auto-detected if omitted)')
+    parser.add_argument('--text-layer-number', metavar='N/D',
+                        help='Raw text layer number N/D for pin names (black-box)')
     parser.add_argument('--symbol-name', help='Override symbol name (defaults to cell name)')
     parser.add_argument('--footprint-ref',
                         help='KiCad footprint reference (e.g., "MyLib:Footprint")')
@@ -398,10 +461,6 @@ Pin list workflow (human-in-the-loop):
     if args.extract_pins:
         if not args.input:
             parser.error("Input GDS file required with --extract-pins")
-        if not args.lyp_file:
-            parser.error("--lyp-file is required with --extract-pins")
-        if not args.pad_layer:
-            parser.error("--pad-layer is required with --extract-pins")
         success = extract_pins(args)
         return 0 if success else 1
 
@@ -413,10 +472,6 @@ Pin list workflow (human-in-the-loop):
     # Conversion mode
     if not args.input:
         parser.error("Input GDS file required")
-    if not args.lyp_file:
-        parser.error("--lyp-file is required for conversion")
-    if not args.pad_layer:
-        parser.error("--pad-layer is required for conversion")
 
     success = convert(args)
     return 0 if success else 1
