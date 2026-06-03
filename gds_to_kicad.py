@@ -501,12 +501,16 @@ def resolve_pad_layer(args, lyp_parser, gds_path):
     layer_name is set, the caller lets GDSToKiCad raise the detailed
     'layer not found' error. text_layer is ignored by the explicit paths.
     """
+    # Accept the pad-name flag under either spelling: --layer (footprint
+    # converter) or --pad-layer (symbol converter), so both reuse this resolver.
+    name = getattr(args, 'layer', None) or getattr(args, 'pad_layer', None)
+
     if getattr(args, 'pad_layer_number', None):
         pad = parse_layer_spec(args.pad_layer_number)
-        return pad, (args.layer or f"{pad[0]}/{pad[1]}"), None
+        return pad, (name or f"{pad[0]}/{pad[1]}"), None
 
-    if args.layer:
-        return lyp_parser.get_layer(args.layer), args.layer, None
+    if name:
+        return lyp_parser.get_layer(name), name, None
 
     # Auto-detect: pick the densest pad layer plus a text layer for names.
     from pin_extractor import PinExtractor
