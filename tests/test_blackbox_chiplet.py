@@ -11,7 +11,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import klayout.db as db
 
-from blackbox_chiplet import generate_blackbox_gds, load_canonical_layers, load_spec
+from blackbox_chiplet import (_adk_root, generate_blackbox_gds,
+                              load_canonical_layers, load_spec)
 from lyp_parser import LYPParser
 from pin_extractor import PinExtractor
 
@@ -77,12 +78,68 @@ def test_generate_writes_boundary_manifest(tmp_path):
     assert min(ys) == -400000 and max(ys) == 400000
 
 
+def test_blackbox_manifest_version_pinned(tmp_path):
+    """The sidecar must carry the exact schema id and version the adk readers
+    exact-match (adk/docs/boundary_manifest.md), plus every field the schema
+    marks required -- bumping the producer without the readers (or dropping a
+    field) breaks assembly DRC loudly downstream."""
+    gds = tmp_path / "acme.gds"
+    generate_blackbox_gds(SPEC, str(gds), load_canonical_layers())
+    m = json.loads((tmp_path / "acme.boundaries.json").read_text())
+    assert m["schema"] == "adk-boundary-manifest"
+    assert m["version"] == "1.0.0"
+    assert m["generator"] == "blackbox_chiplet.py"
+    for field in ("assembly_gds", "dbu_um", "top_cell", "boundaries"):
+        assert field in m, f"required manifest field missing: {field}"
+    b = m["boundaries"][0]
+    for field in ("instance", "source_die", "class", "polygon_dbu"):
+        assert field in b, f"required boundary field missing: {field}"
+
+
 def test_no_manifest_flag_suppresses_sidecar(tmp_path):
     gds = tmp_path / "acme.gds"
     generate_blackbox_gds(SPEC, str(gds), load_canonical_layers(),
                           write_manifest=False)
     assert not (tmp_path / "acme.boundaries.json").exists()
     assert _count_on(gds, 190, 0) == 0
+
+
+# --- ADK discovery (ecosystem convention: env -> sibling walk) ---------------
+
+def _fake_adk(parent, dirname):
+    root = parent / dirname
+    (root / "config").mkdir(parents=True)
+    (root / "config" / "chiplet_pads.json").write_text("{}")
+    return root
+
+
+def test_adk_root_walk_accepts_repo_alias(tmp_path, monkeypatch):
+    """A sibling checkout under the GitHub repository name (ADK) must resolve,
+    not only the canonical ecosystem dirname (adk)."""
+    monkeypatch.delenv("ADK_ROOT", raising=False)
+    alias = _fake_adk(tmp_path, "ADK")
+    start = tmp_path / "tools" / "gds-to-kicad" / "blackbox_chiplet.py"
+    start.parent.mkdir(parents=True)
+    assert _adk_root(start=start) == alias
+
+
+def test_adk_root_walk_prefers_canonical_over_alias(tmp_path, monkeypatch):
+    monkeypatch.delenv("ADK_ROOT", raising=False)
+    canonical = _fake_adk(tmp_path, "adk")
+    _fake_adk(tmp_path, "ADK")
+    start = tmp_path / "gds_to_kicad" / "blackbox_chiplet.py"
+    start.parent.mkdir(parents=True)
+    assert _adk_root(start=start) == canonical
+
+
+def test_adk_root_invalid_env_falls_through_to_walk(tmp_path, monkeypatch):
+    """A set-but-invalid $ADK_ROOT (marker file missing) must fall through to
+    the sibling walk instead of being returned blindly."""
+    monkeypatch.setenv("ADK_ROOT", str(tmp_path / "nonexistent"))
+    canonical = _fake_adk(tmp_path, "adk")
+    start = tmp_path / "gds_to_kicad" / "blackbox_chiplet.py"
+    start.parent.mkdir(parents=True)
+    assert _adk_root(start=start) == canonical
 
 
 def test_csv_spec(tmp_path):

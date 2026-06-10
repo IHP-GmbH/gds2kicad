@@ -50,14 +50,30 @@ _FALLBACK = {
 }
 
 
-def _adk_root(explicit: Optional[str] = None) -> Optional[Path]:
+# Marker that must exist under an ADK root for this tool's purposes (it is
+# the very file load_canonical_layers reads).
+_ADK_MARKER = ("config", "chiplet_pads.json")
+
+
+def _adk_root(explicit: Optional[str] = None,
+              start: Optional[Path] = None) -> Optional[Path]:
+    """Locate the ADK checkout: explicit argument, then $ADK_ROOT, then an
+    upward walk over sibling checkouts named after the canonical ecosystem
+    dirname first and the GitHub repository name second (ecosystem discovery
+    convention, see adk/docs/integration.md). A set-but-invalid $ADK_ROOT
+    falls through to the walk."""
     if explicit:
         return Path(explicit)
     env = os.environ.get("ADK_ROOT")
-    if env:
+    if env and Path(env).joinpath(*_ADK_MARKER).is_file():
         return Path(env)
-    cand = Path(__file__).resolve().parent.parent / "adk"
-    return cand if cand.is_dir() else None
+    here = start or Path(__file__).resolve()
+    for base in here.parents:
+        for dirname in ("adk", "ADK"):
+            cand = base / dirname
+            if cand.joinpath(*_ADK_MARKER).is_file():
+                return cand
+    return None
 
 
 def load_canonical_layers(adk_root: Optional[str] = None) -> Dict[str, Tuple[int, int]]:
@@ -128,6 +144,8 @@ def _write_blackbox_manifest(out_gds: str, die_name: str, dbu: float,
     poly_dbu = [[b.left, b.bottom], [b.right, b.bottom],
                 [b.right, b.top], [b.left, b.top]]
     poly_um = [[round(x * dbu, 6), round(y * dbu, 6)] for x, y in poly_dbu]
+    # Schema + version policy: adk/docs/boundary_manifest.md (the adk
+    # readers exact-match the version; bump producers and readers together).
     manifest = {
         "schema": "adk-boundary-manifest",
         "version": "1.0.0",
@@ -202,7 +220,8 @@ def main():
     ap.add_argument("--no-manifest", action="store_true",
                     help="Do not write the <stem>.boundaries.json boundary manifest.")
     ap.add_argument("--adk-root", default=None,
-                    help="ADK repo root (default: $ADK_ROOT or ../adk).")
+                    help="ADK repo root (default: $ADK_ROOT or a sibling "
+                         "checkout named adk/ or ADK/).")
     args = ap.parse_args()
 
     spec = load_spec(args.spec)
