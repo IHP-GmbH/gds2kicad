@@ -40,6 +40,7 @@ from symbol_layout import (
     calculate_body_size,
 )
 from preview_widgets import SymbolPreviewWidget, LayoutPreviewWidget
+from _paths import resolve_data_dir
 
 
 # Style override for QComboBox embedded in QTableWidget cells
@@ -99,7 +100,10 @@ class ConversionRegistry:
 # =============================================================================
 class UnifiedMainWindow(QMainWindow):
 
-    DEFAULT_OUTPUT_DIR = Path(__file__).parent / "generated_kicad_symbol_files"
+    # Writable base (CWD or $GDS_TO_KICAD_DATA_DIR), never the read-only
+    # install dir. See _paths.resolve_data_dir().
+    DATA_DIR = resolve_data_dir()
+    DEFAULT_OUTPUT_DIR = DATA_DIR / "generated_kicad_symbol_files"
     REGISTRY_PATH = DEFAULT_OUTPUT_DIR / "unified_registry.json"
 
     def __init__(self):
@@ -567,7 +571,7 @@ class UnifiedMainWindow(QMainWindow):
     def _select_gds_file(self):
         path, _ = QFileDialog.getOpenFileName(
             self, "Select GDSII File",
-            str(Path(__file__).parent / "gds_files"),
+            str(Path.cwd()),
             "GDSII Files (*.gds *.GDS);;All Files (*)"
         )
         if path:

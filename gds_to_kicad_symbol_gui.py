@@ -31,6 +31,7 @@ from kicad_sym_writer import (
     PIN_SPACING, PIN_LENGTH,
 )
 from symbol_layout import create_default_layout
+from _paths import resolve_data_dir
 
 
 # =============================================================================
@@ -410,8 +411,11 @@ class ConversionRegistry:
 # =============================================================================
 class MainWindow(QMainWindow):
 
-    DEFAULT_OUTPUT_DIR = Path(__file__).parent / "generated_kicad_symbol_files"
-    REGISTRY_PATH = Path(__file__).parent / "generated_kicad_symbol_files" / "conversions_registry.json"
+    # Writable base (CWD or $GDS_TO_KICAD_DATA_DIR), never the read-only
+    # install dir. See _paths.resolve_data_dir().
+    DATA_DIR = resolve_data_dir()
+    DEFAULT_OUTPUT_DIR = DATA_DIR / "generated_kicad_symbol_files"
+    REGISTRY_PATH = DATA_DIR / "generated_kicad_symbol_files" / "conversions_registry.json"
 
     def __init__(self):
         super().__init__()
@@ -699,7 +703,7 @@ class MainWindow(QMainWindow):
     def _select_gds_file(self):
         path, _ = QFileDialog.getOpenFileName(
             self, "Select GDSII File",
-            str(Path(__file__).parent / "gds_files"),
+            str(Path.cwd()),
             "GDSII Files (*.gds *.GDS);;All Files (*)"
         )
         if path:

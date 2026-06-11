@@ -26,6 +26,7 @@ from PyQt6.QtGui import QFont, QColor
 # Import converter classes from CLI script
 from gds_to_kicad import LYPParser, GDSToKiCad
 from pin_extractor import PinExtractor
+from _paths import resolve_data_dir
 
 
 # =============================================================================
@@ -294,10 +295,12 @@ class ConversionRegistry:
 class MainWindow(QMainWindow):
     """Main application window."""
 
-    # Default paths
-    DEFAULT_OUTPUT_DIR = Path(__file__).parent / "generated_kicad_footprint_files"
-    LIBRARY_DIR = Path(__file__).parent / "kicad_interposer_lib" / "Interposer.pretty"
-    REGISTRY_PATH = Path(__file__).parent / "kicad_interposer_lib" / "conversions_registry.json"
+    # Default paths -- writable base (CWD or $GDS_TO_KICAD_DATA_DIR), never the
+    # read-only install dir. See _paths.resolve_data_dir().
+    DATA_DIR = resolve_data_dir()
+    DEFAULT_OUTPUT_DIR = DATA_DIR / "generated_kicad_footprint_files"
+    LIBRARY_DIR = DATA_DIR / "kicad_interposer_lib" / "Interposer.pretty"
+    REGISTRY_PATH = DATA_DIR / "kicad_interposer_lib" / "conversions_registry.json"
 
     def __init__(self):
         super().__init__()
@@ -539,7 +542,7 @@ class MainWindow(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Select GDSII File",
-            str(Path(__file__).parent / "gds_files"),
+            str(Path.cwd()),
             "GDSII Files (*.gds *.GDS);;All Files (*)"
         )
         if file_path:
