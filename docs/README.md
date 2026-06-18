@@ -8,12 +8,12 @@ The converter works with **any** technology, not just one PDK. You tell it which
 
 `pdks/` ships four ready-to-use `.lyp` files:
 
-- `generic.lyp` — a minimal pads-only vocabulary (pad metal `205/0`, pad text `205/25`, outline `206/0`). This is the default when you don't pass `--lyp-file`, meant for a closed chiplet GDS that ships no PDK file.
-- `sg13g2.lyp` — the full IHP SG13G2 layer set.
-- `sky130.lyp` — the full SkyWater sky130 layer set.
-- `interposer.lyp` — upper-metal/bump layers derived from SG13G2, used as the test fixture.
+- `generic.lyp`, a minimal pads-only vocabulary (pad metal `205/0`, pad text `205/25`, outline `206/0`). This is the default when you don't pass `--lyp-file`, meant for a closed chiplet GDS that ships no PDK file.
+- `sg13g2.lyp`, the full IHP SG13G2 layer set.
+- `sky130.lyp`, the full SkyWater sky130 layer set.
+- `interposer.lyp`, upper-metal/bump layers derived from SG13G2, used as the test fixture.
 
-For any other process, hand it your own `.lyp`. You can also skip layer names entirely and give raw GDS layer numbers as `N/D` (e.g. `134/0`), or let the tool auto-detect the densest pad layer — so a GDS with no usable `.lyp` at all still converts.
+For any other process, hand it your own `.lyp`. You can also skip layer names entirely and give raw GDS layer numbers as `N/D` (e.g. `134/0`), or let the tool auto-detect the densest pad layer, so a GDS with no usable `.lyp` at all still converts.
 
 ## Install
 
@@ -39,7 +39,7 @@ python3 gds_to_kicad.py input.gds --lyp-file pdks/sg13g2.lyp \
     --layer TopMetal2.drawing --text-layer TopMetal2.text -o output.kicad_mod
 ```
 
-Or bypass layer names and give raw `N/D` numbers — useful for a black-box GDS with no named layers:
+Or bypass layer names and give raw `N/D` numbers, useful for a black-box GDS with no named layers:
 
 ```bash
 python3 gds_to_kicad.py input.gds --pad-layer-number 134/0 --text-layer-number 134/25
@@ -53,7 +53,7 @@ For a curated run, generate a pad-review GDS (`--generate-pad-review out.gds`), 
 
 ## The GUI
 
-`unified_gui.py` is the friendliest way to drive all of this — a PyQt6 front-end over the same engine, no flags to remember. It is a five-tab workflow: **Extract Pins** from a GDS, **Pin List Editor** to fix names/sides/types, **Symbol Designer** with a live preview, **Footprint Generator**, and a **History** of past runs.
+`unified_gui.py` is the friendliest way to drive all of this, a PyQt6 front-end over the same engine, no flags to remember. It is a five-tab workflow: **Extract Pins** from a GDS, **Pin List Editor** to fix names/sides/types, **Symbol Designer** with a live preview, **Footprint Generator**, and a **History** of past runs.
 
 ```bash
 python3 unified_gui.py
@@ -65,14 +65,14 @@ In the Symbol Designer above you assign each pin a side and type, the symbol red
 
 ## The rest of the suite
 
-**GDS to symbol** — `gds_to_kicad_symbol.py` reads the same pad/text geometry and writes a KiCad 6+ `.kicad_sym`, auto-arranging pins (power top/bottom, signals left/right). Same layer model: `--lyp-file` + `--pad-layer`/`--text-layer`, or raw `--pad-layer-number`/`--text-layer-number`. `--extract-pins out.json` dumps an editable pin list; `--from-pin-list pins.json` regenerates the symbol from it, no GDS needed.
+**GDS to symbol**, `gds_to_kicad_symbol.py` reads the same pad/text geometry and writes a KiCad 6+ `.kicad_sym`, auto-arranging pins (power top/bottom, signals left/right). Same layer model: `--lyp-file` + `--pad-layer`/`--text-layer`, or raw `--pad-layer-number`/`--text-layer-number`. `--extract-pins out.json` dumps an editable pin list; `--from-pin-list pins.json` regenerates the symbol from it, no GDS needed.
 
 ```bash
 python3 gds_to_kicad_symbol.py input.gds --lyp-file pdks/sg13g2.lyp \
     --pad-layer TopMetal2.drawing -o out.kicad_sym
 ```
 
-**Black-box chiplet** — when you only have a pad map (no GDS, no PDK), `blackbox_chiplet.py` synthesizes a minimal chiplet GDS from a pad spec: die outline plus pad boxes and name labels on the canonical generic layers (`205/0`, `205/25`, `206/0`), which the converters above auto-detect cleanly. The spec is JSON or CSV (chosen by suffix); each pad gives a name, center, and size.
+**Black-box chiplet**, when you only have a pad map (no GDS, no PDK), `blackbox_chiplet.py` synthesizes a minimal chiplet GDS from a pad spec: die outline plus pad boxes and name labels on the canonical generic layers (`205/0`, `205/25`, `206/0`), which the converters above auto-detect cleanly. The spec is JSON or CSV (chosen by suffix); each pad gives a name, center, and size.
 
 ```bash
 python3 blackbox_chiplet.py pads.json -o chiplet.gds
@@ -80,11 +80,11 @@ python3 blackbox_chiplet.py pads.json -o chiplet.gds
 
 It also writes a sidecar `<stem>.boundaries.json` manifest carrying the die outline as the chiplet boundary (suppress with `--no-manifest`). `--adk-root PATH` points at an ADK checkout for canonical layer numbers; without one it falls back to the same hardcoded numbers and warns.
 
-**Netlist to chiplet** — `kicad_netlist_to_chiplet.py` converts a KiCad S-expression netlist (`.net`) into chiplet-flow YAML and/or CSV, or injects a netlist section into an existing `.chiplet` file. Nets are classified power/ground/signal by name. Pass at least one of `--yaml`, `--csv`, `--inject`, or `--summary`. I/O-pad nets are flagged `external` by footprint library (`--io-pad-lib`, default `io_pads`) or ref prefix (`--external-ref-prefix`).
+**Netlist to chiplet**, `kicad_netlist_to_chiplet.py` converts a KiCad S-expression netlist (`.net`) into chiplet-flow YAML and/or CSV, or injects a netlist section into an existing `.chiplet` file. Nets are classified power/ground/signal by name. Pass at least one of `--yaml`, `--csv`, `--inject`, or `--summary`. I/O-pad nets are flagged `external` by footprint library (`--io-pad-lib`, default `io_pads`) or ref prefix (`--external-ref-prefix`).
 
-**Footprint to pin list** — `footprint_to_pinlist.py` extracts pad name/center/size from one or more `.kicad_mod` files into a PinList JSON. Single-file or batch (`--output-dir`); `--dbu` sets the unit (default `0.001`, IHP).
+**Footprint to pin list**, `footprint_to_pinlist.py` extracts pad name/center/size from one or more `.kicad_mod` files into a PinList JSON. Single-file or batch (`--output-dir`); `--dbu` sets the unit (default `0.001`, IHP).
 
-**I/O pads** (`io_pads/`) — `generate_io_pad.py` emits a parametric symbol+footprint for an external interposer pad, tagged with `IO_CLASS` and `IO_PAD_SIZE_UM` properties (`--io-class wire_bond --size 100x100`; only `wire_bond` is implemented today). `kicad_pcb_to_iopads.py` walks a routed `.kicad_pcb`, keeps footprints carrying `IO_CLASS`, and writes a sidecar `io_pads.json` of pad locations/sizes/nets (mm→um, Y negated for the GDS Y-up convention).
+**I/O pads** (`io_pads/`), `generate_io_pad.py` emits a parametric symbol+footprint for an external interposer pad, tagged with `IO_CLASS` and `IO_PAD_SIZE_UM` properties (`--io-class wire_bond --size 100x100`; only `wire_bond` is implemented today). `kicad_pcb_to_iopads.py` walks a routed `.kicad_pcb`, keeps footprints carrying `IO_CLASS`, and writes a sidecar `io_pads.json` of pad locations/sizes/nets (mm→um, Y negated for the GDS Y-up convention).
 
 ## Project
 

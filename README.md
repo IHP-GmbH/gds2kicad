@@ -6,14 +6,14 @@ gds2kicad does that translation for you. Point it at a GDS, tell it which layer 
 
 ## PDK-agnostic by design
 
-There is no PDK baked in and nothing to configure. The converter learns your layer numbers from a standard KLayout `.lyp` layer-properties file that you pass with `--lyp-file`. Any process works as long as you supply that file — or you can skip layer names entirely and hand it the raw `layer/datatype` number directly. There is no `--pdk` flag and no PDK discovery: you choose the layer file explicitly, always.
+There is no PDK baked in and nothing to configure. The converter learns your layer numbers from a standard KLayout `.lyp` layer-properties file that you pass with `--lyp-file`. Any process works as long as you supply that file, or you can skip layer names entirely and hand it the raw `layer/datatype` number directly. There is no `--pdk` flag and no PDK discovery: you choose the layer file explicitly, always.
 
 The `pdks/` directory ships four ready examples:
 
-- `generic.lyp` — a minimal pads-only vocabulary (pad metal `205/0`, pad text `205/25`, outline `206/0`) for black-box chiplets that carry no layer file. This is the default when you omit `--lyp-file`.
-- `interposer.lyp` — the IHP SG13G2 upper-metal stack (Metal4 up through Bump), handy for interposer work.
-- `sg13g2.lyp` — the full IHP SG13G2 layer set.
-- `sky130.lyp` — the full SkyWater sky130 layer set.
+- `generic.lyp`, a minimal pads-only vocabulary (pad metal `205/0`, pad text `205/25`, outline `206/0`) for black-box chiplets that carry no layer file. This is the default when you omit `--lyp-file`.
+- `interposer.lyp`, the IHP SG13G2 upper-metal stack (Metal4 up through Bump), handy for interposer work.
+- `sg13g2.lyp`, the full IHP SG13G2 layer set.
+- `sky130.lyp`, the full SkyWater sky130 layer set.
 
 IHP SG13G2 is the example we test against most heavily, not a requirement. For any other technology, drop its KLayout `.lyp` into `pdks/` (or pass any path with `--lyp-file`) and reference layers by name.
 
@@ -31,7 +31,7 @@ KLayout does the GDS reading. If `import klayout.db` fails, the converters exit 
 
 ## The GUI: the easy way in
 
-If you would rather click than memorize flags, `unified_gui.py` is the front end — and the simplest way to use any of this. One window walks the whole job across five tabs: pull the pins out of a GDS, fix up the pin list, design the symbol against a live preview, generate the footprint, and look back over past runs. It drives the same engine as the command line.
+If you would rather click than memorize flags, `unified_gui.py` is the front end, and the simplest way to use any of this. One window walks the whole job across five tabs: pull the pins out of a GDS, fix up the pin list, design the symbol against a live preview, generate the footprint, and look back over past runs. It drives the same engine as the command line.
 
 ```sh
 python3 unified_gui.py
@@ -41,7 +41,7 @@ python3 unified_gui.py
 
 Above is the Symbol Designer: set each pin's side and type on the left, watch the symbol redraw on the right, then export the `.kicad_sym`. If you only want one job, `gds_to_kicad_gui.py` (footprints) and `gds_to_kicad_symbol_gui.py` (symbols) are the focused versions. On a headless box, set `QT_QPA_PLATFORM=offscreen`.
 
-The GUIs handle name-based layer selection and the common path. The command line below covers the same ground and adds the power-user knobs — raw layer numbers, pad review, flip-chip, `--design-dir`.
+The GUIs handle name-based layer selection and the common path. The command line below covers the same ground and adds the power-user knobs, raw layer numbers, pad review, flip-chip, `--design-dir`.
 
 ## Quickstart: a die to a footprint
 
@@ -61,7 +61,7 @@ python3 gds_to_kicad.py my_die.gds --scan-layers                    # suggests p
 python3 gds_to_kicad.py my_die.gds --list-layers --lyp-file pdks/sky130.lyp
 ```
 
-If you have no usable `.lyp` — a closed-PDK GDS, say — name the layer by its raw `N/D` number, or let the densest-pad-layer auto-detector pick:
+If you have no usable `.lyp`, e.g. a closed-PDK GDS, name the layer by its raw `N/D` number, or let the densest-pad-layer auto-detector pick:
 
 ```sh
 python3 gds_to_kicad.py chiplet.gds --pad-layer-number 134/0 --text-layer-number 134/25 -o chiplet.kicad_mod
@@ -88,7 +88,7 @@ Pads are named by nearest-neighbor matching against the pin list, with warnings 
 
 ## The rest of the suite
 
-**GDS to symbol.** `gds_to_kicad_symbol.py` runs the same pad-and-text extraction and emits a KiCad 6+ `.kicad_sym` library. It auto-arranges pins — power top and bottom, signals left and right — and writes the schematic body for you.
+**GDS to symbol.** `gds_to_kicad_symbol.py` runs the same pad-and-text extraction and emits a KiCad 6+ `.kicad_sym` library. It auto-arranges pins, power top and bottom, signals left and right, and writes the schematic body for you.
 
 ```sh
 python3 gds_to_kicad_symbol.py my_die.gds --lyp-file pdks/sg13g2.lyp --pad-layer TopMetal2.drawing -o my_die.kicad_sym
@@ -96,7 +96,7 @@ python3 gds_to_kicad_symbol.py my_die.gds --lyp-file pdks/sg13g2.lyp --pad-layer
 
 It has the same name / raw-number / auto-detect layer selection, plus a two-step human-in-the-loop path: `--extract-pins pins.json` dumps an editable pin list, you fix names, sides, and types, then `--from-pin-list pins.json` regenerates the symbol with no GDS needed.
 
-**Black-box mode.** When you only know a chiplet's pad map — names, centers, sizes from a datasheet — and have no GDS and no layer file, `blackbox_chiplet.py` synthesizes a minimal stand-in GDS. It stamps pad metal, pad-name labels, and a die outline onto the generic canonical layers (`205/0`, `205/25`, `206/0`), so the result drops straight into the converters above with no flags.
+**Black-box mode.** When you only know a chiplet's pad map, names, centers, sizes from a datasheet, and have no GDS and no layer file, `blackbox_chiplet.py` synthesizes a minimal stand-in GDS. It stamps pad metal, pad-name labels, and a die outline onto the generic canonical layers (`205/0`, `205/25`, `206/0`), so the result drops straight into the converters above with no flags.
 
 ```sh
 python3 blackbox_chiplet.py chiplet_pads.json -o chiplet.gds      # JSON or CSV pad spec
