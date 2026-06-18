@@ -29,6 +29,20 @@ pip install klayout          # or use a system KLayout install
 
 KLayout does the GDS reading. If `import klayout.db` fails, the converters exit with an error telling you so.
 
+## The GUI: the easy way in
+
+If you would rather click than memorize flags, `unified_gui.py` is the front end — and the simplest way to use any of this. One window walks the whole job across five tabs: pull the pins out of a GDS, fix up the pin list, design the symbol against a live preview, generate the footprint, and look back over past runs. It drives the same engine as the command line.
+
+```sh
+python3 unified_gui.py
+```
+
+![The unified GUI, Symbol Designer tab: pin table on the left, live symbol preview on the right](docs/img/unified-gui.png)
+
+Above is the Symbol Designer: set each pin's side and type on the left, watch the symbol redraw on the right, then export the `.kicad_sym`. If you only want one job, `gds_to_kicad_gui.py` (footprints) and `gds_to_kicad_symbol_gui.py` (symbols) are the focused versions. On a headless box, set `QT_QPA_PLATFORM=offscreen`.
+
+The GUIs handle name-based layer selection and the common path. The command line below covers the same ground and adds the power-user knobs — raw layer numbers, pad review, flip-chip, `--design-dir`.
+
 ## Quickstart: a die to a footprint
 
 The fast path. Give it a GDS and the pad layer, get a `.kicad_mod` back:
@@ -55,8 +69,6 @@ python3 gds_to_kicad.py chiplet.gds -o chiplet.kicad_mod            # no layer f
 ```
 
 For a die that mounts face-down on an interposer, add `--flip-chip` to mirror X so the footprint reads as seen from the interposer side.
-
-Prefer to click than type? `python3 unified_gui.py` is the full PyQt6 front-end — extract pins, edit the pin list, design the symbol with a live preview, generate the footprint, and browse a conversion history — over the same engine. There are also focused GUIs in `gds_to_kicad_gui.py` (footprints) and `gds_to_kicad_symbol_gui.py` (symbols). On a headless box, set `QT_QPA_PLATFORM=offscreen`. The GUIs cover name-based layer selection and the common path; the raw layer-number flags, pad review, flip-chip, and `--design-dir` are CLI-only.
 
 ### When auto-detect isn't enough: pad review
 

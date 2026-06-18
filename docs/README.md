@@ -51,6 +51,18 @@ Without `-o`, the footprint lands in `generated_kicad_footprint_files/<stem>.kic
 
 For a curated run, generate a pad-review GDS (`--generate-pad-review out.gds`), strip routing and fills down to the real bond pads in KLayout, then rebuild from it (`--from-pad-review edited.gds --pin-list pins.json`).
 
+## The GUI
+
+`unified_gui.py` is the friendliest way to drive all of this — a PyQt6 front-end over the same engine, no flags to remember. It is a five-tab workflow: **Extract Pins** from a GDS, **Pin List Editor** to fix names/sides/types, **Symbol Designer** with a live preview, **Footprint Generator**, and a **History** of past runs.
+
+```bash
+python3 unified_gui.py
+```
+
+![Unified GUI, Symbol Designer tab: editable pin table on the left, live symbol preview on the right](img/unified-gui.png)
+
+In the Symbol Designer above you assign each pin a side and type, the symbol redraws as you go, and one button exports the `.kicad_sym`. Two focused GUIs also exist if you only want one job: `gds_to_kicad_gui.py` (footprints) and `gds_to_kicad_symbol_gui.py` (symbols). Run any of them headless with `QT_QPA_PLATFORM=offscreen`.
+
 ## The rest of the suite
 
 **GDS to symbol** — `gds_to_kicad_symbol.py` reads the same pad/text geometry and writes a KiCad 6+ `.kicad_sym`, auto-arranging pins (power top/bottom, signals left/right). Same layer model: `--lyp-file` + `--pad-layer`/`--text-layer`, or raw `--pad-layer-number`/`--text-layer-number`. `--extract-pins out.json` dumps an editable pin list; `--from-pin-list pins.json` regenerates the symbol from it, no GDS needed.
@@ -73,12 +85,6 @@ It also writes a sidecar `<stem>.boundaries.json` manifest carrying the die outl
 **Footprint to pin list** — `footprint_to_pinlist.py` extracts pad name/center/size from one or more `.kicad_mod` files into a PinList JSON. Single-file or batch (`--output-dir`); `--dbu` sets the unit (default `0.001`, IHP).
 
 **I/O pads** (`io_pads/`) — `generate_io_pad.py` emits a parametric symbol+footprint for an external interposer pad, tagged with `IO_CLASS` and `IO_PAD_SIZE_UM` properties (`--io-class wire_bond --size 100x100`; only `wire_bond` is implemented today). `kicad_pcb_to_iopads.py` walks a routed `.kicad_pcb`, keeps footprints carrying `IO_CLASS`, and writes a sidecar `io_pads.json` of pad locations/sizes/nets (mm→um, Y negated for the GDS Y-up convention).
-
-**Unified GUI** — `unified_gui.py` is a PyQt6 front-end over the same engine, with tabs for pin extraction, pin-list editing, symbol design with a live preview, footprint generation, and a conversion history. Two focused GUIs also exist: `gds_to_kicad_gui.py` and `gds_to_kicad_symbol_gui.py`. Run headless with `QT_QPA_PLATFORM=offscreen`.
-
-```bash
-python3 unified_gui.py
-```
 
 ## Project
 
