@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for the black-box conversion paths: raw --pad-layer-number override,
 default generic lyp (no --lyp-file), and densest-layer auto-detect.
 """

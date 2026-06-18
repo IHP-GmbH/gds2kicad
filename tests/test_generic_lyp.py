@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for the bundled generic pads-only LYP (default for black-box chiplets).
 
 The committed pdks/generic.lyp is the offline default the footprint converter

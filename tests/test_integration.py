@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Integration tests: full pipeline from GDS to .kicad_sym"""
 
 import sys

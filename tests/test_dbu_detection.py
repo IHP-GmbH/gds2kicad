@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for dynamic DBU detection in gds_to_kicad.py"""
 
 import sys

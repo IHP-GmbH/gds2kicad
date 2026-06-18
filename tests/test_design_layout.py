@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for the per-design file-layout convention (--design-dir output routing)."""
 
 import subprocess

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Guard: the canonical black-box pad layers must not collide with the
 reference interposer PDK (IHP SG13G2).
 

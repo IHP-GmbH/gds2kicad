@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for kicad_netlist_to_chiplet.py -- KiCad netlist to chiplet YAML/CSV converter."""
 
 import csv

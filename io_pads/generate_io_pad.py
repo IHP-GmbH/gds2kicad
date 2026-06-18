@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Generate a KiCad symbol and footprint for an I/O pad.
 
 The user instantiates the resulting symbol in the schematic and places

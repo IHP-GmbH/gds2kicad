@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for the black-box chiplet generator and its round-trip through the
 footprint converter.
 """

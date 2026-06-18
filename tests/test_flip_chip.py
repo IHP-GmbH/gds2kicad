@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for flip-chip mirror-X footprint generation."""
 
 import re

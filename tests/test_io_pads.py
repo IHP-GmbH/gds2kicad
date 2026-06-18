@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for io_pads/generate_io_pad.py and io_pads/kicad_pcb_to_iopads.py."""
 import json
 import subprocess

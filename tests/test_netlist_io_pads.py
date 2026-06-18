@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for the I/O pad detection added to kicad_netlist_to_chiplet.py.
 
 Two layers:

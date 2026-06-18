@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Black-box paths for the symbol converter: raw --pad-layer-number, default
 generic lyp (no --lyp-file), and densest-layer auto-detect. Mirrors
 test_pad_layer_number.py for the .kicad_sym side.

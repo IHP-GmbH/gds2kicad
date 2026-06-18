@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for polygon pad support across the pipeline."""
 
 import sys

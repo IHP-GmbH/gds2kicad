@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Extract I/O pad locations from a KiCad PCB file into a sidecar JSON.
 
 Walks all footprints in a .kicad_pcb file, filters those whose

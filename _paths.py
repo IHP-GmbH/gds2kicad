@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Shared filesystem-path policy for the GDS->KiCad tools.
 
 Single source of truth for where the GUIs write their generated files and the

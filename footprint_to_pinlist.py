@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """
 footprint_to_pinlist.py -- Extract PinList JSON from KiCad footprint (.kicad_mod)
 
