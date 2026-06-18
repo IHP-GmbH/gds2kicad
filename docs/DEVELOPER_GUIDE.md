@@ -1,1110 +1,119 @@
 # Developer Guide
 
-This document provides comprehensive technical documentation for developers who want to understand, modify, or extend the GDSII to KiCad footprint converter.
+`gds2kicad` (the `gds_to_kicad` repo, [IHP-GmbH/gds2kicad](https://github.com/IHP-GmbH/gds2kicad), GPL-3.0-or-later) turns silicon-side artifacts into KiCad libraries and back: a die GDSII becomes a KiCad footprint (`.kicad_mod`) and symbol (`.kicad_sym`), and routed KiCad designs flow back into the chiplet assembly format. This guide is for people who want to work *on* the tools, not just run them — so it leans on how the pieces fit together rather than restating every flag (`--help` is authoritative for those).
 
-## Table of Contents
+## PDK-agnostic, by design
 
-- [Architecture Overview](#architecture-overview)
-- [Code Structure](#code-structure)
-- [Development Environment](#development-environment)
-- [KLayout API Usage](#klayout-api-usage)
-- [Common Development Tasks](#common-development-tasks)
-- [Testing Strategy](#testing-strategy)
-- [Known Issues](#known-issues)
-- [Future Enhancements](#future-enhancements)
+The single most important thing to understand: **the converter is not tied to any one process.** It reads layer name → (layer/datatype) mappings from a standard KLayout `.lyp` layer-properties file, which you point at with `--lyp-file`. Give it the `.lyp` for *your* technology and it works. IHP SG13G2 is a bundled example, not a requirement.
 
----
+`pdks/` ships four ready `.lyp` files as examples and defaults:
 
-## Architecture Overview
+- **`generic.lyp`** — the default. A hand-maintained, pads-only "black-box" vocabulary with just three entries: `outline.drawing` 206/0, `pad.drawing` 205/0, `pad.text` 205/25. It is what you fall back on when a chiplet GDS arrives with no PDK `.lyp` at all. Its numbers must mirror `adk/config/chiplet_pads.json`; a drift test (`tests/test_generic_lyp.py`) enforces that.
+- **`interposer.lyp`** — upper-metal subset derived from SG13G2 (TopMetal2 = 134/0, Bump = 200/0, etc.). The most-used test fixture.
+- **`sg13g2.lyp`** — the full IHP SG13G2 layer set.
+- **`sky130.lyp`** — the full SkyWater sky130 set (note its source names carry a ` - L/D` suffix that the parser strips).
 
-### High-Level Design
+There is **no `--pdk` flag and no PDK auto-discovery.** You select a `.lyp` three ways: pass `--lyp-file <path>`, pick one in a GUI file dialog (which just opens in `pdks/` for convenience — it does not enumerate the directory), or omit the flag and get `generic.lyp`. No environment variable points at a PDK.
 
-The converter follows a pipeline architecture with clear separation of concerns:
+And you can bypass layer *names* entirely. The pad-layer resolver (`resolve_pad_layer` in `gds_to_kicad.py`, shared with the symbol tool) has a fixed precedence:
 
-```
-Input (GDS) → Layer Mapping → Geometry Extraction → Text Association → Output (KiCad)
-```
+1. `--pad-layer-number N/D` (e.g. `134/0`) — raw GDS layer, ignores the `.lyp` completely.
+2. `--layer NAME` — looked up in the `.lyp`.
+3. Neither given → **densest-pad-layer auto-detect** (`PinExtractor.scan_gds_layers`), which scores `.drawing` layers that have matching text layers, prefers higher metal numbers, and falls back to whichever layer has the most box/polygon shapes.
 
-### Component Responsibilities
+So a closed-PDK chiplet GDS with no usable `.lyp` still converts: run it against `generic.lyp` and let auto-detect find the pads, or hand it the raw `N/D` numbers. Same story for text/pin-name layers via `--text-layer` / `--text-layer-number` / `--auto-text`.
 
-| Component | Responsibility | Input | Output |
-|-----------|---------------|-------|--------|
-| `LayerMap` | Parse and provide layer definitions | CSV file | Layer lookup dictionary |
-| `GDSToKiCad` | Orchestrate conversion pipeline | GDS file, LayerMap | KiCad footprint file |
-| `_extract_pads()` | Extract pad geometries | Layout, Cell | List of Box objects |
-| `_extract_text()` | Extract text labels | Layout, Cell | List of (string, Point) tuples |
-| `_associate_text_with_pads()` | Match text to pads | Pads, Texts | Dictionary {pad_index: name} |
-| `_generate_kicad_footprint()` | Generate output file | Name, Pads, Texts | KiCad .kicad_mod file |
+`lyp_parser.py` (`LYPParser`) does the parsing — `<name>`/`<source>` per `<properties>` entry, stripping KLayout's `@N` cellview suffix and the sky130 ` - L/D` suffix. It silently drops any entry whose source isn't `int/int`, and it `sys.exit(1)`s on a missing or unparseable file. `--list-layers` dumps the parsed table and is the quickest way to confirm a new `.lyp` loads.
 
-### Design Decisions
+## The suite
 
-**Why CSV instead of JSON for layer mapping?**
-- CSV is the native format provided by the PDK
-- Simpler to maintain and edit manually
-- No need for additional schema complexity
+Footprint conversion is one tool among several. The pieces:
 
-**Why nearest-neighbor for text association?**
-- Simple and predictable behavior
-- Sufficient for typical IC layouts where text is placed near pads
-- Easy to debug and understand
-- Future enhancement: spatial indexing for very large designs (1000+ pads)
-
-**Why flatten to top cell?**
-- KiCad footprints represent a single physical component
-- Hierarchical GDS structures represent design organization, not assembly
-- Simplifies conversion logic significantly
-
----
-
-## Code Structure
-
-### Class: LayerMap
-
-**Purpose:** Parse `layer_table.csv` and provide layer number lookups by name and purpose.
-
-**File:** `gds_to_kicad.py` lines 24-60
-
-**Key Methods:**
-
-```python
-def __init__(self, csv_path: str = "layer_table.csv")
-    """Load layer definitions from CSV file"""
-
-def get_layer(self, name: str, purpose: str = "drawing") -> Optional[Tuple[int, int]]
-    """Return (layer_number, datatype) for given layer name and purpose"""
-```
-
-**Internal Structure:**
-
-```python
-self.layers = {
-    "TopMetal2:drawing": (134, 0),
-    "TopMetal2:text": (134, 25),
-    "TEXT:drawing": (63, 0),
-    # ... 293 more layers
-}
-```
-
-**CSV Format:**
+**`gds_to_kicad.py`** — GDS → `.kicad_mod` footprint. Flattens the top cell one level, extracts box and polygon shapes from the resolved pad layer, associates text labels as pad names, and emits pads, traceability properties (`GDS_FILE`, `LYP_FILE`, `GDS_LAYER`, `ORIENTATION`), and an `F.CrtYd` courtyard. **Polygon pads are fully supported** — non-rectangular pads come out as `(pad ... smd custom)` with a `gr_poly` primitive (the pad's `(size ...)` is the bbox, the true shape lives in the primitive). `--flip-chip` mirrors X for face-down dies. It also drives a human-in-the-loop pad-review workflow (below).
 
 ```
-LayerName,Purpose,LayerNumber,Datatype,Description
-TopMetal2,drawing,134,0,Defines 2-nd thick TopMetal layer
-TopMetal2,text,134,25,Text layer for TopMetal2
+python3 gds_to_kicad.py die.gds -o die.kicad_mod --layer TopMetal2.drawing --lyp-file pdks/sg13g2.lyp
+python3 gds_to_kicad.py blackbox.gds -o die.kicad_mod          # default generic.lyp + auto-detect
+python3 gds_to_kicad.py blackbox.gds --pad-layer-number 134/0  # no .lyp names needed
 ```
 
-### Class: GDSToKiCad
+**`gds_to_kicad_symbol.py`** — GDS → `.kicad_sym` symbol library (KiCad 6+ S-expression). `symbol_layout.py` auto-arranges pins (power top/bottom, signals left/right) and `kicad_sym_writer.py` emits the file. It uses `--pad-layer` / `--text-layer` (names) or `--pad-layer-number` / `--text-layer-number` (raw), shares the same `resolve_pad_layer` precedence, and adds `--symbol-name`, `--footprint-ref`, and `--max-text-distance` (a DBU cutoff for text-to-pad association — this flag lives **only** on the symbol tool, not the footprint tool). It supports the same two-step human-in-the-loop split: `--extract-pins OUT.json` writes an editable pin list, `--from-pin-list IN.json` rebuilds the symbol from it with no GDS needed.
 
-**Purpose:** Main converter class orchestrating the conversion pipeline.
-
-**File:** `gds_to_kicad.py` lines 63-228
-
-**Constructor:**
-
-```python
-def __init__(self, layer_map: LayerMap):
-    self.layer_map = layer_map
-    self.topmetal2_layer = layer_map.get_layer("TopMetal2", "drawing")
-    self.text_layer = layer_map.get_layer("TEXT", "drawing")
-    self.topmetal2_text_layer = layer_map.get_layer("TopMetal2", "text")
+```
+python3 gds_to_kicad_symbol.py die.gds -o die.kicad_sym --pad-layer TopMetal2.drawing
+python3 gds_to_kicad_symbol.py die.gds --extract-pins pins.json   # edit, then:
+python3 gds_to_kicad_symbol.py --from-pin-list pins.json -o die.kicad_sym
 ```
 
-**Method: convert()**
+**`blackbox_chiplet.py`** — black-box chiplet generator. A **standalone** tool (not a flag on the converters) for chiplets from commercial/closed nodes where you have only the pad map and no real GDS or `.lyp`. It synthesizes a minimal GDS from a pad spec — die outline plus metal pad boxes plus pad-name text — stamped on the ADK canonical generic layers (pad metal 205/0, pad text 205/25, outline 206/0) so the result auto-detects cleanly through the converters above. It also writes a `<stem>.boundaries.json` sidecar carrying the die outline as the chiplet boundary for ADK assembly DRC (it never stamps the boundary onto a fabrication layer).
 
-Main entry point for conversion.
-
-```python
-def convert(self, gds_path: str, output_path: str) -> bool:
-    layout = db.Layout()
-    layout.read(gds_path)                    # Load GDS file
-    top_cell = layout.top_cell()             # Get top-level cell
-
-    pads = self._extract_pads(layout, top_cell)
-    texts = self._extract_text(layout, top_cell)
-
-    self._generate_kicad_footprint(top_cell.name, pads, texts, output_path)
-    return True
+```
+python3 blackbox_chiplet.py pads.json -o chiplet.gds [--no-manifest] [--adk-root PATH]
+python3 blackbox_chiplet.py pads.csv  -o chiplet.gds   # CSV: name,x_um,y_um,w_um,h_um
 ```
 
-**Method: _extract_pads()**
+The spec is JSON or CSV (by suffix). Pad coordinates are **centers**; `w_um`/`h_um` are full extents. The `die` key is optional — without it the outline derives from pad extents plus a 50 µm margin. Canonical layer numbers come from `<ADK>/config/chiplet_pads.json` when an ADK checkout is found (via `--adk-root`, then `$ADK_ROOT`, then an upward sibling-dir walk for `adk`/`ADK`); otherwise it uses hardcoded fallbacks (same numbers) and warns. The boundary-manifest schema (`adk-boundary-manifest`, version `1.0.0`) is version-pinned and matched exactly by ADK readers — bump producer and readers together.
 
-Extracts rectangular geometries from TopMetal2 layer.
+**`kicad_netlist_to_chiplet.py`** — KiCad netlist (`.net`, S-expression) → chiplet-flow YAML and/or CSV, or injected directly into a `.chiplet` file (`--inject`). It filters unconnected nets, classifies each net by name pattern (power/ground regexes; everything else is `signal` — pin types are deliberately ignored because GDS-extracted symbols tend to mark every pin `power_in`), and flags I/O-pad nets `external: true`. I/O pads are detected by footprint library prefix (`--io-pad-lib`, default `io_pads`) or ref-designator prefix (`--external-ref-prefix`). `--inject` does textual regex surgery on the `.chiplet`, not real YAML parsing, so keep `netlist:` as the last top-level block and back up first.
 
-```python
-def _extract_pads(self, layout: db.Layout, cell: db.Cell) -> List[db.Box]:
-    pads = []
-    layer_index = layout.layer(*self.topmetal2_layer)
-    shapes = cell.shapes(layer_index)
+**`footprint_to_pinlist.py`** — `.kicad_mod` footprints → PinList JSON (pad name + center/size in DBU; Y-negated for GDS Y-up). Single or batch. Note it hardcodes pin `type=passive` and `side=left`.
 
-    for shape in shapes.each():
-        if shape.is_box():
-            pads.append(shape.box)           # PROPERTY, not method
-        elif shape.is_polygon():
-            pads.append(shape.polygon.bbox())  # bbox() IS a method
+**`io_pads/`** — interposer external-I/O-pad helpers. `generate_io_pad.py` emits a parametric KiCad symbol + footprint per pad class/size, tagging the footprint with `IO_CLASS` and `IO_PAD_SIZE_UM` properties. `kicad_pcb_to_iopads.py` walks a routed `.kicad_pcb`, keeps footprints carrying an `IO_CLASS` property, and writes a sidecar JSON of pad locations/sizes/nets (mm→µm, Y negated). Only `wire_bond` is implemented; `flipped_bump` and `tsv_bump` parse as choices but are rejected at generation time with exit code 2. (`kicad_pcb_to_iopads.py` mentions a downstream `hyp_to_gds.py` — that lives in a sibling repo, not here.)
 
-    return pads
+```
+python3 io_pads/generate_io_pad.py --io-class wire_bond --size 100x100
+python3 io_pads/kicad_pcb_to_iopads.py design.kicad_pcb -o io_pads.json
 ```
 
-**Important:** Polygons are converted to bounding boxes. This means non-rectangular pads will be approximated. See [Future Enhancements](#future-enhancements) for polygon support.
+**GUIs** — `unified_gui.py` is the main PyQt6 front end: a five-tab workflow (Extract Pins → Pin List Editor → Symbol Designer with a live painter preview → Footprint Generator with a flip-chip option → History). `gds_to_kicad_gui.py` and `gds_to_kicad_symbol_gui.py` are the standalone footprint and symbol GUIs. All three wrap the same engine classes and add a JSON conversion-history registry. The GUIs only do name-based layer resolution — they do not expose `--pad-layer-number`, `--design-dir`, `--dbu`, or the pad-review flags.
 
-**Method: _extract_text()**
-
-Extracts text labels from TEXT and TopMetal2:text layers.
-
-```python
-def _extract_text(self, layout: db.Layout, cell: db.Cell) -> List[Tuple[str, db.Point]]:
-    texts = []
-
-    # Try TEXT layer (63/0)
-    if self.text_layer:
-        layer_index = layout.layer(*self.text_layer)
-        shapes = cell.shapes(layer_index)
-        for shape in shapes.each():
-            if shape.is_text():
-                text = shape.text            # PROPERTY, not method
-                texts.append((text.string, text.trans.disp))
-
-    # Try TopMetal2:text layer (134/25) - primary source for pin names
-    if self.topmetal2_text_layer:
-        layer_index = layout.layer(*self.topmetal2_text_layer)
-        shapes = cell.shapes(layer_index)
-        for shape in shapes.each():
-            if shape.is_text():
-                text = shape.text
-                texts.append((text.string, text.trans.disp))
-
-    return texts
+```
+python3 unified_gui.py
 ```
 
-**Note:** TopMetal2:text (134/25) is the primary source for pin names in real IC designs. TEXT layer (63/0) may be empty or contain only annotation text.
+## How a footprint conversion actually works
 
-**Method: _associate_text_with_pads()**
+The footprint path is the one most people extend, so it's worth knowing the shape of it:
 
-Matches text labels to nearest pad using Euclidean distance.
+1. Read the GDS, flatten the top cell **one level** (`flatten(1)` — not a full recursive flatten; this is intentional and appears in every extraction path).
+2. Resolve the pad layer by the precedence above; read box shapes (`shape.box`) and polygon shapes (`shape.polygon`, hull via `each_point_hull()`).
+3. Read text shapes from the resolved/auto-detected text layer(s) and associate each to the nearest pad. The pad center for both rect and polygon pads is the bbox center.
+4. Convert coordinates: GDS Y-up → KiCad Y-down by negating Y; flip-chip additionally mirrors X. DBU comes from `layout.dbu` unless `--dbu` overrides it.
+5. Write the footprint. Output path resolves as `-o/--output` > `--design-dir/<dir>.pretty/<stem>.kicad_mod` > `generated_kicad_footprint_files/<stem>.kicad_mod`. The symbol tool mirrors this with `generated_kicad_symbol_files/`. The base directory is the CWD, overridable with `GDS_TO_KICAD_DATA_DIR` (the **only** env var the repo's own runtime reads — do not invent a `GDS_TO_KICAD_ROOT`; that's an ADK-side discovery variable, never referenced here).
 
-```python
-def _associate_text_with_pads(self, pads: List[db.Box],
-                              texts: List[Tuple[str, db.Point]]) -> Dict[int, str]:
-    pad_names = {}
+The pad dict shape (`bbox` / `is_polygon` / `polygon_points`) is shared across `gds_to_kicad.py` (`_extract_pads` + `_generate_kicad_footprint`), `pin_extractor.py` (`PadInfo.from_polygon`), and `pad_review.py`. Change it in one place and you have to change all three.
 
-    for text_str, text_pos in texts:
-        min_dist = float('inf')
-        closest_pad_idx = -1
+### Pad review (human-in-the-loop)
 
-        for idx, pad in enumerate(pads):
-            # Calculate pad center
-            pad_center_x = (pad.left + pad.right) / 2
-            pad_center_y = (pad.bottom + pad.top) / 2
+Real dies carry routing, fill, and guard rings on the pad layer, not just bond pads. `pad_review.py` handles that. `--generate-pad-review OUT.gds` strips the source down to pad-layer shapes plus text labels; you open it in KLayout (`klayout -e -l <lyp> <gds>`), delete everything that isn't a real pad, then `--from-pad-review EDITED.gds --pin-list pins.json` reads the survivors back (preserving polygons) and assigns names by nearest-neighbor against the authoritative pin list.
 
-            # Euclidean distance
-            dx = text_pos.x - pad_center_x
-            dy = text_pos.y - pad_center_y
-            dist = (dx * dx + dy * dy) ** 0.5
+## KLayout API notes that bite people
 
-            if dist < min_dist:
-                min_dist = dist
-                closest_pad_idx = idx
+The geometry tooling is KLayout's `klayout.db` (imported as `db`; the tools `sys.exit` with a clear message if it's not on `PYTHONPATH`). Two things that cost time:
 
-        if closest_pad_idx >= 0:
-            pad_names[closest_pad_idx] = text_str
+- **Shape accessors are properties, not methods.** `shape.box`, `shape.text`, `shape.polygon` — calling them (`shape.box()`) raises `TypeError: 'Box' object is not callable`. The exception is `polygon.bbox()`, which *is* a method.
+- **Iterate with `for shape in cell.shapes(layer_idx).each():`** and branch on `shape.is_box()` / `is_polygon()` / `is_text()`.
 
-    return pad_names  # {0: "VDD", 5: "GND", 12: "OUT", ...}
+## Environment and tests
+
+Runtime deps: **KLayout** (the `klayout` Python module — `pip install klayout`, or a system install) for GDS reading, and **PyQt6 ≥ 6.6.0** for the GUIs. `PyYAML` is used on the netlist/test path. Minimal setup:
+
+```
+pip install -r requirements.txt pytest klayout PyYAML
 ```
 
-**Complexity:** O(n * m) where n = number of texts, m = number of pads.
+There is a real pytest suite under `tests/` (~21 files, including `test_integration`, `test_polygon_pads`, `test_flip_chip`, `test_pin_extractor`, `test_dbu_detection`, `test_pad_review`, `test_blackbox_chiplet`, `test_symbol_blackbox`, `test_netlist_converter`, `test_io_pads`). Run it headless — the GUI imports need an offscreen Qt platform:
 
-**Limitation:** If multiple texts are equidistant from a pad, the last one processed wins.
-
-**Method: _generate_kicad_footprint()**
-
-Writes KiCad S-expression format file.
-
-```python
-def _generate_kicad_footprint(self, name: str, pads: List[db.Box],
-                              texts: List[Tuple[str, db.Point]], output_path: str):
-    pad_names = self._associate_text_with_pads(pads, texts)
-
-    # Coordinate conversion: GDS database units (nm) to millimeters
-    DBU_TO_MM = 1e-6
-
-    with open(output_path, 'w') as f:
-        # Header
-        f.write(f'(footprint "{name}"\n')
-        f.write('  (layer "F.Cu")\n')
-        f.write('  (descr "Auto-generated from GDSII")\n')
-        f.write('  (attr smd)\n\n')
-
-        # Reference and value
-        f.write('  (fp_text reference "REF**" (at 0 0) (layer "F.SilkS")\n')
-        f.write('    (effects (font (size 1 1) (thickness 0.15)))\n')
-        f.write('  )\n')
-        f.write(f'  (fp_text value "{name}" (at 0 -2) (layer "F.Fab")\n')
-        f.write('    (effects (font (size 1 1) (thickness 0.15)))\n')
-        f.write('  )\n\n')
-
-        # Pads
-        for idx, pad in enumerate(pads):
-            pad_name = pad_names.get(idx, str(idx + 1))  # Default to number
-
-            center_x = ((pad.left + pad.right) / 2) * DBU_TO_MM
-            center_y = ((pad.bottom + pad.top) / 2) * DBU_TO_MM
-            width = (pad.right - pad.left) * DBU_TO_MM
-            height = (pad.top - pad.bottom) * DBU_TO_MM
-
-            f.write(f'  (pad "{pad_name}" smd rect (at {center_x:.6f} {center_y:.6f})\n')
-            f.write(f'    (size {width:.6f} {height:.6f})\n')
-            f.write('    (layers "F.Cu" "F.Paste" "F.Mask")\n')
-            f.write('  )\n')
-
-        f.write(')\n')
+```
+QT_QPA_PLATFORM=offscreen pytest tests -q
 ```
 
-**Output Format:** KiCad 6+ S-expression (Lisp-like syntax)
+CI runs exactly this on every push and pull request (`.github/workflows/tests.yml`, Python 3.11 on ubuntu-latest, same offscreen Qt and the install line above). So a normal fork-and-PR workflow applies: branch, make the change, keep `pytest tests -q` green.
 
-**Layers Used:**
-- `F.Cu` - Front copper layer (pads)
-- `F.Paste` - Solder paste stencil
-- `F.Mask` - Solder mask openings
-- `F.SilkS` - Silkscreen (reference designator)
-- `F.Fab` - Fabrication layer (value)
+Two helpers worth knowing while developing: `--generate-test-gds` writes a small fixture (`tests/test_footprint.gds` for the footprint tool, `tests/test_symbol.gds` for the symbol tool), and `--scan-layers` reports pad/text-layer candidates for any GDS — useful even when you have no good `.lyp`.
 
-### Function: generate_test_gds()
-
-**Purpose:** Create a minimal GDSII file for testing without external dependencies.
-
-**File:** `gds_to_kicad.py` lines 231-255
-
-```python
-def generate_test_gds():
-    layout = db.Layout()
-    top_cell = layout.create_cell("TEST_FOOTPRINT")
-
-    # Define layers
-    topmetal2 = layout.layer(134, 0)
-    text_layer = layout.layer(63, 0)
-
-    # Create 3 rectangular pads (100um x 100um)
-    top_cell.shapes(topmetal2).insert(db.Box(0, 0, 100000, 100000))
-    top_cell.shapes(topmetal2).insert(db.Box(200000, 0, 300000, 100000))
-    top_cell.shapes(topmetal2).insert(db.Box(0, 200000, 100000, 300000))
-
-    # Add text labels at pad centers
-    top_cell.shapes(text_layer).insert(db.Text("VDD", db.Trans(db.Point(50000, 50000))))
-    top_cell.shapes(text_layer).insert(db.Text("GND", db.Trans(db.Point(250000, 50000))))
-    top_cell.shapes(text_layer).insert(db.Text("OUT", db.Trans(db.Point(50000, 250000))))
-
-    layout.write("test_footprint.gds")
-```
-
-**Coordinates:** All in database units (nanometers)
-- `db.Box(0, 0, 100000, 100000)` = 0-100um in x, 0-100um in y
-- `db.Point(50000, 50000)` = center at 50um, 50um
-
-**Usage:** `./gds_to_kicad.py --generate-test-gds`
-
----
-
-## Development Environment
-
-### Prerequisites
-
-1. **KLayout** (>= 0.28)
-   - Required for `klayout.db` Python module
-   - Installation: `sudo apt install klayout` (Debian/Ubuntu)
-   - Verify: `klayout -v`
-
-2. **Python** (>= 3.6)
-   - Standard library only (no pip dependencies)
-   - Type hints supported but not enforced
-
-3. **PYTHONPATH Configuration**
-
-   Add to `~/.bashrc` or `~/.zshrc`:
-
-   ```bash
-   export PYTHONPATH=$PYTHONPATH:/usr/share/klayout/python
-   ```
-
-   Verify:
-
-   ```bash
-   python3 -c "import klayout.db; print('Success')"
-   ```
-
-### Project Setup
-
-```bash
-git clone <repository-url>  # When published
-cd gds_kicad
-chmod +x gds_to_kicad.py
-
-# Generate test file
-./gds_to_kicad.py --generate-test-gds
-
-# Test conversion
-./gds_to_kicad.py test_footprint.gds
-
-# Verify output
-ls -lh test_footprint.kicad_mod
-```
-
-### Git Workflow
-
-This project uses local git for version control:
-
-```bash
-git status                    # Check working tree
-git add <files>              # Stage changes
-git commit -m "Description"  # Commit changes
-git log --oneline            # View history
-```
-
-**Branch Strategy:** Currently single-branch (`main`/`master`). Create feature branches for experimental work.
-
-**Commit Messages:** Clear, descriptive, imperative mood. No attribution metadata.
-
----
-
-## KLayout API Usage
-
-### Critical Concepts
-
-**Properties vs Methods**
-
-KLayout's Python API uses properties (not methods) for accessing shape data:
-
-```python
-# CORRECT
-box = shape.box              # Property access
-text = shape.text            # Property access
-polygon = shape.polygon      # Property access
-
-# INCORRECT (will raise TypeError)
-box = shape.box()            # Error: 'Box' object is not callable
-text = shape.text()          # Error: 'Text' object is not callable
-```
-
-**Exception:** Bounding box calculation IS a method:
-
-```python
-bbox = shape.polygon.bbox()  # Correct - bbox() is a method
-```
-
-### Common KLayout Objects
-
-**db.Layout**
-
-Container for entire GDS database.
-
-```python
-layout = db.Layout()
-layout.read("input.gds")     # Load from file
-layout.write("output.gds")   # Save to file
-top = layout.top_cell()      # Get top-level cell
-layer_idx = layout.layer(134, 0)  # Get layer index
-```
-
-**db.Cell**
-
-Represents a GDS cell (structure).
-
-```python
-cell = layout.top_cell()
-name = cell.name             # Cell name (string)
-shapes = cell.shapes(layer_idx)  # Get shapes on layer
-```
-
-**db.Box**
-
-Rectangular geometry.
-
-```python
-box = db.Box(x1, y1, x2, y2)  # Constructor
-box.left                      # Min X coordinate
-box.right                     # Max X coordinate
-box.bottom                    # Min Y coordinate
-box.top                       # Max Y coordinate
-box.width()                   # Width (method)
-box.height()                  # Height (method)
-```
-
-**db.Polygon**
-
-Arbitrary polygon geometry.
-
-```python
-poly = shape.polygon          # Get polygon from shape
-bbox = poly.bbox()           # Get bounding box (db.Box)
-num_points = poly.num_points()  # Number of vertices
-```
-
-**db.Text**
-
-Text label.
-
-```python
-text = shape.text            # Get text from shape
-text.string                  # Text content (string)
-text.trans                   # Transformation (db.Trans)
-text.trans.disp              # Position (db.Point)
-```
-
-**db.Point**
-
-2D coordinate.
-
-```python
-point = db.Point(x, y)
-point.x                      # X coordinate
-point.y                      # Y coordinate
-```
-
-**db.Trans**
-
-Transformation (translation, rotation, mirroring).
-
-```python
-trans = db.Trans(point)      # Translation only
-trans = db.Trans.R90         # 90-degree rotation
-trans.disp                   # Displacement (db.Point)
-```
-
-### Iteration Patterns
-
-**Iterate over shapes:**
-
-```python
-shapes = cell.shapes(layer_index)
-for shape in shapes.each():
-    if shape.is_box():
-        process_box(shape.box)
-    elif shape.is_polygon():
-        process_polygon(shape.polygon)
-    elif shape.is_text():
-        process_text(shape.text)
-```
-
-**Shape type checking:**
-
-```python
-shape.is_box()               # True if box
-shape.is_polygon()           # True if polygon
-shape.is_path()              # True if path
-shape.is_text()              # True if text
-```
-
-### Coordinate System
-
-**Database Units (DBU):**
-
-- GDS uses integer database units
-- IHP SG13G2 PDK: 1 DBU = 1 nanometer
-- Access via `layout.dbu` (in microns, e.g., 0.001)
-
-**Conversion to millimeters:**
-
-```python
-DBU_TO_MM = 1e-6             # 1 nm = 1e-6 mm
-width_mm = (box.right - box.left) * DBU_TO_MM
-```
-
-**Typical pad sizes:**
-- Small signal pad: 50-80 um (50000-80000 DBU)
-- Power pad: 100-200 um (100000-200000 DBU)
-
----
-
-## Common Development Tasks
-
-### Adding Support for a New Layer
-
-**Example:** Extract pads from TopMetal1 instead of TopMetal2.
-
-1. **Verify layer exists in `layer_table.csv`:**
-
-   ```bash
-   grep "TopMetal1" layer_table.csv
-   ```
-
-   Expected output:
-   ```
-   TopMetal1,drawing,130,0,Defines 1-st thick TopMetal layer
-   ```
-
-2. **Add layer to `GDSToKiCad.__init__()`:**
-
-   ```python
-   self.topmetal1_layer = layer_map.get_layer("TopMetal1", "drawing")
-   ```
-
-3. **Add command-line option:**
-
-   ```python
-   parser.add_argument('--metal-layer', default='TopMetal2',
-                      choices=['TopMetal1', 'TopMetal2'],
-                      help='Metal layer to extract pads from')
-   ```
-
-4. **Update `_extract_pads()` to use selected layer:**
-
-   ```python
-   if args.metal_layer == 'TopMetal1':
-       layer = self.topmetal1_layer
-   else:
-       layer = self.topmetal2_layer
-   ```
-
-5. **Test with both layers:**
-
-   ```bash
-   ./gds_to_kicad.py input.gds --metal-layer TopMetal1
-   ./gds_to_kicad.py input.gds --metal-layer TopMetal2
-   ```
-
-### Improving Text Association Algorithm
-
-**Current Issue:** Simple nearest-neighbor can fail if text is far from pad.
-
-**Enhancement:** Add distance threshold.
-
-```python
-def _associate_text_with_pads(self, pads: List[db.Box],
-                              texts: List[Tuple[str, db.Point]],
-                              max_distance: float = 500000) -> Dict[int, str]:
-    """
-    Associate text labels with pads using nearest neighbor with distance limit.
-
-    Args:
-        pads: List of pad geometries
-        texts: List of (text_string, position) tuples
-        max_distance: Maximum distance in DBU (default 500um)
-
-    Returns:
-        Dictionary mapping pad index to name
-    """
-    pad_names = {}
-
-    for text_str, text_pos in texts:
-        min_dist = float('inf')
-        closest_pad_idx = -1
-
-        for idx, pad in enumerate(pads):
-            pad_center_x = (pad.left + pad.right) / 2
-            pad_center_y = (pad.bottom + pad.top) / 2
-
-            dx = text_pos.x - pad_center_x
-            dy = text_pos.y - pad_center_y
-            dist = (dx * dx + dy * dy) ** 0.5
-
-            if dist < min_dist:
-                min_dist = dist
-                closest_pad_idx = idx
-
-        # Only associate if within threshold
-        if closest_pad_idx >= 0 and min_dist <= max_distance:
-            pad_names[closest_pad_idx] = text_str
-
-    return pad_names
-```
-
-**Testing:**
-
-```bash
-./gds_to_kicad.py input.gds  # Default threshold
-./gds_to_kicad.py input.gds --text-distance 1000000  # 1mm threshold
-```
-
-### Adding Polygon Pad Support
-
-**Current:** Polygons converted to bounding boxes.
-
-**Goal:** Preserve polygon shapes in KiCad.
-
-**Challenge:** KiCad pads support custom shapes, but require different syntax.
-
-**Implementation Outline:**
-
-1. **Detect polygon vs rectangle:**
-
-   ```python
-   def is_rectangular_polygon(poly: db.Polygon) -> bool:
-       return poly.num_points() == 4 or poly.num_points() == 5
-   ```
-
-2. **Add custom pad shape generation:**
-
-   ```python
-   def generate_custom_pad_shape(poly: db.Polygon) -> str:
-       points = []
-       for i in range(poly.num_points()):
-           pt = poly.point(i)
-           x = pt.x * DBU_TO_MM
-           y = pt.y * DBU_TO_MM
-           points.append(f"(xy {x:.6f} {y:.6f})")
-
-       return "(primitives\n" + \
-              "  (gr_poly\n" + \
-              "    (pts\n" + \
-              f"      {' '.join(points)}\n" + \
-              "    )\n" + \
-              "    (width 0)\n" + \
-              "  )\n" + \
-              ")"
-   ```
-
-3. **Update `_generate_kicad_footprint()` to use custom shapes when needed.**
-
-**Reference:** [KiCad Custom Pad Shapes](https://dev-docs.kicad.org/en/file-formats/sexpr-intro/)
-
-### Debugging KLayout API Issues
-
-**Problem:** Code raises `TypeError: 'X' object is not callable`
-
-**Solution:**
-
-1. Check if you're calling a property as a method:
-
-   ```python
-   # Wrong
-   box = shape.box()
-
-   # Correct
-   box = shape.box
-   ```
-
-2. Use `dir()` to inspect object:
-
-   ```python
-   shape = next(shapes.each())
-   print(dir(shape))  # List all attributes and methods
-   ```
-
-3. Check KLayout documentation:
-
-   ```bash
-   # Open local documentation
-   firefox KLayout_with_python.html
-
-   # Or online
-   firefox https://www.klayout.de/doc/code/class_Shape.html
-   ```
-
-**Problem:** No shapes found on expected layer
-
-**Solution:**
-
-1. Verify layer exists in GDS:
-
-   ```bash
-   # Open in KLayout GUI
-   klayout input.gds
-
-   # Check layer panel (F4) for layer 134/0
-   ```
-
-2. Print available layers:
-
-   ```python
-   layout = db.Layout()
-   layout.read("input.gds")
-
-   for layer_info in layout.layer_infos():
-       print(f"Layer {layer_info.layer}/{layer_info.datatype}: {layer_info.name}")
-   ```
-
-3. Check if layer index is valid:
-
-   ```python
-   layer_index = layout.layer(134, 0)
-   if not layout.is_valid_layer(layer_index):
-       print("Layer index invalid!")
-   ```
-
----
-
-## Testing Strategy
-
-### Unit Testing Philosophy
-
-Current implementation uses manual testing with test GDS generation. Future development should consider:
-
-1. **Automated Unit Tests**
-   - Test `LayerMap` parsing with fixture CSV
-   - Test coordinate conversion math
-   - Test text association algorithm with known inputs
-
-2. **Integration Tests**
-   - Generate test GDS with known geometry
-   - Convert to KiCad
-   - Parse output and verify pad count, names, positions
-
-3. **Regression Tests**
-   - Keep known-good GDS/KiCad pairs
-   - Verify new changes don't break existing conversions
-
-### Testing Workflow
-
-**Quick Test (30 seconds):**
-
-```bash
-# Generate test file
-./gds_to_kicad.py --generate-test-gds
-
-# Convert it
-./gds_to_kicad.py test_footprint.gds
-
-# Verify output
-grep -c "^  (pad" test_footprint.kicad_mod  # Should be 3
-
-# Visual verification in KiCad
-pcbnew test_footprint.kicad_mod
-```
-
-**Full Test (5 minutes):**
-
-```bash
-# Convert real GDS file (not in repo)
-./gds_to_kicad.py your_chip.gds
-
-# Open in KiCad Footprint Editor
-pcbnew your_chip.kicad_mod
-
-# Check:
-# - All pads visible on F.Cu layer
-# - Named pads have correct labels
-# - Pad dimensions reasonable (typically 50-200um)
-# - No overlapping pads (DRC check)
-
-# Run DRC
-# In KiCad: Inspect → Show Footprint Checker
-```
-
-**Regression Test:**
-
-```bash
-# Before making changes
-./gds_to_kicad.py test_footprint.gds
-cp test_footprint.kicad_mod test_footprint.kicad_mod.baseline
-
-# Make code changes
-
-# After changes
-./gds_to_kicad.py test_footprint.gds
-diff test_footprint.kicad_mod test_footprint.kicad_mod.baseline
-
-# Should see no differences (or only expected changes)
-```
-
-### Test Coverage
-
-| Component | Current Test | Needed Test |
-|-----------|-------------|-------------|
-| LayerMap parsing | Manual | Automated unit test |
-| GDS reading | Manual | Automated with fixture GDS |
-| Pad extraction | Manual | Automated geometry verification |
-| Text extraction | Manual | Automated text position verification |
-| Text association | Manual | Automated with known cases |
-| Coordinate conversion | Manual | Automated unit test |
-| KiCad output | Manual KiCad check | Automated S-expression parsing |
-
----
-
-## Known Issues
-
-### KLayout API Gotchas
-
-**Issue:** `TypeError: 'Box' object is not callable`
-
-**Cause:** Calling a property as if it were a method.
-
-**Solution:**
-
-```python
-# Wrong
-box = shape.box()
-
-# Correct
-box = shape.box
-```
-
-**Issue:** Polygon bounding box method name
-
-**Cause:** Polygon objects use `bbox()` not `box()`.
-
-**Solution:**
-
-```python
-# Wrong
-box = shape.polygon.box()
-
-# Correct
-box = shape.polygon.bbox()
-```
-
-### Text Association Limitations
-
-**Issue:** Text far from pad gets incorrectly associated.
-
-**Current Status:** No distance threshold.
-
-**Workaround:** Manually rename pads in KiCad after import.
-
-**Future Fix:** Add `--max-text-distance` option (see [Common Development Tasks](#improving-text-association-algorithm)).
-
-**Issue:** Multiple texts equally close to same pad.
-
-**Current Status:** Last text processed wins.
-
-**Workaround:** Edit GDS to move text labels closer to intended pads.
-
-**Future Fix:** Use spatial containment (text inside pad bounding box) as first check.
-
-### Coordinate Conversion Edge Cases
-
-**Issue:** Pads appear too small or too large in KiCad.
-
-**Cause:** Incorrect DBU assumption.
-
-**Current Status:** Hardcoded `DBU_TO_MM = 1e-6` (assumes 1 DBU = 1nm).
-
-**Solution:** Check actual DBU from layout:
-
-```python
-layout = db.Layout()
-layout.read("input.gds")
-print(f"Database unit: {layout.dbu} microns")
-
-# If layout.dbu = 0.001 (1nm), then DBU_TO_MM = 1e-6 is correct
-# If layout.dbu = 0.01 (10nm), then DBU_TO_MM = 1e-5 is correct
-```
-
-**Future Fix:** Auto-detect DBU from layout:
-
-```python
-DBU_TO_MM = layout.dbu * 1e-3  # Convert microns to mm
-```
-
-### KiCad Import Issues
-
-**Issue:** Footprint doesn't open in KiCad.
-
-**Possible Causes:**
-1. Invalid S-expression syntax (missing parentheses, quotes)
-2. Special characters in pad names (spaces, quotes, parentheses)
-3. File encoding (must be UTF-8)
-
-**Debugging:**
-
-```bash
-# Check syntax with Lisp parser
-python3 << 'EOF'
-import re
-with open('output.kicad_mod', 'r') as f:
-    content = f.read()
-    opens = content.count('(')
-    closes = content.count(')')
-    print(f"Open parens: {opens}, Close parens: {closes}")
-    if opens != closes:
-        print("ERROR: Unbalanced parentheses!")
-EOF
-
-# Check for problematic characters in pad names
-grep -o 'pad "[^"]*"' output.kicad_mod | sort -u
-```
-
-**Issue:** Pads have wrong origin.
-
-**Cause:** KiCad uses footprint-relative coordinates, GDS uses absolute.
-
-**Current Status:** Uses GDS coordinates directly.
-
-**Future Enhancement:** Add `--center-at-origin` option to translate all coordinates so pad centroid is at (0, 0).
-
----
-
-## Future Enhancements
-
-### High Priority
-
-**1. Auto-detect Database Units**
-
-```python
-def convert(self, gds_path: str, output_path: str):
-    layout = db.Layout()
-    layout.read(gds_path)
-
-    # Auto-detect DBU
-    dbu_to_mm = layout.dbu * 1e-3  # Convert microns to mm
-```
-
-**2. Add Text Association Distance Threshold**
-
-```python
-parser.add_argument('--max-text-distance', type=float, default=0.5,
-                   help='Maximum distance (mm) to associate text with pad')
-```
-
-**3. Polygon Pad Support**
-
-- Preserve non-rectangular pad shapes
-- Use KiCad custom pad shape syntax
-- Handle circular pads (check if polygon approximates circle)
-
-### Medium Priority
-
-**4. Add Fab Outline Generation**
-
-Extract die boundary from specific layer and add to F.Fab:
-
-```python
-def _extract_outline(self, layout: db.Layout, cell: db.Cell) -> Optional[db.Polygon]:
-    """Extract die outline from boundary layer"""
-    boundary_layer = self.layer_map.get_layer("DIE_FRAME", "drawing")
-    # ... implementation
-```
-
-**5. Multi-layer Support**
-
-Allow extracting pads from multiple metal layers:
-
-```bash
-./gds_to_kicad.py input.gds --layers TopMetal1,TopMetal2
-```
-
-**6. Footprint Origin Control**
-
-```bash
-./gds_to_kicad.py input.gds --center-at-origin
-./gds_to_kicad.py input.gds --origin-at-pad VDD
-```
-
-### Low Priority
-
-**7. Silkscreen Generation**
-
-Extract text from specific layer for silkscreen:
-
-```python
-def _generate_silkscreen(self, layout: db.Layout, cell: db.Cell):
-    """Generate silkscreen text from PLACE layer"""
-```
-
-**8. Hierarchical Cell Conversion**
-
-Generate multiple footprints from hierarchical GDS:
-
-```bash
-./gds_to_kicad.py input.gds --all-cells
-# Creates: cell1.kicad_mod, cell2.kicad_mod, ...
-```
-
-**9. GUI Wrapper**
-
-Create simple GUI for non-command-line users:
-
-```python
-# Using tkinter (built-in)
-import tkinter as tk
-from tkinter import filedialog
-
-class ConverterGUI:
-    def __init__(self):
-        self.root = tk.Tk()
-        self.root.title("GDS to KiCad Converter")
-        # ... GUI implementation
-```
-
-**10. Configuration File Support**
-
-```yaml
-# gds_convert.yaml
-input: my_chip.gds
-output: my_chip.kicad_mod
-layers:
-  pads: TopMetal2
-  text: [TopMetal2:text, TEXT]
-options:
-  max_text_distance: 0.5
-  center_at_origin: true
-```
-
-```bash
-./gds_to_kicad.py --config gds_convert.yaml
-```
-
----
-
-## Reference Materials
-
-### External Documentation
+## External references
 
 - [KLayout Python API](https://www.klayout.de/doc/code/index.html)
-- [KiCad File Formats](https://dev-docs.kicad.org/en/file-formats/)
+- [KiCad file formats](https://dev-docs.kicad.org/en/file-formats/)
 - [IHP Open PDK](https://github.com/IHP-GmbH/IHP-Open-PDK)
-- [GDSII Format Specification](http://www.artwork.com/gdsii/gdsii/)
-
-### Local Files
-
-- `README.md` - User documentation
-- `TESTING.md` - Testing procedures and verification checklist
-- `KLayout_with_python.html` - Offline KLayout API reference
-- `layer_table.csv` - IHP SG13G2 PDK layer definitions (296 layers)
-
-### Code Comments
-
-Key sections with inline documentation:
-
-- `gds_to_kicad.py:24-60` - LayerMap class
-- `gds_to_kicad.py:63-85` - GDSToKiCad initialization
-- `gds_to_kicad.py:113-127` - Pad extraction logic
-- `gds_to_kicad.py:129-151` - Text extraction logic
-- `gds_to_kicad.py:153-180` - Text association algorithm
-- `gds_to_kicad.py:182-228` - KiCad generation
-
----
-
-## Version History
-
-**Version 1.0** (2025-10-07)
-- Initial implementation
-- TopMetal2 pad extraction
-- TEXT and TopMetal2:text support
-- Nearest-neighbor text association
-- KiCad 6+ S-expression output
-- Test GDS generator
-
-**Future Versions**
-
-See [Future Enhancements](#future-enhancements) for planned features.
-
----
-
-## Contributing
-
-This project uses local git version control. When ready for public release, contribution guidelines will be added.
-
-**Current Development:**
-- Single developer with AI assistance
-- Local git commits only
-- No pull request workflow yet
-
-**Future Workflow:**
-- Fork and pull request model
-- Code review required for major changes
-- Automated testing via CI/CD
-- Semantic versioning for releases
-
----
-
-## Contact
-
-For questions or issues, contact the project maintainer or file an issue in the repository (when published).
-
-**Maintainer:** Mauricio-xx
-**Email:** montanares@ihp-microelectronics.com
-
----
-
-**Document Version:** 1.0
-**Last Updated:** 2025-10-08
-**Status:** Production Ready

@@ -1,250 +1,85 @@
-# GDSII to KiCad Footprint Converter
+# GDS to KiCad
 
-Convert GDSII layout files to KiCad footprint format (`.kicad_mod`). This tool extracts pad geometries from the TopMetal2 layer and associates them with pin names from text layers, generating ready-to-use KiCad footprints for PCB design.
+A toolkit for turning a chiplet's GDSII layout into the KiCad artifacts you need to design with it: footprints (`.kicad_mod`), schematic symbols (`.kicad_sym`), pin lists, netlists, and the I/O-pad parts for an interposer. It pulls bond-pad geometry and pin-name text straight out of the GDS so the KiCad parts match the silicon.
 
-## Project Status
+## PDK-agnostic
 
-**Development/Testing Stage**
+The converter works with **any** technology, not just one PDK. You tell it which layers carry the pads and pin names by pointing it at that technology's KLayout `.lyp` layer-properties file (`--lyp-file`), and it reads the layer numbers from there. IHP SG13G2 is a convenient example, not a requirement.
 
-This tool is currently in active development and testing. While functional, it should be validated against KiCad's Design Rule Checker before use in production environments. Generated footprints may require manual verification.
+`pdks/` ships four ready-to-use `.lyp` files:
 
-## Features
+- `generic.lyp` — a minimal pads-only vocabulary (pad metal `205/0`, pad text `205/25`, outline `206/0`). This is the default when you don't pass `--lyp-file`, meant for a closed chiplet GDS that ships no PDK file.
+- `sg13g2.lyp` — the full IHP SG13G2 layer set.
+- `sky130.lyp` — the full SkyWater sky130 layer set.
+- `interposer.lyp` — upper-metal/bump layers derived from SG13G2, used as the test fixture.
 
-- Extracts pad geometries from TopMetal2 layer (134/0)
-- Reads pin names from TEXT (63/0) and TopMetal2:text (134/25) layers
-- Automatic text-to-pad association using nearest neighbor algorithm
-- Generates KiCad 6+ compatible `.kicad_mod` files
-- Proper coordinate conversion from GDS database units to millimeters
-- Test GDS file generator for development
+For any other process, hand it your own `.lyp`. You can also skip layer names entirely and give raw GDS layer numbers as `N/D` (e.g. `134/0`), or let the tool auto-detect the densest pad layer — so a GDS with no usable `.lyp` at all still converts.
 
-## PDK Information
+## Install
 
-This tool is designed for the **IHP SG13G2 BiCMOS PDK** (130nm technology). Layer definitions are loaded from `layer_table.csv`, which contains the complete layer mapping for the process.
-
-**Key Layers:**
-- **TopMetal2** (134/0): Top-level metal layer for bonding pads
-- **TopMetal2:text** (134/25): Text labels on TopMetal2
-- **TEXT** (63/0): General text layer for annotations
-
-For more information about the PDK, see the [IHP Open PDK](https://github.com/IHP-GmbH/IHP-Open-PDK) repository.
-
-## Prerequisites
-
-### 1. KLayout Installation
-
-KLayout must be installed with Python bindings. Download from [klayout.de](https://www.klayout.de/).
-
-**Ubuntu/Debian:**
-```bash
-sudo apt install klayout
-```
-
-### 2. Python Environment
-
-Python 3.6+ required.
-
-### 3. Configure PYTHONPATH
-
-Expose KLayout's Python module to your system Python:
-
-**Linux (add to `~/.bashrc` or `~/.zshrc`):**
-```bash
-export PYTHONPATH=$PYTHONPATH:/usr/share/klayout/python
-```
-
-**Verify installation:**
-```bash
-python3 -c "import klayout.db; print('KLayout module loaded successfully')"
-```
-
-## Installation
+You need Python 3 and the KLayout Python module (the converters read GDS through it). The supported install is via pip:
 
 ```bash
-cd /path/to/gds_kicad
-chmod +x gds_to_kicad.py
+pip install klayout
+pip install -r requirements.txt   # PyQt6, for the GUIs
 ```
 
-## Usage
+A system KLayout install with its Python bindings on `PYTHONPATH` also works.
 
-### Basic Conversion
-
-Convert a GDSII file to KiCad footprint:
+## Quickstart: GDS to footprint
 
 ```bash
-./gds_to_kicad.py input.gds -o output.kicad_mod
+python3 gds_to_kicad.py input.gds -o output.kicad_mod
 ```
 
-If no output file is specified, it will use the input filename with `.kicad_mod` extension:
+With the default `generic.lyp`, the densest pad layer is auto-detected and pin names are read from any text it finds nearby. To be explicit about a real PDK:
 
 ```bash
-./gds_to_kicad.py input.gds
-# Creates: input.kicad_mod
+python3 gds_to_kicad.py input.gds --lyp-file pdks/sg13g2.lyp \
+    --layer TopMetal2.drawing --text-layer TopMetal2.text -o output.kicad_mod
 ```
 
-### Generate Test File
-
-Create a test GDSII file for development:
+Or bypass layer names and give raw `N/D` numbers — useful for a black-box GDS with no named layers:
 
 ```bash
-./gds_to_kicad.py --generate-test-gds
-# Creates: test_footprint.gds
+python3 gds_to_kicad.py input.gds --pad-layer-number 134/0 --text-layer-number 134/25
 ```
 
-Then convert it:
+Useful helpers before a real run: `--list-layers` prints every layer the `.lyp` parsed; `--scan-layers` inspects the GDS and suggests the best pad/text layers.
+
+Without `-o`, the footprint lands in `generated_kicad_footprint_files/<stem>.kicad_mod`; with `--design-dir DIR` it goes to `DIR/<design>.pretty/`. Rectangular pads are emitted as `smd rect`; non-rectangular pads become true `smd custom` pads with a `gr_poly` primitive, so the real shape is preserved. `--flip-chip` mirrors X for a face-down die.
+
+For a curated run, generate a pad-review GDS (`--generate-pad-review out.gds`), strip routing and fills down to the real bond pads in KLayout, then rebuild from it (`--from-pad-review edited.gds --pin-list pins.json`).
+
+## The rest of the suite
+
+**GDS to symbol** — `gds_to_kicad_symbol.py` reads the same pad/text geometry and writes a KiCad 6+ `.kicad_sym`, auto-arranging pins (power top/bottom, signals left/right). Same layer model: `--lyp-file` + `--pad-layer`/`--text-layer`, or raw `--pad-layer-number`/`--text-layer-number`. `--extract-pins out.json` dumps an editable pin list; `--from-pin-list pins.json` regenerates the symbol from it, no GDS needed.
 
 ```bash
-./gds_to_kicad.py test_footprint.gds
+python3 gds_to_kicad_symbol.py input.gds --lyp-file pdks/sg13g2.lyp \
+    --pad-layer TopMetal2.drawing -o out.kicad_sym
 ```
 
-### Custom Layer Table
-
-Specify a different layer mapping file:
+**Black-box chiplet** — when you only have a pad map (no GDS, no PDK), `blackbox_chiplet.py` synthesizes a minimal chiplet GDS from a pad spec: die outline plus pad boxes and name labels on the canonical generic layers (`205/0`, `205/25`, `206/0`), which the converters above auto-detect cleanly. The spec is JSON or CSV (chosen by suffix); each pad gives a name, center, and size.
 
 ```bash
-./gds_to_kicad.py input.gds --layer-table custom_layers.csv
+python3 blackbox_chiplet.py pads.json -o chiplet.gds
 ```
 
-## Example Output
+It also writes a sidecar `<stem>.boundaries.json` manifest carrying the die outline as the chiplet boundary (suppress with `--no-manifest`). `--adk-root PATH` points at an ADK checkout for canonical layer numbers; without one it falls back to the same hardcoded numbers and warns.
+
+**Netlist to chiplet** — `kicad_netlist_to_chiplet.py` converts a KiCad S-expression netlist (`.net`) into chiplet-flow YAML and/or CSV, or injects a netlist section into an existing `.chiplet` file. Nets are classified power/ground/signal by name. Pass at least one of `--yaml`, `--csv`, `--inject`, or `--summary`. I/O-pad nets are flagged `external` by footprint library (`--io-pad-lib`, default `io_pads`) or ref prefix (`--external-ref-prefix`).
+
+**Footprint to pin list** — `footprint_to_pinlist.py` extracts pad name/center/size from one or more `.kicad_mod` files into a PinList JSON. Single-file or batch (`--output-dir`); `--dbu` sets the unit (default `0.001`, IHP).
+
+**I/O pads** (`io_pads/`) — `generate_io_pad.py` emits a parametric symbol+footprint for an external interposer pad, tagged with `IO_CLASS` and `IO_PAD_SIZE_UM` properties (`--io-class wire_bond --size 100x100`; only `wire_bond` is implemented today). `kicad_pcb_to_iopads.py` walks a routed `.kicad_pcb`, keeps footprints carrying `IO_CLASS`, and writes a sidecar `io_pads.json` of pad locations/sizes/nets (mm→um, Y negated for the GDS Y-up convention).
+
+**Unified GUI** — `unified_gui.py` is a PyQt6 front-end over the same engine, with tabs for pin extraction, pin-list editing, symbol design with a live preview, footprint generation, and a conversion history. Two focused GUIs also exist: `gds_to_kicad_gui.py` and `gds_to_kicad_symbol_gui.py`. Run headless with `QT_QPA_PLATFORM=offscreen`.
 
 ```bash
-$ ./gds_to_kicad.py my_chip.gds
-
-Loaded LayerMap(296 layers loaded)
-Using TopMetal2 layer: (134, 0)
-Using TEXT layer: (63, 0)
-Using TopMetal2:text layer: (134, 25)
-
-Converting my_chip.gds -> my_chip.kicad_mod
-Top cell: MY_CHIP_DESIGN
-Found 342 pads and 87 text labels
-Generating KiCad footprint: my_chip.kicad_mod
-Generated 342 pads, 65 named
+python3 unified_gui.py
 ```
 
-The generated `.kicad_mod` file can be imported into KiCad's footprint library for verification and use.
+## Project
 
-## Output Format
-
-Generated footprints use KiCad 6+ S-expression format:
-
-```lisp
-(footprint "CHIP_NAME"
-  (layer "F.Cu")
-  (descr "Auto-generated from GDSII")
-  (attr smd)
-
-  (fp_text reference "REF**" (at 0 0) (layer "F.SilkS")
-    (effects (font (size 1 1) (thickness 0.15)))
-  )
-  (fp_text value "CHIP_NAME" (at 0 -2) (layer "F.Fab")
-    (effects (font (size 1 1) (thickness 0.15)))
-  )
-
-  (pad "VDD" smd rect (at 1.250000 0.500000)
-    (size 0.100000 0.100000)
-    (layers "F.Cu" "F.Paste" "F.Mask")
-  )
-
-  (pad "GND" smd rect (at 2.500000 0.500000)
-    (size 0.100000 0.100000)
-    (layers "F.Cu" "F.Paste" "F.Mask")
-  )
-
-  (pad "OUT" smd rect (at 1.250000 1.750000)
-    (size 0.080000 0.120000)
-    (layers "F.Cu" "F.Paste" "F.Mask")
-  )
-)
-```
-
-## Layer Mapping
-
-The tool reads layer definitions from `layer_table.csv` (CSV format):
-
-```
-LayerName,Purpose,LayerNumber,Datatype,Description
-TopMetal2,drawing,134,0,Defines 2-nd thick TopMetal layer
-TopMetal2,text,134,25,Text layer forTopMetal2
-TEXT,drawing,63,0,Macro cell name, element text layer
-...
-```
-
-## How It Works
-
-1. **Parse layer table** - Load layer definitions from CSV
-2. **Read GDSII** - Extract geometries from TopMetal2 layer
-3. **Extract text** - Read pin names from TEXT and TopMetal2:text layers
-4. **Associate** - Match text labels to nearest pads
-5. **Convert** - Transform coordinates from database units (nm) to mm
-6. **Generate** - Write KiCad footprint with proper formatting
-
-## Coordinate System
-
-- **GDS units**: Database units (typically 1 DBU = 1 nanometer)
-- **KiCad units**: Millimeters
-- **Conversion**: 1 DBU = 1e-6 mm
-
-## Limitations
-
-- Only supports rectangular pads (polygons are converted to bounding boxes)
-- Text association uses simple nearest-neighbor algorithm
-- Assumes standard IHP SG13G2 PDK layer numbering
-- Does not preserve all GDSII hierarchy (flattens to top cell)
-
-## Project Structure
-
-```
-gds_kicad/
-├── gds_to_kicad.py         # Main converter script
-├── layer_table.csv          # IHP SG13G2 layer definitions (359 layers)
-├── KLayout_with_python.html # KLayout Python API reference
-└── README.md                # This file
-```
-
-## Development
-
-### Test GDS Generator
-
-The `--generate-test-gds` option creates a simple test file with:
-- 3 rectangular pads on TopMetal2
-- 3 text labels: "VDD", "GND", "OUT"
-
-Use this for testing modifications to the converter.
-
-### Modifying Layer Mapping
-
-Edit `layer_table.csv` to add or modify layer definitions. The format is:
-
-```csv
-LayerName,Purpose,LayerNumber,Datatype,Description
-```
-
-## Troubleshooting
-
-**Error: `ModuleNotFoundError: No module named 'klayout'`**
-- Ensure KLayout is installed
-- Verify PYTHONPATH includes KLayout's Python directory
-- Test: `python3 -c "import klayout.db"`
-
-**No text labels found**
-- Check that your GDS file has text on layers 63/0 or 134/25
-- Use KLayout GUI to inspect layer contents
-- Try `--generate-test-gds` to verify tool functionality
-
-**Wrong coordinate scale**
-- Verify DBU_TO_MM conversion factor in code (default: 1e-6)
-- Check your GDS file's database unit setting
-
-## License
-
-See project repository for license information.
-
-## Contributing
-
-This project uses local git version control. Contact the repository owner for contribution guidelines.
-
-## References
-
-- [KLayout Python API](https://www.klayout.de/doc/code/index.html)
-- [IHP Open PDK](https://github.com/IHP-GmbH/IHP-Open-PDK)
-- [KiCad File Formats](https://dev-docs.kicad.org/en/file-formats/)
+Part of [IHP-GmbH/gds2kicad](https://github.com/IHP-GmbH/gds2kicad). Licensed under GPL-3.0-or-later (see `LICENSE`). For build/test workflow and internals, see `docs/DEVELOPER_GUIDE.md`.
