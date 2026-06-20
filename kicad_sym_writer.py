@@ -10,7 +10,7 @@ reference/value fields.
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from sexpr import sanitize_sexpr_token
 from _paths import atomic_write

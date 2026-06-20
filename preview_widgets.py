@@ -14,7 +14,7 @@ from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QPen, QBrush, QPolygonF
 
 from theme import COLORS
-from kicad_sym_writer import SymbolDefinition, SymbolPin, PinSide, PinType, PIN_SPACING, TB_PIN_SPACING, PIN_LENGTH
+from kicad_sym_writer import SymbolDefinition, PinSide, PinType, PIN_LENGTH
 
 
 class SymbolPreviewWidget(QWidget):

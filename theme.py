@@ -2,8 +2,8 @@
 """
 Shared UI Theme
 
-Nord Dark color scheme, stylesheet, and reusable widgets shared between
-the symbol and footprint GUI applications.
+Nord Dark color scheme, stylesheet, and reusable widgets shared by the
+three GUI applications (unified, footprint, symbol).
 """
 
 from typing import List

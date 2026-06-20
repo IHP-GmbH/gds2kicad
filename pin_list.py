@@ -10,7 +10,7 @@ generation.
 
 import json
 from collections import Counter
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -108,7 +108,6 @@ class PinList:
         """
         # Import here to avoid circular dependency at module level
         from symbol_layout import classify_pin, get_pin_type
-        from kicad_sym_writer import PinSide
 
         entries = []
         for pad in pads:

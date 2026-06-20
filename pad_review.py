@@ -19,7 +19,7 @@ except ImportError:
     print("Error: KLayout Python module not found.", file=sys.stderr)
     sys.exit(1)
 
-from pin_list import PinList, PinEntry
+from pin_list import PinList
 
 
 class PadReview:

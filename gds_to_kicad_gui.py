@@ -19,201 +19,16 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QTextEdit, QFileDialog,
     QGroupBox, QMessageBox, QTabWidget, QTableWidget, QTableWidgetItem,
-    QHeaderView, QAbstractItemView, QComboBox, QCompleter
+    QHeaderView, QAbstractItemView
 )
-from PyQt6.QtCore import Qt, QStringListModel
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor
 
 # Import converter classes from CLI script
 from gds_to_kicad import LYPParser, GDSToKiCad
 from pin_extractor import PinExtractor
 from _paths import resolve_data_dir
-
-
-# =============================================================================
-# Color Theme (Nord Dark)
-# =============================================================================
-COLORS = {
-    'background': '#2e3440',      # Polar Night - darkest
-    'background_alt': '#3b4252',  # Polar Night - medium
-    'text_primary': '#eceff4',    # Snow Storm - white
-    'text_secondary': '#d8dee9',  # Snow Storm - light gray
-    'accent': '#5e81ac',          # Frost - blue
-    'button': '#4c566a',          # Polar Night - lightest
-    'button_hover': '#434c5e',    # Polar Night - medium dark
-    'border': '#4c566a',          # Polar Night - lightest
-    'success': '#a3be8c',         # Aurora - green
-    'error': '#bf616a',           # Aurora - red
-    'warning': '#ebcb8b',         # Aurora - yellow
-}
-
-STYLESHEET = f"""
-QMainWindow {{
-    background-color: {COLORS['background']};
-}}
-QWidget {{
-    background-color: {COLORS['background']};
-    color: {COLORS['text_primary']};
-    font-family: 'Monospace', 'Courier New', monospace;
-}}
-QGroupBox {{
-    background-color: {COLORS['background_alt']};
-    border: 1px solid {COLORS['accent']};
-    border-radius: 5px;
-    margin-top: 10px;
-    padding-top: 10px;
-    font-weight: bold;
-}}
-QGroupBox::title {{
-    subcontrol-origin: margin;
-    left: 10px;
-    padding: 0 5px;
-    color: {COLORS['text_primary']};
-}}
-QLabel {{
-    color: {COLORS['text_primary']};
-    background-color: transparent;
-}}
-QPushButton {{
-    background-color: {COLORS['button']};
-    color: {COLORS['text_primary']};
-    border: 1px solid {COLORS['border']};
-    border-radius: 4px;
-    padding: 8px 16px;
-    min-width: 80px;
-}}
-QPushButton:hover {{
-    background-color: {COLORS['button_hover']};
-}}
-QPushButton:pressed {{
-    background-color: {COLORS['accent']};
-}}
-QPushButton:disabled {{
-    background-color: #333333;
-    color: #666666;
-    border-color: #444444;
-}}
-QLineEdit {{
-    background-color: {COLORS['background_alt']};
-    color: {COLORS['text_primary']};
-    border: 1px solid {COLORS['accent']};
-    border-radius: 4px;
-    padding: 6px;
-    selection-background-color: {COLORS['button']};
-}}
-QLineEdit:focus {{
-    border-color: {COLORS['border']};
-}}
-QComboBox {{
-    background-color: {COLORS['background_alt']};
-    color: {COLORS['text_primary']};
-    border: 1px solid {COLORS['accent']};
-    border-radius: 4px;
-    padding: 6px;
-    min-width: 200px;
-}}
-QComboBox:focus {{
-    border-color: {COLORS['border']};
-}}
-QComboBox::drop-down {{
-    border: none;
-    width: 20px;
-}}
-QComboBox::down-arrow {{
-    image: none;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 5px solid {COLORS['text_primary']};
-    margin-right: 5px;
-}}
-QComboBox QAbstractItemView {{
-    background-color: {COLORS['background_alt']};
-    color: {COLORS['text_primary']};
-    border: 1px solid {COLORS['accent']};
-    selection-background-color: {COLORS['accent']};
-}}
-QTextEdit {{
-    background-color: {COLORS['background']};
-    color: {COLORS['text_primary']};
-    border: 1px solid {COLORS['accent']};
-    border-radius: 4px;
-    font-family: 'Monospace', 'Courier New', monospace;
-    font-size: 11px;
-}}
-QTabWidget::pane {{
-    border: 1px solid {COLORS['accent']};
-    border-radius: 4px;
-    background-color: {COLORS['background_alt']};
-}}
-QTabBar::tab {{
-    background-color: {COLORS['button']};
-    color: {COLORS['text_primary']};
-    padding: 8px 20px;
-    margin-right: 2px;
-    border-top-left-radius: 4px;
-    border-top-right-radius: 4px;
-}}
-QTabBar::tab:selected {{
-    background-color: {COLORS['accent']};
-}}
-QTabBar::tab:hover:!selected {{
-    background-color: {COLORS['button_hover']};
-}}
-QTableWidget {{
-    background-color: {COLORS['background']};
-    color: {COLORS['text_primary']};
-    border: 1px solid {COLORS['accent']};
-    gridline-color: {COLORS['button']};
-    selection-background-color: {COLORS['accent']};
-}}
-QTableWidget::item {{
-    padding: 5px;
-}}
-QHeaderView::section {{
-    background-color: {COLORS['button']};
-    color: {COLORS['text_primary']};
-    padding: 5px;
-    border: 1px solid {COLORS['background']};
-    font-weight: bold;
-}}
-"""
-
-
-# =============================================================================
-# Filterable ComboBox
-# =============================================================================
-class FilterableComboBox(QComboBox):
-    """ComboBox with text filtering/search capability."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setEditable(True)
-        self.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-
-        # Setup completer for filtering
-        self._completer = QCompleter()
-        self._completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self._completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        self.setCompleter(self._completer)
-
-        # Model for completer
-        self._model = QStringListModel()
-        self._completer.setModel(self._model)
-
-        # Store items for filtering
-        self._items: List[str] = []
-
-    def setItems(self, items: List[str]):
-        """Set the items in the combobox."""
-        self._items = items
-        self.clear()
-        self.addItems(items)
-        self._model.setStringList(items)
-
-    def getSelectedItem(self) -> str:
-        """Get the currently selected/entered item."""
-        return self.currentText()
+from theme import COLORS, STYLESHEET, FilterableComboBox
 
 
 # =============================================================================
@@ -280,12 +95,6 @@ class ConversionRegistry:
     def get_entries(self) -> List[Dict]:
         """Get all conversion entries."""
         return self.data["conversions"]
-
-    def get_latest_entry(self) -> Optional[Dict]:
-        """Get the most recent conversion entry."""
-        if self.data["conversions"]:
-            return self.data["conversions"][-1]
-        return None
 
     def delete_entry(self, entry_id: str) -> bool:
         """Delete a conversion entry by ID."""

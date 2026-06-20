@@ -20,7 +20,7 @@ except ImportError:
 
 from lyp_parser import LYPParser
 from pin_extractor import PinExtractor
-from kicad_sym_writer import KiCadSymWriter, SymbolDefinition, PinSide
+from kicad_sym_writer import KiCadSymWriter, PinSide
 from symbol_layout import create_default_layout, create_layout_from_pin_list
 from pin_list import PinList
 from gds_to_kicad import parse_layer_spec, resolve_pad_layer, DEFAULT_GENERIC_LYP

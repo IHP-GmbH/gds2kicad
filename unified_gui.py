@@ -34,10 +34,9 @@ from pin_list import PinList, PinEntry, VALID_PIN_TYPES, VALID_PIN_SIDES
 from pad_review import PadReview
 from kicad_sym_writer import (
     KiCadSymWriter, SymbolDefinition, SymbolPin, PinSide, PinType,
-    PIN_SPACING, TB_PIN_SPACING, PIN_LENGTH,
 )
 from symbol_layout import (
-    create_default_layout, create_layout_from_pin_list, classify_pin, get_pin_type,
+    create_layout_from_pin_list,
     calculate_body_size,
 )
 from preview_widgets import SymbolPreviewWidget, LayoutPreviewWidget
