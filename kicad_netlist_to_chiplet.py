@@ -84,6 +84,8 @@ def tokenize_sexpr(text):
 
 def parse_sexpr(tokens, pos=0):
     """Parse tokenized S-expression into nested lists."""
+    if pos >= len(tokens):
+        raise ValueError("malformed or empty S-expression")
     if tokens[pos] == '(':
         lst = []
         pos += 1
@@ -96,8 +98,14 @@ def parse_sexpr(tokens, pos=0):
 
 
 def parse_all_sexpr(text):
-    """Parse full S-expression text into a tree."""
+    """Parse full S-expression text into a tree.
+
+    Returns an empty list for empty/whitespace-only input so callers can
+    treat it as "no nets" rather than crashing on an index out of range.
+    """
     tokens = tokenize_sexpr(text)
+    if not tokens:
+        return []
     result, _ = parse_sexpr(tokens)
     return result
 
@@ -393,7 +401,12 @@ def main():
 
     layer_map = None
     if args.layer_map:
-        layer_map = json.loads(args.layer_map)
+        try:
+            layer_map = json.loads(args.layer_map)
+        except json.JSONDecodeError as exc:
+            parser.error(f"--layer-map is not valid JSON: {exc}")
+        if not isinstance(layer_map, dict):
+            parser.error('--layer-map must be a JSON object, e.g. \'{"U2":"TopMetal2"}\'')
 
     io_pad_libs = args.io_pad_lib or ["io_pads"]
     nets = parse_kicad_netlist(args.netlist, args.skip_unconnected, layer_map,

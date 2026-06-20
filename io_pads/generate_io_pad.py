@@ -135,7 +135,16 @@ def main(argv=None) -> int:
               f"work. Currently only wire_bond is implemented.", file=sys.stderr)
         return 2
 
-    sx_um, sy_um = parse_size(args.size)
+    try:
+        sx_um, sy_um = parse_size(args.size)
+    except ValueError:
+        print(f"Error: invalid --size '{args.size}'; expected '<W>x<H>' or "
+              f"a single value '<S>' in um.", file=sys.stderr)
+        return 2
+    if not (sx_um > 0 and sy_um > 0):
+        print(f"Error: --size must be positive, got {sx_um:g}x{sy_um:g}.",
+              file=sys.stderr)
+        return 2
     name = io_pad_name(args.io_class, sx_um, sy_um)
     out_dir = Path(args.out_dir)
     sym_path = out_dir / "kicad_symbols" / f"{name}.kicad_sym"

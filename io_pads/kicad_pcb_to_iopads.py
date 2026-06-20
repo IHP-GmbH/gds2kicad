@@ -72,12 +72,16 @@ def tokenize(text: str) -> List[str]:
 
 
 def parse(tokens: List[str], pos: int = 0) -> Tuple[Any, int]:
+    if pos >= len(tokens):
+        raise ValueError("unbalanced or truncated S-expression")
     if tokens[pos] == '(':
         pos += 1
         out: List[Any] = []
-        while tokens[pos] != ')':
+        while pos < len(tokens) and tokens[pos] != ')':
             v, pos = parse(tokens, pos)
             out.append(v)
+        if pos >= len(tokens):
+            raise ValueError("unbalanced S-expression: missing ')'")
         return out, pos + 1
     tok = tokens[pos]
     if tok.startswith('"') and tok.endswith('"'):
@@ -202,7 +206,11 @@ def main(argv=None) -> int:
         print(f'Error: file not found: {pcb_path}', file=sys.stderr)
         return 1
 
-    pads = extract_io_pads(pcb_path)
+    try:
+        pads = extract_io_pads(pcb_path)
+    except (ValueError, OSError, UnicodeDecodeError) as exc:
+        print(f'Error: could not parse {pcb_path}: {exc}', file=sys.stderr)
+        return 1
     payload = {'io_pads': pads}
     Path(args.output).write_text(json.dumps(payload, indent=2) + '\n')
     print(f'Wrote {len(pads)} io_pads to {args.output}')

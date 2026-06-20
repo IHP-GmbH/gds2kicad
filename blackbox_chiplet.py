@@ -97,20 +97,39 @@ def load_canonical_layers(adk_root: Optional[str] = None) -> Dict[str, Tuple[int
     return layers
 
 
+_PAD_KEYS = ("name", "x_um", "y_um", "w_um", "h_um")
+
+
 def load_spec(path: str) -> Dict:
-    """Load a chiplet pad spec from JSON or CSV."""
+    """Load a chiplet pad spec from JSON or CSV.
+
+    Raises ValueError with the offending row/column on a CSV that is missing a
+    required column or carries a non-numeric coordinate, instead of letting a
+    bare KeyError/ValueError traceback escape.
+    """
     p = Path(path)
     if p.suffix.lower() == ".csv":
         pads = []
         with p.open() as f:
-            for row in csv.DictReader(f):
-                pads.append({
-                    "name": row["name"],
-                    "x_um": float(row["x_um"]),
-                    "y_um": float(row["y_um"]),
-                    "w_um": float(row["w_um"]),
-                    "h_um": float(row["h_um"]),
-                })
+            reader = csv.DictReader(f)
+            missing_cols = [c for c in _PAD_KEYS
+                            if not reader.fieldnames or c not in reader.fieldnames]
+            if missing_cols:
+                raise ValueError(
+                    f"CSV {p} is missing required column(s): "
+                    f"{', '.join(missing_cols)} (need {', '.join(_PAD_KEYS)})")
+            for n, row in enumerate(reader, start=1):
+                try:
+                    pads.append({
+                        "name": row["name"],
+                        "x_um": float(row["x_um"]),
+                        "y_um": float(row["y_um"]),
+                        "w_um": float(row["w_um"]),
+                        "h_um": float(row["h_um"]),
+                    })
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"CSV {p} row {n} has a non-numeric coordinate: {exc}")
         return {"chiplet_name": p.stem, "pads": pads}
     return json.loads(p.read_text())
 
@@ -120,7 +139,11 @@ def _die_bbox_um(spec: Dict, margin_um: float = 50.0) -> Tuple[float, float, flo
     pad extents plus a margin."""
     die = spec.get("die") or {}
     if "bbox_um" in die:
-        x0, y0, x1, y1 = die["bbox_um"]
+        bbox = die["bbox_um"]
+        if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+            raise ValueError(
+                f"die.bbox_um must be [x0, y0, x1, y1] (4 values); got {bbox!r}")
+        x0, y0, x1, y1 = bbox
         return (float(x0), float(y0), float(x1), float(y1))
     if "width_um" in die and "height_um" in die:
         w = float(die["width_um"])
@@ -177,7 +200,26 @@ def generate_blackbox_gds(spec: Dict, out_gds: str,
     boundary (ADK assembly metadata, not a fabrication layer).
 
     Returns the number of pads stamped.
+
+    Raises ValueError on an empty pad list or a pad missing a required key or
+    carrying a non-numeric coordinate, so the validation does not live only in
+    the CLI argparse layer (importers get the same guarantee).
     """
+    pads = spec.get("pads")
+    if not pads:
+        raise ValueError("spec has no pads")
+    for i, pad in enumerate(pads):
+        missing = [k for k in _PAD_KEYS if k not in pad]
+        if missing:
+            raise ValueError(
+                f"pad #{i} is missing required key(s): {', '.join(missing)}")
+        for k in ("x_um", "y_um", "w_um", "h_um"):
+            try:
+                float(pad[k])
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"pad #{i} ({pad.get('name')!r}) has non-numeric {k}: {pad[k]!r}")
+
     def _um(v: float) -> int:
         return int(round(v * 1000.0))  # um -> dbu (1 dbu = 1 nm)
 
@@ -225,12 +267,18 @@ def main():
                          "checkout named adk/ or ADK/).")
     args = ap.parse_args()
 
-    spec = load_spec(args.spec)
-    if not spec.get("pads"):
-        ap.error("spec has no pads")
-    layers = load_canonical_layers(args.adk_root)
-    n = generate_blackbox_gds(spec, args.output, layers,
-                              write_manifest=not args.no_manifest)
+    try:
+        spec = load_spec(args.spec)
+        if not spec.get("pads"):
+            ap.error("spec has no pads")
+        layers = load_canonical_layers(args.adk_root)
+        n = generate_blackbox_gds(spec, args.output, layers,
+                                  write_manifest=not args.no_manifest)
+    except (ValueError, KeyError, OSError, json.JSONDecodeError) as exc:
+        # Malformed spec (missing key, non-numeric coordinate, bad JSON,
+        # missing file): clean message + nonzero exit, not a traceback.
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
 
     pd, pt, ol = layers["pad_drawing"], layers["pad_text"], layers["outline"]
     msg = (f"Wrote {args.output}: {n} pads on {pd[0]}/{pd[1]}, names on "

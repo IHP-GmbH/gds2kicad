@@ -21,6 +21,25 @@ except ImportError:
 from lyp_parser import LYPParser
 
 
+def single_top_cell(layout: 'db.Layout', gds_path: str) -> 'db.Cell':
+    """Return the layout's single top cell, with an actionable error otherwise.
+
+    ``layout.top_cell()`` raises an opaque RuntimeError ('multiple top cells')
+    for a GDS with more than one top-level structure (common in un-flattened
+    or closed-PDK GDS), so the intended clean ValueError never fired. Resolve
+    via ``top_cells()`` and name the candidates instead.
+    """
+    tops = layout.top_cells()
+    if not tops:
+        raise ValueError(f"No top cell found in {gds_path}")
+    if len(tops) > 1:
+        names = ", ".join(c.name for c in tops)
+        raise ValueError(
+            f"{gds_path} has multiple top cells ({names}); flatten the GDS or "
+            f"keep a single top cell.")
+    return tops[0]
+
+
 @dataclass
 class PadInfo:
     """Information about a single pad extracted from GDS"""
@@ -260,9 +279,7 @@ class PinExtractor:
         layout = db.Layout()
         layout.read(gds_path)
 
-        top_cell = layout.top_cell()
-        if not top_cell:
-            raise ValueError(f"No top cell found in {gds_path}")
+        top_cell = single_top_cell(layout, gds_path)
 
         if flatten:
             top_cell.flatten(1)
@@ -388,9 +405,7 @@ class PinExtractor:
         layout = db.Layout()
         layout.read(gds_path)
 
-        top_cell = layout.top_cell()
-        if not top_cell:
-            raise ValueError(f"No top cell found in {gds_path}")
+        top_cell = single_top_cell(layout, gds_path)
 
         if flatten:
             top_cell.flatten(1)
@@ -450,9 +465,7 @@ class PinExtractor:
         layout = db.Layout()
         layout.read(gds_path)
 
-        top_cell = layout.top_cell()
-        if not top_cell:
-            raise ValueError(f"No top cell found in {gds_path}")
+        top_cell = single_top_cell(layout, gds_path)
 
         if flatten:
             top_cell.flatten(1)
