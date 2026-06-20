@@ -129,7 +129,10 @@ class PadReview:
 
         Returns:
             List of dicts with keys: index, name, center_x, center_y,
-            width, height, bbox
+            width, height, bbox, is_polygon, polygon_points (the polygon keys
+            are part of the shared pad-dict contract consumed by the footprint
+            writer and the layout preview), plus pin_list_index when a pin_list
+            is given.
         """
         layout = db.Layout()
         layout.read(edited_gds)

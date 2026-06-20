@@ -8,6 +8,7 @@ Extracts pad geometries and text labels to create symbols with named pins.
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -309,8 +310,10 @@ def convert_from_pin_list(args):
     if args.output:
         output_path = args.output
     else:
-        output_dir = Path("generated_kicad_symbol_files")
-        output_dir.mkdir(exist_ok=True)
+        override = os.environ.get("GDS_TO_KICAD_DATA_DIR")
+        base = Path(override).expanduser() if override else Path(".")
+        output_dir = base / "generated_kicad_symbol_files"
+        output_dir.mkdir(parents=True, exist_ok=True)
         output_path = str(output_dir / f"{symbol_name}.kicad_sym")
 
     writer = KiCadSymWriter()
@@ -368,8 +371,10 @@ def convert(args):
     if args.output:
         output_path = args.output
     else:
-        output_dir = Path("generated_kicad_symbol_files")
-        output_dir.mkdir(exist_ok=True)
+        override = os.environ.get("GDS_TO_KICAD_DATA_DIR")
+        base = Path(override).expanduser() if override else Path(".")
+        output_dir = base / "generated_kicad_symbol_files"
+        output_dir.mkdir(parents=True, exist_ok=True)
         output_path = str(output_dir / f"{Path(args.input).stem}.kicad_sym")
 
     # Write symbol

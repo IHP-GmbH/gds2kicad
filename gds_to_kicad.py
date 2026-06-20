@@ -9,6 +9,7 @@ Supports optional text layer for pin name association.
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
@@ -471,8 +472,10 @@ def resolve_footprint_output(output: Optional[str],
     """Resolve the .kicad_mod output path per the per-design file-layout convention.
 
     Priority: explicit ``output`` > ``design_dir`` (KiCad ``<design>.pretty/`` library)
-    > the legacy ``generated_kicad_footprint_files/`` fallback. Creates the target
-    directory as a side effect.
+    > the ``generated_kicad_footprint_files/`` fallback. The fallback is rooted
+    under ``$GDS_TO_KICAD_DATA_DIR`` when set (the writable base used in the
+    read-only Docker install) and stays CWD-relative otherwise. Creates the
+    target directory as a side effect.
     """
     if output:
         return output
@@ -481,8 +484,10 @@ def resolve_footprint_output(output: Optional[str],
         pretty = ddir / ("%s.pretty" % ddir.name)
         pretty.mkdir(parents=True, exist_ok=True)
         return str(pretty / ("%s.kicad_mod" % stem))
-    default_dir = Path("generated_kicad_footprint_files")
-    default_dir.mkdir(exist_ok=True)
+    override = os.environ.get("GDS_TO_KICAD_DATA_DIR")
+    base = Path(override).expanduser() if override else Path(".")
+    default_dir = base / "generated_kicad_footprint_files"
+    default_dir.mkdir(parents=True, exist_ok=True)
     return str(default_dir / ("%s.kicad_mod" % stem))
 
 
