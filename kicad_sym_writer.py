@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from sexpr import sanitize_sexpr_token
+from _paths import atomic_write
 
 
 class PinSide(Enum):
@@ -126,7 +127,7 @@ class KiCadSymWriter:
         """
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_path, 'w') as f:
+        with atomic_write(output_path) as f:
             # Library header
             f.write(f'(kicad_symbol_lib\n')
             f.write(f'  (version {self.VERSION})\n')

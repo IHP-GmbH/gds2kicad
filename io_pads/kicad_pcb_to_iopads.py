@@ -133,7 +133,7 @@ def _pad_net(pad: List[Any]) -> str:
 
 
 def extract_io_pads(pcb_path: Path) -> List[Dict[str, Any]]:
-    text = pcb_path.read_text()
+    text = pcb_path.read_text(encoding="utf-8")
     tokens = tokenize(text)
     root, _ = parse(tokens, 0)
 
@@ -212,7 +212,8 @@ def main(argv=None) -> int:
         print(f'Error: could not parse {pcb_path}: {exc}', file=sys.stderr)
         return 1
     payload = {'io_pads': pads}
-    Path(args.output).write_text(json.dumps(payload, indent=2) + '\n')
+    Path(args.output).write_text(json.dumps(payload, indent=2) + '\n',
+                                 encoding="utf-8")
     print(f'Wrote {len(pads)} io_pads to {args.output}')
     return 0
 

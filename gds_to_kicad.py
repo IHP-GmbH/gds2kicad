@@ -25,6 +25,7 @@ from lyp_parser import LYPParser
 from pin_list import PinList
 from pad_review import PadReview
 from sexpr import sanitize_sexpr_token
+from _paths import atomic_write
 
 # Default LYP used when --lyp-file is omitted: the bundled generic pads-only
 # vocabulary (pad.drawing 205/0, pad.text 205/25, outline.drawing 206/0). Lets
@@ -287,7 +288,7 @@ class GDSToKiCad:
         lyp_filename = str(Path(self.lyp_parser.lyp_path).resolve())
         layer_num, layer_dt = self.pad_layer
 
-        with open(output_path, 'w') as f:
+        with atomic_write(output_path) as f:
             # Header
             f.write(f'(footprint "{name}"\n')
             f.write('  (layer "F.Cu")\n')

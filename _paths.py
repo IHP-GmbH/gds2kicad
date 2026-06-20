@@ -5,8 +5,35 @@ Single source of truth for where the GUIs write their generated files and the
 conversion registry, so the rule (and the override env var) can never drift
 between the footprint, symbol and unified entry points.
 """
+import contextlib
 import os
+import tempfile
 from pathlib import Path
+
+
+@contextlib.contextmanager
+def atomic_write(path, encoding="utf-8"):
+    """Write text to ``path`` atomically and as UTF-8.
+
+    Yields a file object; the content is written to a sibling temp file and
+    os.replace()d onto ``path`` only after the block completes, so an error
+    mid-write (encode error, ENOSPC, interrupt) leaves the previous file
+    intact instead of a truncated/corrupt artifact at the canonical output
+    path. Forcing UTF-8 also removes the locale-dependent UnicodeEncodeError
+    on a non-ASCII pad/net name.
+    """
+    target = os.fspath(path)
+    target_dir = os.path.dirname(os.path.abspath(target)) or "."
+    fd, tmp = tempfile.mkstemp(dir=target_dir, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding=encoding) as handle:
+            yield handle
+    except BaseException:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
+    else:
+        os.replace(tmp, target)
 
 
 def resolve_data_dir() -> Path:

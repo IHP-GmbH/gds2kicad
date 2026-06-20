@@ -18,11 +18,11 @@ import argparse
 import csv
 import io
 import json
-import os
 import re
 import sys
-import tempfile
 from dataclasses import dataclass, field
+
+from _paths import atomic_write
 
 
 # ── Net classification ──────────────────────────────────────────────
@@ -193,7 +193,7 @@ def parse_kicad_netlist(net_file_path, skip_unconnected=True, layer_map=None,
     Returns a list of Net objects. Nets touching I/O pad components
     (see discover_io_pad_refs) are flagged with `external=True`.
     """
-    with open(net_file_path, "r") as f:
+    with open(net_file_path, "r", encoding="utf-8") as f:
         content = f.read()
 
     tree = parse_all_sexpr(content)
@@ -348,18 +348,9 @@ def inject_into_chiplet(chiplet_path, yaml_block):
         new_content = content + yaml_block
 
     # Atomic write: a mid-write failure (ENOSPC, interrupt, encode error) must
-    # not truncate the user's hand-authored .chiplet. Write a sibling temp file
-    # and os.replace() it onto the target.
-    target_dir = os.path.dirname(os.path.abspath(chiplet_path))
-    fd, tmp_path = tempfile.mkstemp(dir=target_dir, suffix=".chiplet.tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(new_content)
-        os.replace(tmp_path, chiplet_path)
-    except BaseException:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-        raise
+    # not truncate the user's hand-authored .chiplet.
+    with atomic_write(chiplet_path) as f:
+        f.write(new_content)
 
     print(f"Injected netlist section into {chiplet_path}")
 
@@ -427,13 +418,13 @@ def main():
 
     if args.yaml:
         yaml_text = nets_to_yaml(nets, csv_name)
-        with open(args.yaml, "w") as f:
+        with atomic_write(args.yaml) as f:
             f.write(yaml_text)
         print(f"Wrote YAML to {args.yaml}")
 
     if args.csv:
         csv_text = nets_to_csv(nets)
-        with open(args.csv, "w") as f:
+        with atomic_write(args.csv) as f:
             f.write(csv_text)
         print(f"Wrote CSV to {args.csv}")
 

@@ -15,6 +15,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
+from _paths import atomic_write
+
 
 # Valid values for type and side fields
 VALID_PIN_TYPES = [
@@ -162,7 +164,7 @@ class PinList:
     @classmethod
     def load(cls, json_path: str) -> 'PinList':
         """Load a pin list from a JSON file."""
-        with open(json_path, 'r') as f:
+        with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
         metadata = {k: v for k, v in data.items() if k != "pins"}
@@ -176,7 +178,7 @@ class PinList:
         data["pins"] = [p.to_dict() for p in self.pins]
 
         Path(json_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(json_path, 'w') as f:
+        with atomic_write(json_path) as f:
             json.dump(data, f, indent=2)
 
     def validate(self) -> List[str]:

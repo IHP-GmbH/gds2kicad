@@ -370,7 +370,7 @@ class ConversionRegistry:
         data = None
         if self.registry_path.exists():
             try:
-                with open(self.registry_path, 'r') as f:
+                with open(self.registry_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
             except (json.JSONDecodeError, IOError):
                 data = None
@@ -382,7 +382,7 @@ class ConversionRegistry:
             self.data = {"conversions": []}
 
     def save(self):
-        with open(self.registry_path, 'w') as f:
+        with open(self.registry_path, 'w', encoding='utf-8') as f:
             json.dump(self.data, f, indent=2)
 
     def add_entry(self, gds_source: str, output_path: str, pad_layer: str,

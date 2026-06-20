@@ -17,13 +17,15 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
+from _paths import atomic_write
+
 
 def parse_pads_from_kicad_mod(filepath: str) -> List[dict]:
     """Parse pad entries from a .kicad_mod file.
 
     Returns list of dicts with: name, at_x_mm, at_y_mm, size_w_mm, size_h_mm
     """
-    with open(filepath, 'r') as f:
+    with open(filepath, 'r', encoding='utf-8') as f:
         content = f.read()
 
     pads = []
@@ -114,7 +116,7 @@ def extract_one(fp_path: Path, output: Optional[str], name: Optional[str],
 
     data = pads_to_pinlist_json(pads, chiplet_name, str(fp_path), dbu)
     out_path = output or f"{chiplet_name}_pins.json"
-    with open(out_path, 'w') as f:
+    with atomic_write(out_path) as f:
         json.dump(data, f, indent=2)
 
     print(f"Extracted {len(pads)} pins from {fp_path.name} -> {out_path}")

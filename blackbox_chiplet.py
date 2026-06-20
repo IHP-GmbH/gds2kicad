@@ -36,6 +36,8 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
+from _paths import atomic_write
+
 try:
     import klayout.db as db
 except ImportError:
@@ -110,7 +112,7 @@ def load_spec(path: str) -> Dict:
     p = Path(path)
     if p.suffix.lower() == ".csv":
         pads = []
-        with p.open() as f:
+        with p.open(encoding="utf-8") as f:
             reader = csv.DictReader(f)
             missing_cols = [c for c in _PAD_KEYS
                             if not reader.fieldnames or c not in reader.fieldnames]
@@ -131,7 +133,7 @@ def load_spec(path: str) -> Dict:
                     raise ValueError(
                         f"CSV {p} row {n} has a non-numeric coordinate: {exc}")
         return {"chiplet_name": p.stem, "pads": pads}
-    return json.loads(p.read_text())
+    return json.loads(p.read_text(encoding="utf-8"))
 
 
 def _die_bbox_um(spec: Dict, margin_um: float = 50.0) -> Tuple[float, float, float, float]:
@@ -188,7 +190,8 @@ def _write_blackbox_manifest(out_gds: str, die_name: str, dbu: float,
         }],
     }
     mpath = out.with_name(out.stem + ".boundaries.json")
-    mpath.write_text(json.dumps(manifest, indent=2))
+    with atomic_write(mpath) as f:
+        f.write(json.dumps(manifest, indent=2))
     return mpath
 
 

@@ -32,6 +32,7 @@ from kicad_sym_writer import (  # noqa: E402
     PinSide,
     PinType,
 )
+from _paths import atomic_write  # noqa: E402
 
 SUPPORTED_IO_CLASSES = {"wire_bond"}
 RESERVED_IO_CLASSES = {"flipped_bump", "tsv_bump"}
@@ -87,7 +88,7 @@ def write_footprint(name: str, io_class: str,
     fab_offset_mm = sy_mm / 2.0 + 0.4
     size_str = f"{sx_um:g}x{sy_um:g}"
 
-    with out_path.open("w") as f:
+    with atomic_write(out_path) as f:
         f.write(f'(footprint "{name}"\n')
         f.write('  (layer "F.Cu")\n')
         f.write(f'  (descr "I/O pad ({io_class}), {size_str} um. '
