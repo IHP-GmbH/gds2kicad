@@ -18,8 +18,10 @@ import argparse
 import csv
 import io
 import json
+import os
 import re
 import sys
+import tempfile
 from dataclasses import dataclass, field
 
 
@@ -314,11 +316,14 @@ def nets_to_csv(nets):
 
 def inject_into_chiplet(chiplet_path, yaml_block):
     """Inject or replace netlist section in a .chiplet YAML file."""
-    with open(chiplet_path, "r") as f:
+    with open(chiplet_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Check if netlist section already exists
-    netlist_pattern = re.compile(r'^netlist:\n(?:(?:  .*\n)*)', re.MULTILINE)
+    # Match the whole existing netlist block: the "netlist:" key plus every
+    # following indented OR blank line, stopping at the next column-0 key.
+    # The old "(?:  .*\n)*" stopped at the first blank line inside the block
+    # and orphaned the tail into the freshly-written section.
+    netlist_pattern = re.compile(r'^netlist:\n(?:[ \t].*\n|\n)*', re.MULTILINE)
     match = netlist_pattern.search(content)
 
     if match:
@@ -334,8 +339,19 @@ def inject_into_chiplet(chiplet_path, yaml_block):
             content += "\n"
         new_content = content + yaml_block
 
-    with open(chiplet_path, "w") as f:
-        f.write(new_content)
+    # Atomic write: a mid-write failure (ENOSPC, interrupt, encode error) must
+    # not truncate the user's hand-authored .chiplet. Write a sibling temp file
+    # and os.replace() it onto the target.
+    target_dir = os.path.dirname(os.path.abspath(chiplet_path))
+    fd, tmp_path = tempfile.mkstemp(dir=target_dir, suffix=".chiplet.tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(new_content)
+        os.replace(tmp_path, chiplet_path)
+    except BaseException:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
 
     print(f"Injected netlist section into {chiplet_path}")
 
@@ -385,7 +401,11 @@ def main():
                                 extra_ref_prefixes=tuple(args.external_ref_prefix))
 
     if not nets:
-        print("WARNING: No nets found in netlist", file=sys.stderr)
+        # No usable nets: fail loudly rather than writing empty YAML/CSV or
+        # injecting an empty netlist: section into a .chiplet (and exiting 0,
+        # which let automation treat the run as success).
+        print("ERROR: No nets found in netlist", file=sys.stderr)
+        return 1
 
     # Determine CSV filename for YAML reference
     csv_name = args.external_csv
@@ -419,6 +439,8 @@ def main():
         print(f"\nBy class: {class_counts}")
         print(f"Total connections: {total_connections}")
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
