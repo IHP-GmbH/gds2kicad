@@ -250,26 +250,51 @@ def parse_kicad_netlist(net_file_path, skip_unconnected=True, layer_map=None,
 
 # ── Output formatters ───────────────────────────────────────────────
 
+# A plain (unquoted) YAML scalar is safe only for identifier-like strings.
+_YAML_PLAIN_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_.+/-]*$')
+# Tokens a YAML loader would resolve to a bool/null instead of a string.
+_YAML_RESERVED = {"true", "false", "yes", "no", "on", "off", "null", "none",
+                  "y", "n", "~"}
+
+
+def yaml_scalar(value):
+    """Render a value as a YAML scalar that round-trips to the same string.
+
+    KiCad net/component/pin names are arbitrary user strings; interpolating
+    them raw into the .chiplet YAML lets a ':' / '#' / '{' / quote / leading
+    indicator char break the parse or silently change the value's type. Plain
+    identifier-like names (GND, VDD, U1, TopMetal2) are emitted bare so the
+    output stays byte-identical to the historical format; anything else is
+    emitted as a JSON double-quoted string, which is valid YAML and
+    safe_loads back to the original string.
+    """
+    s = str(value)
+    if _YAML_PLAIN_RE.match(s) and s.lower() not in _YAML_RESERVED:
+        return s
+    return json.dumps(s)  # JSON string escaping is a subset of YAML's
+
+
 def nets_to_yaml(nets, external_csv_name=None):
     """Format nets as YAML for .chiplet netlist section."""
     lines = ["netlist:"]
     lines.append("  nets:")
 
     for net in nets:
-        lines.append(f"    - name: {net.name}")
-        lines.append(f"      class: {net.net_class}")
+        lines.append(f"    - name: {yaml_scalar(net.name)}")
+        lines.append(f"      class: {yaml_scalar(net.net_class)}")
         if net.external:
             lines.append("      external: true")
         lines.append("      connections:")
         for conn in net.connections:
-            parts = [f"component: {conn.component}", f"pin: {conn.pin}"]
+            parts = [f"component: {yaml_scalar(conn.component)}",
+                     f"pin: {yaml_scalar(conn.pin)}"]
             if conn.layer:
-                parts.append(f"layer: {conn.layer}")
+                parts.append(f"layer: {yaml_scalar(conn.layer)}")
             line = ", ".join(parts)
             lines.append(f"        - {{{line}}}")
 
     if external_csv_name:
-        lines.append(f"  external_netlist: {external_csv_name}")
+        lines.append(f"  external_netlist: {yaml_scalar(external_csv_name)}")
 
     return "\n".join(lines) + "\n"
 

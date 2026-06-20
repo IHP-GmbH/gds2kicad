@@ -24,6 +24,9 @@ ENV/
 # GDSII files (large binaries)
 gds_files/*.gds
 tests/fixtures/*.gds
+# Fixtures emitted by --generate-test-gds during the test run
+tests/test_footprint.gds
+tests/test_symbol.gds
 
 # Generated output
 generated_kicad_symbol_files/

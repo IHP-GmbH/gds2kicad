@@ -12,6 +12,8 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional
 
+from sexpr import sanitize_sexpr_token
+
 
 class PinSide(Enum):
     LEFT = "left"
@@ -184,6 +186,10 @@ class KiCadSymWriter:
                         visible: bool = True):
         """Write a symbol property"""
         hide_str = "" if visible else " hide"
+        # The value can be untrusted (e.g. a user-supplied --description or a
+        # footprint ref); sanitize it like names so a stray quote/paren cannot
+        # corrupt the S-expression.
+        value = sanitize_sexpr_token(value)
         f.write(f'    (property "{key}" "{value}"\n')
         f.write(f'      (at {x_offset:.4f} {y_offset:.4f} 0)\n')
         f.write(f'      (effects (font (size 1.27 1.27)){hide_str})\n')
@@ -213,10 +219,9 @@ class KiCadSymWriter:
     @staticmethod
     def _sanitize_name(name: str) -> str:
         """Sanitize a symbol name for KiCad S-expression"""
-        # Replace characters that could break S-expression parsing
-        return name.replace('"', "'").replace('\\', '/').strip()
+        return sanitize_sexpr_token(name)
 
     @staticmethod
     def _sanitize_pin_name(name: str) -> str:
         """Sanitize a pin name/number"""
-        return name.replace('"', "'").replace('\\', '/').strip()
+        return sanitize_sexpr_token(name)

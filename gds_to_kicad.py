@@ -24,6 +24,7 @@ except ImportError:
 from lyp_parser import LYPParser
 from pin_list import PinList
 from pad_review import PadReview
+from sexpr import sanitize_sexpr_token
 
 # Default LYP used when --lyp-file is omitted: the bundled generic pads-only
 # vocabulary (pad.drawing 205/0, pad.text 205/25, outline.drawing 206/0). Lets
@@ -262,6 +263,10 @@ class GDSToKiCad:
         """
         print(f"Generating KiCad footprint: {output_path}")
 
+        # The cell name comes from the GDS (untrusted); sanitize it like pad
+        # names so a stray quote/paren cannot corrupt the S-expression.
+        name = sanitize_sexpr_token(name)
+
         if pad_names is None:
             pad_names = {}
 
@@ -302,8 +307,9 @@ class GDSToKiCad:
 
             # Generate pads (named if text layer provided, otherwise sequential)
             for idx, pd in enumerate(pad_dicts):
-                # Use text label name if available, otherwise sequential number
-                pad_name = pad_names.get(idx, str(idx + 1))
+                # Use text label name if available, otherwise sequential number.
+                # Names come from GDS text labels (untrusted) -> sanitize.
+                pad_name = sanitize_sexpr_token(pad_names.get(idx, str(idx + 1)))
                 pad = pd["bbox"]
                 is_polygon = pd.get("is_polygon", False)
                 polygon_points = pd.get("polygon_points")
