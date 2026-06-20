@@ -34,11 +34,12 @@ VALID_NET_CLASSES = {"power", "ground", "signal", "diff_pair", "nc", "interface"
 
 
 def classify_net(net_name, pin_types):
-    """Classify a net by name heuristics and pin types.
+    """Classify a net by name heuristics.
 
-    Name patterns take absolute priority. Pin types from GDS-extracted symbols
-    are unreliable (many analog signals get marked power_in), so they're only
-    used as a secondary hint when the name also matches a power/ground pattern.
+    Classification is name-only: a ground pattern wins, then a power pattern,
+    else "signal". ``pin_types`` is accepted for API/signature compatibility
+    (callers still pass it) but is deliberately ignored, because GDS-extracted
+    symbols mark almost every pin power_in and so pin types are unreliable.
     """
     if GROUND_PATTERNS.match(net_name):
         return "ground"
@@ -211,7 +212,6 @@ def parse_kicad_netlist(net_file_path, skip_unconnected=True, layer_map=None,
 
     for net_node in find_all_children(nets_section, "net"):
         net_name = get_value(net_node, "name")
-        net_class_raw = get_value(net_node, "class", "Default")
 
         # Get all nodes (connections)
         nodes = find_all_children(net_node, "node")

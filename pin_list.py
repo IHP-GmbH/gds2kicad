@@ -18,9 +18,11 @@ from typing import List, Optional
 from _paths import atomic_write
 
 
-# Valid values for type and side fields
+# Valid values for type and side fields. Must mirror kicad_sym_writer.PinType
+# (which is what symbol_layout.create_layout_from_pin_list resolves and the
+# writer emits), including tri_state.
 VALID_PIN_TYPES = [
-    "passive", "input", "output", "bidirectional",
+    "passive", "input", "output", "bidirectional", "tri_state",
     "power_in", "power_out", "unspecified",
 ]
 
@@ -235,16 +237,22 @@ class PinList:
         """Append _1, _2, ... suffixes to duplicate pin names.
 
         Modifies pins in-place. The first occurrence keeps its original name,
-        subsequent occurrences get suffixes.
+        subsequent occurrences get the lowest free suffix. The candidate is
+        checked against every name already finalized, so a synthesized suffix
+        can never collide with an existing name (e.g. [A, A, A_1] -> [A, A_1,
+        A_1_1], not two A_1).
         """
-        seen = {}  # name -> count of occurrences so far
+        seen = set()
         for pin in self.pins:
             name = pin.name
-            if name in seen:
-                seen[name] += 1
-                pin.name = f"{name}_{seen[name]}"
-            else:
-                seen[name] = 0
+            if name not in seen:
+                seen.add(name)
+                continue
+            n = 1
+            while f"{name}_{n}" in seen:
+                n += 1
+            pin.name = f"{name}_{n}"
+            seen.add(pin.name)
 
     def __len__(self):
         return len(self.pins)

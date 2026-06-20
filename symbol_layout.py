@@ -25,7 +25,9 @@ POWER_HIGH_PATTERNS = [
     re.compile(r'^V(DD|CC|DDA|CCA|DDI|CCI)', re.IGNORECASE),
     re.compile(r'^AVDD', re.IGNORECASE),
     re.compile(r'^DVDD', re.IGNORECASE),
-    re.compile(r'^VIN', re.IGNORECASE),
+    # Input-supply rails (VIN, VIN33, ...) but NOT differential analog inputs
+    # VINN/VINP, which the netlist classifier deliberately treats as signals.
+    re.compile(r'^VIN(?![NP])', re.IGNORECASE),
 ]
 
 POWER_LOW_PATTERNS = [
@@ -132,6 +134,14 @@ def _finalize_pins(side_groups: Dict[PinSide, List[SymbolPin]]):
     """Assign position indices, side_pin_count, and number=name on all pins.
 
     Returns a flat list of all pins (left, right, top, bottom).
+
+    Pin numbers are kept equal to the (possibly duplicated) name on purpose:
+    the footprint writer does not deduplicate pad names either, so two pads
+    that share a GDS label (e.g. multiple GND pads) map to the same pad/pin
+    number in both the symbol and the footprint, which is how KiCad ties them
+    to the same net. Suffix-deduplicating only the symbol side would break that
+    number==name correspondence; disambiguating genuinely distinct same-named
+    pads is the pin-list review step's job (PinList.deduplicate_names).
     """
     all_pins = []
     for side, side_pins in side_groups.items():

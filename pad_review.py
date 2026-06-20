@@ -246,6 +246,35 @@ def _match_pads_to_pin_list(pads: List[dict], pin_list: PinList):
             pad["name"] = pin_list.pins[best_pin_idx].name
             pad["pin_list_index"] = best_pin_idx
 
+    # Reconciliation pass: a pad displaced by a closer competitor above was
+    # reset to name=None and never re-evaluated. It may still legitimately own
+    # an as-yet-unmatched pin. Build all (distance, pad-position, pin) pairs
+    # between still-unnamed pads and still-free pins and assign greedily by
+    # distance, so a contended cluster does not leave a pad unnamed while a
+    # free pin exists. Uses list position (not pad["index"]) consistently.
+    used_pins = set(pin_to_pad.keys())
+    candidates = []
+    for pad_pos, pad in enumerate(pads):
+        if pad.get("name") is not None:
+            continue
+        for pin_x, pin_y, pin_name, pin_idx in pin_centers:
+            if pin_idx in used_pins:
+                continue
+            dx = pad["center_x"] - pin_x
+            dy = pad["center_y"] - pin_y
+            candidates.append(((dx * dx + dy * dy) ** 0.5, pad_pos, pin_idx))
+    candidates.sort(key=lambda c: c[0])
+    assigned_pads = set()
+    for dist, pad_pos, pin_idx in candidates:
+        if pad_pos in assigned_pads or pin_idx in used_pins:
+            continue
+        pad = pads[pad_pos]
+        pad["name"] = pin_list.pins[pin_idx].name
+        pad["pin_list_index"] = pin_idx
+        pin_to_pad[pin_idx] = (dist, pad["index"])
+        used_pins.add(pin_idx)
+        assigned_pads.add(pad_pos)
+
     # Report unmatched
     matched_pins = set(pin_to_pad.keys())
     unmatched_pins = [
