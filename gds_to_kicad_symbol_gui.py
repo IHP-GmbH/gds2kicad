@@ -31,7 +31,7 @@ from kicad_sym_writer import (
     KiCadSymWriter, SymbolDefinition, SymbolPin, PinSide, PinType,
     PIN_SPACING, PIN_LENGTH,
 )
-from symbol_layout import create_default_layout
+from symbol_layout import create_default_layout, calculate_body_size
 from _paths import resolve_data_dir
 
 
@@ -994,19 +994,14 @@ class MainWindow(QMainWindow):
 
         all_pins = []
         for side_pins in side_groups.values():
+            count = len(side_pins)
+            for idx, pin in enumerate(side_pins):
+                pin.position_index = idx
+                pin.side_pin_count = count
             all_pins.extend(side_pins)
 
-        # Recalculate body size
-        counts = {s: len(pins) for s, pins in side_groups.items()}
-        max_v = max(counts[PinSide.LEFT], counts[PinSide.RIGHT], 1)
-        max_h = max(counts[PinSide.TOP], counts[PinSide.BOTTOM], 1)
-
-        import math
-        body_h = math.ceil((max_v + 1) * PIN_SPACING / PIN_SPACING) * PIN_SPACING
-        body_w = max(math.ceil((max_h + 1) * PIN_SPACING / PIN_SPACING) * PIN_SPACING,
-                     body_h)
-        body_w = max(body_w, 5.08)
-        body_h = max(body_h, 5.08)
+        # Recalculate body size using the shared calculator
+        body_w, body_h = calculate_body_size(side_groups)
 
         self.current_symbol.pins = all_pins
         self.current_symbol.body_width = body_w

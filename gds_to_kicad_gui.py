@@ -880,10 +880,11 @@ class MainWindow(QMainWindow):
             self._log("Error: No footprint to copy", is_error=True)
             return
 
-        library_dir = Path(self.library_dir_edit.text().strip())
-        if not library_dir:
+        library_text = self.library_dir_edit.text().strip()
+        if not library_text:
             self._log("Error: Please specify a library directory", is_error=True)
             return
+        library_dir = Path(library_text)
 
         library_dir.mkdir(parents=True, exist_ok=True)
         dest_path = library_dir / self.last_output_path.name
@@ -907,10 +908,11 @@ class MainWindow(QMainWindow):
             self._log("Error: No footprint to move", is_error=True)
             return
 
-        library_dir = Path(self.library_dir_edit.text().strip())
-        if not library_dir:
+        library_text = self.library_dir_edit.text().strip()
+        if not library_text:
             self._log("Error: Please specify a library directory", is_error=True)
             return
+        library_dir = Path(library_text)
 
         library_dir.mkdir(parents=True, exist_ok=True)
         dest_path = library_dir / self.last_output_path.name

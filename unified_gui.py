@@ -358,6 +358,9 @@ class UnifiedMainWindow(QMainWindow):
         self.pin_editor_table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents
         )
+        self.pin_editor_table.itemChanged.connect(
+            lambda _item: self._update_pin_editor_summary()
+        )
         layout.addWidget(self.pin_editor_table)
 
         self.tabs.addTab(tab, "2. Pin List Editor")
@@ -592,6 +595,16 @@ class UnifiedMainWindow(QMainWindow):
             self.current_symbol = None
             self.stripped_gds_path = None
             self.pad_dicts = []
+
+            # Clear stale preview / footprint labels from the previous GDS
+            self.layout_preview.set_pads([])
+            self.fp_pad_count_label.setText("Pads: --")
+            self.fp_xref_pin_count.setText("Pins: --")
+            self.fp_xref_mismatch.setText("")
+
+            # Reset extraction source to Full GDS and re-disable Stripped GDS
+            self.extraction_source_combo.setCurrentIndex(0)
+            self.extraction_source_combo.model().item(1).setEnabled(False)
 
     def _select_lyp_file(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -892,6 +905,7 @@ class UnifiedMainWindow(QMainWindow):
             try:
                 self.current_pin_list = PinList.load(path)
                 self._load_pin_list_into_editor()
+                self._build_pad_dicts_from_pin_list()
                 self._log(f"Loaded pin list: {path} ({len(self.current_pin_list)} pins)")
             except Exception as e:
                 self._log(f"Error loading pin list: {e}", is_error=True)
@@ -1248,6 +1262,9 @@ class UnifiedMainWindow(QMainWindow):
             half_w = w / 2.0
             half_h = h / 2.0
 
+            poly_pts = getattr(pin, "polygon_points_dbu", None)
+            is_polygon = bool(poly_pts)
+
             self.pad_dicts.append({
                 "index": i,
                 "name": pin.name,
@@ -1256,8 +1273,8 @@ class UnifiedMainWindow(QMainWindow):
                 "width": w,
                 "height": h,
                 "bbox": (cx - half_w, cy - half_h, cx + half_w, cy + half_h),
-                "is_polygon": False,
-                "polygon_points": None,
+                "is_polygon": is_polygon,
+                "polygon_points": poly_pts if is_polygon else None,
             })
 
         self.layout_preview.set_pads(self.pad_dicts)
