@@ -242,7 +242,8 @@ def extract_pins(args):
         _pad_resolution_error(args.lyp_file, pad_name)
         return False
 
-    max_dist = float(args.max_text_distance) if args.max_text_distance else None
+    max_dist = (float(args.max_text_distance)
+                if args.max_text_distance is not None else None)
 
     if use_name:
         text_layers = args.text_layer if args.text_layer else None
@@ -331,7 +332,8 @@ def convert(args):
         _pad_resolution_error(args.lyp_file, pad_name)
         return False
 
-    max_dist = float(args.max_text_distance) if args.max_text_distance else None
+    max_dist = (float(args.max_text_distance)
+                if args.max_text_distance is not None else None)
 
     if use_name:
         text_layers = args.text_layer if args.text_layer else None

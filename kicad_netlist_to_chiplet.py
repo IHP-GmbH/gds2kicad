@@ -68,11 +68,17 @@ def tokenize_sexpr(text):
             i += 1
         elif c == '"':
             j = i + 1
+            buf = []
             while j < len(text) and text[j] != '"':
-                if text[j] == '\\':
+                if text[j] == '\\' and j + 1 < len(text):
+                    # Emit the escaped char without the backslash, matching the
+                    # io_pads tokenizer (the old code kept the literal '\').
+                    buf.append(text[j + 1])
+                    j += 2
+                else:
+                    buf.append(text[j])
                     j += 1
-                j += 1
-            tokens.append(text[i+1:j])
+            tokens.append(''.join(buf))
             i = j + 1
         else:
             j = i
@@ -312,7 +318,11 @@ def nets_to_yaml(nets, external_csv_name=None):
 def nets_to_csv(nets):
     """Format nets as CSV compatible with Netlist::import_csv()."""
     output = io.StringIO()
-    writer = csv.writer(output)
+    # lineterminator='\n': the csv default '\r\n' was written verbatim to disk
+    # (the string is built here and dumped by the caller), leaving CRLF files
+    # on Linux. The chiplet-studio import_csv consumer is CRLF-tolerant, so LF
+    # is safe and avoids diff noise.
+    writer = csv.writer(output, lineterminator='\n')
     writer.writerow(["net_name", "component", "pin", "layer", "net_class"])
 
     for net in nets:

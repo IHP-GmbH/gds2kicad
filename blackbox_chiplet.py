@@ -151,6 +151,13 @@ def _die_bbox_um(spec: Dict, margin_um: float = 50.0) -> Tuple[float, float, flo
         w = float(die["width_um"])
         h = float(die["height_um"])
         return (-w / 2.0, -h / 2.0, w / 2.0, h / 2.0)
+    if die:
+        # die was specified but is incomplete (e.g. width_um without
+        # height_um): do not silently fall through to pad-derived extents,
+        # which would record a wrong boundary in the manifest.
+        raise ValueError(
+            "die spec is incomplete: give bbox_um=[x0,y0,x1,y1] or both "
+            f"width_um and height_um (got keys {sorted(die)})")
     xs0 = [p["x_um"] - p["w_um"] / 2.0 for p in spec["pads"]]
     ys0 = [p["y_um"] - p["h_um"] / 2.0 for p in spec["pads"]]
     xs1 = [p["x_um"] + p["w_um"] / 2.0 for p in spec["pads"]]
