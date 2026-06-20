@@ -200,28 +200,9 @@ class TestReadEditedPads:
             pin_list=pin_list_3,
         )
 
-        # Simulate user editing: load, remove non-pad shapes, save
-        layout = db.Layout()
-        layout.read(review)
-        top = layout.top_cell()
-        pl_idx = layout.layer(134, 0)
-
-        # Remove shapes that are clearly routing (aspect ratio check)
-        to_remove = []
-        for shape in top.shapes(pl_idx).each():
-            if shape.is_box():
-                box = shape.box
-                w = box.right - box.left
-                h = box.top - box.bottom
-                # Routing is very thin or very wide relative to pads
-                if w > 100000 or h < 10000:
-                    to_remove.append(shape.box)
-
-        for box in to_remove:
-            # Can't easily delete individual shapes, so rebuild
-            pass
-
-        # Alternative: create a clean GDS with only the 3 pads
+        # Simulate the user curating the review GDS down to only the 3 real
+        # pads by building a clean GDS with just those (deleting individual
+        # shapes in place is awkward in the KLayout API).
         clean = db.Layout()
         clean_cell = clean.create_cell("SRC_CELL")
         clean_pl = clean.layer(134, 0)
