@@ -14,21 +14,19 @@ def sanitize_sexpr_token(value) -> str:
     """Make a string safe to embed inside a quoted KiCad S-expression token.
 
     Lossy substitution rather than backslash-escaping, so the result is robust
-    regardless of how strictly a consumer treats escapes, and so it keeps the
-    parenthesis balance that downstream tooling (and our own tests) rely on:
+    regardless of how strictly a consumer treats escapes:
       - double-quote -> ' (would close the quoted string early)
       - backslash    -> / (the S-expression escape character)
-      - parentheses  -> [ ] (keep the token paren-balanced)
-      - CR/LF/tab    -> space (a newline splits the token across lines)
-    Leading/trailing whitespace is stripped. The quote/backslash substitutions
-    are the long-standing behavior of the symbol writer; the rest closes the
-    remaining S-expression metacharacter gaps.
+      - CR/LF/tab    -> space (a newline could split the token across lines)
+    Leading/trailing whitespace is stripped. Parentheses are intentionally NOT
+    touched: inside a quoted token they are literal data (they do not affect
+    S-expression nesting), so substituting them would corrupt legitimate
+    content like a Description reading "(20 pads)". The quote/backslash
+    substitutions are the long-standing behavior of the symbol writer.
     """
     return (str(value)
             .replace('"', "'")
             .replace('\\', '/')
-            .replace('(', '[')
-            .replace(')', ']')
             .replace('\r', ' ')
             .replace('\n', ' ')
             .replace('\t', ' ')

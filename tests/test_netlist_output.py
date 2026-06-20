@@ -40,8 +40,13 @@ def test_csv_header_and_net_classes():
     rows = list(csv.DictReader(io.StringIO(text)))
     assert text.splitlines()[0] == "net_name,component,pin,layer,net_class"
     assert rows
-    for r in rows:
-        assert r["net_class"] in VALID_NET_CLASSES
+    # Each row carries its net's class verbatim in the right column; assert
+    # the exact mapping (not just membership, which would be tautological).
+    by_net = {(r["net_name"], r["net_class"]) for r in rows}
+    assert ("VDD", "power") in by_net
+    assert ("GND", "ground") in by_net
+    assert ("DATA0", "signal") in by_net
+    assert all(cls in VALID_NET_CLASSES for _, cls in by_net)
 
 
 def test_yaml_round_trips_via_safe_load():

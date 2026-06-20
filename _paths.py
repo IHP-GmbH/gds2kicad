@@ -7,6 +7,7 @@ between the footprint, symbol and unified entry points.
 """
 import contextlib
 import os
+import stat
 import tempfile
 from pathlib import Path
 
@@ -21,19 +22,31 @@ def atomic_write(path, encoding="utf-8"):
     intact instead of a truncated/corrupt artifact at the canonical output
     path. Forcing UTF-8 also removes the locale-dependent UnicodeEncodeError
     on a non-ASCII pad/net name.
+
+    File permissions follow the umask (or the existing target's mode on
+    overwrite); tempfile.mkstemp() defaults to 0o600, which would otherwise
+    make every generated artifact owner-only and break the shared-mount Docker
+    workflow where the host user and downstream tools must read /work outputs.
     """
     target = os.fspath(path)
     target_dir = os.path.dirname(os.path.abspath(target)) or "."
     fd, tmp = tempfile.mkstemp(dir=target_dir, suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding=encoding) as handle:
+            try:
+                # Preserve an existing target's mode; else honor the umask.
+                os.fchmod(handle.fileno(), stat.S_IMODE(os.stat(target).st_mode))
+            except FileNotFoundError:
+                cur = os.umask(0)
+                os.umask(cur)
+                os.fchmod(handle.fileno(), 0o666 & ~cur)
             yield handle
-    except BaseException:
+        os.replace(tmp, target)
+    finally:
+        # On success os.replace consumed tmp (no-op here); on any failure
+        # before/at replace, remove the orphaned temp so it never litters.
         if os.path.exists(tmp):
             os.remove(tmp)
-        raise
-    else:
-        os.replace(tmp, target)
 
 
 def resolve_data_dir() -> Path:

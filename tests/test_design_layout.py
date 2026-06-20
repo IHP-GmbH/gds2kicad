@@ -51,10 +51,20 @@ class TestResolveFootprintOutput:
 
     def test_default_fallback(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
+        # Pin the relative-path fallback independently of the ambient env.
+        monkeypatch.delenv("GDS_TO_KICAD_DATA_DIR", raising=False)
         out = resolve_footprint_output(None, None, "chipX")
         # legacy behavior: relative dir under the current working directory
         assert out == str(Path("generated_kicad_footprint_files") / "chipX.kicad_mod")
         assert (tmp_path / "generated_kicad_footprint_files").is_dir()
+
+    def test_data_dir_env_roots_the_fallback(self, tmp_path, monkeypatch):
+        pinned = tmp_path / "pinned"
+        monkeypatch.setenv("GDS_TO_KICAD_DATA_DIR", str(pinned))
+        out = resolve_footprint_output(None, None, "chipX")
+        expected = pinned / "generated_kicad_footprint_files" / "chipX.kicad_mod"
+        assert out == str(expected)
+        assert (pinned / "generated_kicad_footprint_files").is_dir()
 
 
 class TestDesignDirCLI:

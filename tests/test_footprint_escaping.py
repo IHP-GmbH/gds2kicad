@@ -17,11 +17,32 @@ from gds_to_kicad import GDSToKiCad, DEFAULT_GENERIC_LYP  # noqa: E402
 from lyp_parser import LYPParser  # noqa: E402
 
 
-def _balanced(content):
-    # Quotes balanced per line (no token left open) and parens balanced overall.
-    if content.count("(") != content.count(")"):
-        return False
-    return all(line.count('"') % 2 == 0 for line in content.splitlines())
+def _structurally_balanced(content):
+    """Parens balance when counted OUTSIDE quoted strings.
+
+    A literal '(' inside a quoted token is fine and must NOT be substituted, so
+    a naive raw count is the wrong invariant. What matters is that no hostile
+    double-quote broke a token open (exposing a stray structural paren): walk
+    the text, skip quoted regions, and require the structural depth to balance.
+    """
+    depth = 0
+    in_str = False
+    i = 0
+    while i < len(content):
+        c = content[i]
+        if in_str:
+            if c == '"':
+                in_str = False
+        elif c == '"':
+            in_str = True
+        elif c == '(':
+            depth += 1
+        elif c == ')':
+            depth -= 1
+            if depth < 0:
+                return False
+        i += 1
+    return depth == 0 and not in_str
 
 
 def test_pad_name_with_quote_and_parens_stays_valid(tmp_path):
@@ -34,7 +55,10 @@ def test_pad_name_with_quote_and_parens_stays_valid(tmp_path):
         'DIE"X(', pad_dicts, str(out), "src.gds",
         pad_names={0: 'VDD"(evil)'}, dbu_to_mm=1e-6)
     content = out.read_text(encoding="utf-8")
-    # the raw hostile substrings must not appear verbatim
+    # the hostile double-quote must be neutralized (no verbatim substring, and
+    # no token left open) so the structure stays valid; legitimate parens in a
+    # name are preserved, not mangled.
     assert 'VDD"(evil)' not in content
     assert 'DIE"X(' not in content
-    assert _balanced(content)
+    assert all(line.count('"') % 2 == 0 for line in content.splitlines())
+    assert _structurally_balanced(content)
