@@ -67,6 +67,7 @@ class PadReview:
         src_shapes = src_top.shapes(src_pad_idx)
 
         pad_count = 0
+        skipped = 0
         for shape in src_shapes.each():
             if shape.is_box():
                 out_cell.shapes(out_pad_layer).insert(shape.box)
@@ -74,6 +75,12 @@ class PadReview:
             elif shape.is_polygon():
                 out_cell.shapes(out_pad_layer).insert(shape.polygon)
                 pad_count += 1
+            else:
+                skipped += 1
+        if skipped:
+            print(f"Warning: skipped {skipped} non-box/non-polygon shape(s) "
+                  f"(e.g. paths) on pad layer {pad_layer} of {source_gds}",
+                  file=sys.stderr)
 
         # Merge text_layer into text_layers list
         all_text_layers = list(text_layers or [])
@@ -138,6 +145,7 @@ class PadReview:
 
         pads = []
         idx = 0
+        skipped = 0
         for shape in shapes.each():
             box = None
             is_polygon = False
@@ -150,6 +158,8 @@ class PadReview:
                 is_polygon = True
                 polygon_points = [(int(p.x), int(p.y))
                                   for p in poly.each_point_hull()]
+            else:
+                skipped += 1
 
             if box is not None:
                 pads.append({
@@ -164,6 +174,10 @@ class PadReview:
                     "polygon_points": polygon_points,
                 })
                 idx += 1
+
+        if skipped:
+            print(f"Warning: skipped {skipped} non-box/non-polygon shape(s) "
+                  f"on pad layer {pad_layer} of {edited_gds}", file=sys.stderr)
 
         # Match pads to pin_list by spatial proximity
         if pin_list is not None and pads:

@@ -132,6 +132,20 @@ def _pad_net(pad: List[Any]) -> str:
     return ''
 
 
+def _footprint_net(fp: List[Any]) -> str:
+    """First non-empty pad net on the footprint.
+
+    Scans every pad (not just the first) so a multi-pad I/O footprint whose
+    first pad happens to be unnetted does not drop the connection.
+    """
+    for sub in _direct_children(fp):
+        if sub and sub[0] == 'pad':
+            net = _pad_net(sub)
+            if net:
+                return net
+    return ''
+
+
 def extract_io_pads(pcb_path: Path) -> List[Dict[str, Any]]:
     text = pcb_path.read_text(encoding="utf-8")
     tokens = tokenize(text)
@@ -177,13 +191,14 @@ def extract_io_pads(pcb_path: Path) -> List[Dict[str, Any]]:
             if size_x_um == 0.0 or size_y_um == 0.0:
                 continue
 
-        net_name = _pad_net(_first_pad(fp))
+        net_name = _footprint_net(fp)
 
         out.append({
             'ref': ref,
             'io_class': io_class,
-            'x_um': x_mm * 1000.0,
-            'y_um': -y_mm * 1000.0,
+            # + 0.0 normalizes -0.0 (from negating a zero) to 0.0 in the JSON.
+            'x_um': x_mm * 1000.0 + 0.0,
+            'y_um': -y_mm * 1000.0 + 0.0,
             'size_x_um': size_x_um,
             'size_y_um': size_y_um,
             'net': net_name,

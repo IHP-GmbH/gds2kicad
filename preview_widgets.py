@@ -288,17 +288,25 @@ class LayoutPreviewWidget(QWidget):
 
             # Draw name -- scale font by name length so long names fit
             name = pad.get("name") or f"#{pad['index']}"
+            cx = (left + right) / 2.0
+            cy = (bottom + top) / 2.0
             painter.save()
             painter.setPen(QPen(text_color, 0))
+            painter.translate(cx, cy)
+            # Undo the world Y-up flip and the optional flip-chip X-mirror so the
+            # glyphs read normally (mx*mx == 1, (-1)*(-1) == 1); without the mx
+            # term the labels render mirror-imaged in the flip-chip view.
+            painter.scale(mx, -1)
             font = painter.font()
             char_width_factor = max(len(name) * 0.6, 1)
             font_size = min(w / char_width_factor, h * 0.5)
             if font_size > 0:
-                font.setPointSizeF(max(font_size, 100))
+                # Font size is in DBU painter space; an absolute floor (the old
+                # max(.., 100)) dwarfed small pads. Use the fitted size as-is.
+                font.setPointSizeF(font_size)
                 painter.setFont(font)
-            painter.scale(1, -1)  # flip text
             painter.drawText(
-                QRectF(left, -top, w, h),
+                QRectF(-w / 2.0, -h / 2.0, w, h),
                 Qt.AlignmentFlag.AlignCenter,
                 name,
             )

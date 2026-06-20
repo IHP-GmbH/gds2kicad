@@ -20,6 +20,36 @@ from typing import List, Optional
 from _paths import atomic_write
 
 
+def _pad_block(content: str, start: int) -> str:
+    """Return the balanced ``(pad ...)`` block starting at index ``start``.
+
+    Walks parentheses from the opening '(' to its match, skipping quoted
+    strings, so it works regardless of indentation or line breaks (compact /
+    single-line .kicad_mod files included).
+    """
+    depth = 0
+    in_str = False
+    i = start
+    while i < len(content):
+        c = content[i]
+        if in_str:
+            if c == '\\':
+                i += 2
+                continue
+            if c == '"':
+                in_str = False
+        elif c == '"':
+            in_str = True
+        elif c == '(':
+            depth += 1
+        elif c == ')':
+            depth -= 1
+            if depth == 0:
+                return content[start:i + 1]
+        i += 1
+    return content[start:]
+
+
 def parse_pads_from_kicad_mod(filepath: str) -> List[dict]:
     """Parse pad entries from a .kicad_mod file.
 
@@ -29,42 +59,36 @@ def parse_pads_from_kicad_mod(filepath: str) -> List[dict]:
         content = f.read()
 
     pads = []
-    # Match pad blocks: (pad "name" smd rect ... )
-    # We need to handle nested parens, so use a state machine approach
-    pad_pattern = re.compile(r'\(pad\s+"([^"]*)"')
     at_pattern = re.compile(r'\(at\s+([-\d.]+)\s+([-\d.]+)')
     size_pattern = re.compile(r'\(size\s+([-\d.]+)\s+([-\d.]+)')
 
-    # Split into pad blocks by finding each (pad ...) at the top level
-    lines = content.split('\n')
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-        pad_match = pad_pattern.match(line)
-        if pad_match:
-            pad_name = pad_match.group(1)
-            # Collect lines until we close this pad block
-            block = line
-            depth = line.count('(') - line.count(')')
-            while depth > 0 and i + 1 < len(lines):
-                i += 1
-                block += '\n' + lines[i]
-                depth += lines[i].count('(') - lines[i].count(')')
-
-            at_match = at_pattern.search(block)
-            size_match = size_pattern.search(block)
-
-            if at_match:
-                pads.append({
-                    'name': pad_name,
-                    'at_x_mm': float(at_match.group(1)),
-                    'at_y_mm': float(at_match.group(2)),
-                    'size_w_mm': float(size_match.group(1)) if size_match else 0.0,
-                    'size_h_mm': float(size_match.group(2)) if size_match else 0.0,
-                })
-        i += 1
+    # Find every (pad "name" occurrence anywhere in the file (not just at the
+    # start of a line) and balance parens from there, so compact or
+    # programmatically-generated footprints that put (pad ...) mid-line are not
+    # silently skipped.
+    for m in re.finditer(r'\(pad\s+"([^"]*)"', content):
+        pad_name = m.group(1)
+        block = _pad_block(content, m.start())
+        at_match = at_pattern.search(block)
+        size_match = size_pattern.search(block)
+        if at_match:
+            pads.append({
+                'name': pad_name,
+                'at_x_mm': float(at_match.group(1)),
+                'at_y_mm': float(at_match.group(2)),
+                'size_w_mm': float(size_match.group(1)) if size_match else 0.0,
+                'size_h_mm': float(size_match.group(2)) if size_match else 0.0,
+            })
 
     return pads
+
+
+def read_orientation(filepath: str) -> str:
+    """Return the footprint ORIENTATION property ('flip_chip'/'face_up'), or ''."""
+    with open(filepath, 'r', encoding='utf-8') as f:
+        content = f.read()
+    m = re.search(r'\(property\s+"ORIENTATION"\s+"([^"]*)"', content)
+    return m.group(1) if m else ''
 
 
 def mm_to_dbu(mm_val: float, dbu_um: float = 0.001) -> float:
@@ -75,8 +99,16 @@ def mm_to_dbu(mm_val: float, dbu_um: float = 0.001) -> float:
 
 def pads_to_pinlist_json(pads: List[dict], chiplet_name: str,
                          footprint_source: str,
-                         dbu_um: float = 0.001) -> dict:
-    """Convert parsed pads to PinList JSON format."""
+                         dbu_um: float = 0.001,
+                         flip_chip: bool = False) -> dict:
+    """Convert parsed pads to PinList JSON format.
+
+    Maps KiCad (Y-down) coordinates back to GDS (Y-up) by negating Y. When the
+    footprint was generated --flip-chip (ORIENTATION=flip_chip), gds_to_kicad
+    also mirrored X (mx=-1); un-mirror it here so the recovered coordinates are
+    in the original die frame rather than a mixed die/footprint frame.
+    """
+    mx = -1 if flip_chip else 1
     pins = []
     for i, pad in enumerate(pads):
         pins.append({
@@ -84,7 +116,7 @@ def pads_to_pinlist_json(pads: List[dict], chiplet_name: str,
             'type': 'passive',
             'side': 'left',
             'pad_index': i,
-            'center_x_dbu': mm_to_dbu(pad['at_x_mm'], dbu_um),
+            'center_x_dbu': mm_to_dbu(mx * pad['at_x_mm'], dbu_um),
             'center_y_dbu': mm_to_dbu(-pad['at_y_mm'], dbu_um),  # KiCad y-down -> GDS y-up
             'width_dbu': mm_to_dbu(pad['size_w_mm'], dbu_um),
             'height_dbu': mm_to_dbu(pad['size_h_mm'], dbu_um),
@@ -114,7 +146,9 @@ def extract_one(fp_path: Path, output: Optional[str], name: Optional[str],
         print(f"Warning: No pads found in {fp_path}", file=sys.stderr)
         return 1
 
-    data = pads_to_pinlist_json(pads, chiplet_name, str(fp_path), dbu)
+    flip_chip = read_orientation(str(fp_path)) == "flip_chip"
+    data = pads_to_pinlist_json(pads, chiplet_name, str(fp_path), dbu,
+                                flip_chip=flip_chip)
     out_path = output or f"{chiplet_name}_pins.json"
     with atomic_write(out_path) as f:
         json.dump(data, f, indent=2)
