@@ -367,12 +367,19 @@ class ConversionRegistry:
         self.load()
 
     def load(self):
+        data = None
         if self.registry_path.exists():
             try:
                 with open(self.registry_path, 'r') as f:
-                    self.data = json.load(f)
+                    data = json.load(f)
             except (json.JSONDecodeError, IOError):
-                self.data = {"conversions": []}
+                data = None
+        # Accept only the expected shape; a valid-JSON-but-wrong-schema file
+        # would otherwise KeyError later in get_entries/add_entry.
+        if isinstance(data, dict) and isinstance(data.get("conversions"), list):
+            self.data = data
+        else:
+            self.data = {"conversions": []}
 
     def save(self):
         with open(self.registry_path, 'w') as f:
@@ -400,7 +407,7 @@ class ConversionRegistry:
 
     def delete_entry(self, entry_id: str) -> bool:
         for i, entry in enumerate(self.data["conversions"]):
-            if entry["id"] == entry_id:
+            if entry.get("id") == entry_id:
                 del self.data["conversions"][i]
                 self.save()
                 return True

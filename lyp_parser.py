@@ -6,7 +6,6 @@ Parses LYP XML files to extract layer definitions (name -> layer/datatype mappin
 Provides text layer discovery for pin name extraction.
 """
 
-import sys
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Tuple, Optional
 
@@ -51,11 +50,12 @@ class LYPParser:
                             pass
 
         except FileNotFoundError:
-            print(f"Error: Could not find LYP file: {lyp_path}", file=sys.stderr)
-            sys.exit(1)
+            # Raise rather than sys.exit: this is library code constructed
+            # in-process from the GUIs, whose `except Exception` cannot catch a
+            # SystemExit (a BaseException). The CLIs catch this at main().
+            raise FileNotFoundError(f"Could not find LYP file: {lyp_path}")
         except ET.ParseError as e:
-            print(f"Error parsing LYP file: {e}", file=sys.stderr)
-            sys.exit(1)
+            raise ValueError(f"Error parsing LYP file {lyp_path}: {e}")
 
     def get_layer(self, name: str) -> Optional[Tuple[int, int]]:
         """Get layer number and datatype for given layer name"""

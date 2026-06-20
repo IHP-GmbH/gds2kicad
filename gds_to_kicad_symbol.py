@@ -378,7 +378,7 @@ def convert(args):
     return True
 
 
-def main():
+def _run_cli():
     parser = argparse.ArgumentParser(
         description="Convert GDSII files to KiCad schematic symbols (.kicad_sym)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -476,6 +476,20 @@ Pin list workflow (human-in-the-loop):
 
     success = convert(args)
     return 0 if success else 1
+
+
+def main():
+    """CLI entry point: turn domain errors into a clean message + exit 1.
+
+    LYPParser and the extractors now raise (FileNotFoundError, ValueError,
+    RuntimeError) instead of sys.exit-ing from library code, so catch them
+    here. argparse usage errors still exit 2 via parser.error.
+    """
+    try:
+        return _run_cli()
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

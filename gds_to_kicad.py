@@ -59,14 +59,18 @@ class GDSToKiCad:
             self.layer_name = layer_name
             self.pad_layer = lyp_parser.get_layer(layer_name) if layer_name else None
             if not self.pad_layer:
-                print(f"Error: Layer '{layer_name}' not found in LYP file", file=sys.stderr)
-                print(f"Available layers:", file=sys.stderr)
-                for name in lyp_parser.get_layer_names()[:10]:
+                # Raise rather than sys.exit: this constructor runs in-process
+                # from the GUIs, whose `except Exception` cannot catch a
+                # SystemExit. The CLI catches this at main() and exits cleanly.
+                names = lyp_parser.get_layer_names()
+                hint = [f"Layer '{layer_name}' not found in LYP file",
+                        "Available layers:"]
+                for name in names[:10]:
                     layer, dt = lyp_parser.get_layer(name)
-                    print(f"  {name} ({layer}/{dt})", file=sys.stderr)
-                if len(lyp_parser.get_layer_names()) > 10:
-                    print(f"  ... and {len(lyp_parser.get_layer_names()) - 10} more", file=sys.stderr)
-                sys.exit(1)
+                    hint.append(f"  {name} ({layer}/{dt})")
+                if len(names) > 10:
+                    hint.append(f"  ... and {len(names) - 10} more")
+                raise ValueError("\n".join(hint))
 
         print(f"Using layer: {self.layer_name} {self.pad_layer}")
         if text_layer_name:
@@ -551,7 +555,7 @@ def resolve_pad_layer(args, lyp_parser, gds_path):
     return pad, suggested, text_layer
 
 
-def main():
+def _run_cli():
     parser = argparse.ArgumentParser(
         description="Convert GDSII files to KiCad footprints using layer definitions from .lyp files",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -761,6 +765,21 @@ Pad review workflow (human-in-the-loop):
                                 flip_chip=getattr(args, 'flip_chip', False))
 
     return 0 if success else 1
+
+
+def main():
+    """CLI entry point: turn domain errors into a clean message + exit 1.
+
+    The worker code now raises (FileNotFoundError on a missing GDS/LYP,
+    ValueError on an unresolvable layer or empty layout, RuntimeError from
+    KLayout) instead of dumping a traceback or calling sys.exit from a
+    library function. argparse usage errors still exit 2 via parser.error.
+    """
+    try:
+        return _run_cli()
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
