@@ -55,7 +55,11 @@ class ConversionRegistry:
 
     def __init__(self, registry_path: str):
         self.registry_path = Path(registry_path)
-        self.registry_path.parent.mkdir(parents=True, exist_ok=True)
+        # NOTE: do not create the parent folder here. Merely launching the GUI
+        # instantiates this registry, and creating the folder eagerly would
+        # litter the working directory with generated_kicad_symbol_files/ even
+        # when the user never saves anything. The folder is created lazily in
+        # save(), i.e. only when there is actually something to persist.
         self.data: Dict = {"conversions": []}
         self.load()
 
@@ -76,6 +80,9 @@ class ConversionRegistry:
             self.data = {"conversions": []}
 
     def save(self):
+        # Create the output folder on demand -- only now that there is content
+        # to persist -- so launching the GUI never creates it by itself.
+        self.registry_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.registry_path, 'w', encoding='utf-8') as f:
             json.dump(self.data, f, indent=2)
 
