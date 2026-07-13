@@ -1186,7 +1186,19 @@ class UnifiedMainWindow(QMainWindow):
             pin_list = None
 
         stem = Path(gds_path).stem
-        output_path = str(self.DEFAULT_OUTPUT_DIR / f"{stem}_stripped.gds")
+        default_name = f"{stem}_stripped.gds"
+        # Let the user choose the destination folder and file name.
+        output_path, _ = QFileDialog.getSaveFileName(
+            self, "Save Stripped GDS",
+            str(self.DEFAULT_OUTPUT_DIR / default_name),
+            "GDSII Files (*.gds *.GDS);;All Files (*)"
+        )
+        if not output_path:
+            self._log("Stripped GDS generation cancelled")
+            return
+        # Ensure a .gds extension when the user did not type one.
+        if not Path(output_path).suffix:
+            output_path = output_path.rstrip(".") + ".gds"
 
         try:
             Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -1201,9 +1213,10 @@ class UnifiedMainWindow(QMainWindow):
             self.stripped_gds_status.setText(
                 f"Stripped GDS: {Path(output_path).name} ({count} pad shapes)"
             )
+            self.stripped_gds_status.setToolTip(output_path)
             self.extraction_source_combo.model().item(1).setEnabled(True)
             self.extraction_source_combo.setCurrentIndex(1)
-            self._log(f"Generated stripped GDS: {count} shapes -> {Path(output_path).name}")
+            self._log(f"Generated stripped GDS: {count} shapes -> {output_path}")
             self._log("Edit in KLayout to remove non-pad structures, then Extract.")
 
         except Exception as e:
