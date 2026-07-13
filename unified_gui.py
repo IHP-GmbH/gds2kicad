@@ -761,12 +761,18 @@ class UnifiedMainWindow(QMainWindow):
             self.current_pin_list = pin_list
             self._load_pin_list_into_editor()
             self._build_pad_dicts_from_pin_list()
-            self._log(f"Extracted {len(pin_list)} pins. Switch to Pin List Editor to review.")
-
-            self.tabs.setCurrentIndex(1)
-
+            self._log(f"Extracted {len(pin_list)} pins.")
         except Exception as e:
             self._log(f"Extraction error: {e}", is_error=True)
+            return
+
+        # Extraction succeeded: offer to save the pin list now, letting the user
+        # pick the destination folder and file name. Done outside the try above
+        # so a save error is not misreported as an extraction error.
+        if self._write_pin_list_dialog("Save Extracted Pin List") is None:
+            self._log("Pin list not saved -- use 'Save JSON' in the editor when ready")
+        self._log("Switch to Pin List Editor to review.")
+        self.tabs.setCurrentIndex(1)
 
     # =========================================================================
     # Pin List Editor Operations (Tab 2)
@@ -916,30 +922,40 @@ class UnifiedMainWindow(QMainWindow):
             except Exception as e:
                 self._log(f"Error loading pin list: {e}", is_error=True)
 
-    def _save_pin_list_file(self):
-        self._sync_editor_to_pin_list()
+    def _write_pin_list_dialog(self, title: str = "Save Pin List") -> Optional[str]:
+        """Prompt for a destination folder and file name, then save the current
+        pin list there. Returns the chosen path, or None if there was nothing to
+        save or the user cancelled. The folder is created on demand by
+        PinList.save(), so the user is free to pick any location.
+        """
         if not self.current_pin_list:
             self._log("No pin list to save", is_error=True)
-            return
+            return None
 
         chiplet = self.current_pin_list.metadata.get("chiplet_name", "pins")
         default_name = f"{chiplet}_pins.json"
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save Pin List",
+            self, title,
             str(self.DEFAULT_OUTPUT_DIR / default_name),
             "JSON Files (*.json)"
         )
-        if path:
-            self.current_pin_list.save(path)
-            self._log(f"Saved pin list: {path}")
+        if not path:
+            return None
 
-            self.registry.add_entry(
-                "pin_list",
-                source=self.current_pin_list.metadata.get("gds_source", ""),
-                output=Path(path).name,
-                pin_count=len(self.current_pin_list),
-            )
-            self._refresh_history()
+        self.current_pin_list.save(path)
+        self._log(f"Saved pin list: {path}")
+        self.registry.add_entry(
+            "pin_list",
+            source=self.current_pin_list.metadata.get("gds_source", ""),
+            output=Path(path).name,
+            pin_count=len(self.current_pin_list),
+        )
+        self._refresh_history()
+        return path
+
+    def _save_pin_list_file(self):
+        self._sync_editor_to_pin_list()
+        self._write_pin_list_dialog()
 
     def _add_pin_row(self):
         row = self.pin_editor_table.rowCount()
