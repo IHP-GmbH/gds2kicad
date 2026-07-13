@@ -25,7 +25,7 @@ from PyQt6.QtWidgets import (
     QHeaderView, QAbstractItemView, QComboBox, QSplitter, QSlider, QCheckBox,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QColor
+from PyQt6.QtGui import QFont, QColor, QAction
 
 from theme import COLORS, STYLESHEET, FilterableComboBox
 from lyp_parser import LYPParser
@@ -40,7 +40,7 @@ from symbol_layout import (
     calculate_body_size,
 )
 from preview_widgets import SymbolPreviewWidget, LayoutPreviewWidget
-from _paths import resolve_data_dir
+from _paths import resolve_data_dir, atomic_write
 
 
 # Style override for QComboBox embedded in QTableWidget cells
@@ -121,6 +121,12 @@ class UnifiedMainWindow(QMainWindow):
     DEFAULT_OUTPUT_DIR = DATA_DIR / "generated_kicad_symbol_files"
     REGISTRY_PATH = DEFAULT_OUTPUT_DIR / "unified_registry.json"
 
+    # Project file: stores the input GDS/LYP/stripped-GDS *paths* (the files
+    # are expected to stay in place), the layer selections, the extraction
+    # source and the edited pin list, so a session can be reopened later.
+    PROJECT_FORMAT = "gds-to-kicad-project"
+    PROJECT_VERSION = 1
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("GDS to KiCad -- Unified Workflow")
@@ -137,6 +143,8 @@ class UnifiedMainWindow(QMainWindow):
         self.setStyleSheet(STYLESHEET)
 
     def _setup_ui(self):
+        self._build_menu_bar()
+
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
@@ -582,6 +590,179 @@ class UnifiedMainWindow(QMainWindow):
         layout.addLayout(btn_row)
 
         self.tabs.addTab(tab, "5. History")
+
+    # =========================================================================
+    # Menu bar + Project save/load
+    # =========================================================================
+    def _build_menu_bar(self):
+        file_menu = self.menuBar().addMenu("&File")
+
+        open_action = QAction("&Open Project...", self)
+        open_action.setShortcut("Ctrl+O")
+        open_action.triggered.connect(self._open_project)
+        file_menu.addAction(open_action)
+
+        save_action = QAction("&Save Project As...", self)
+        save_action.setShortcut("Ctrl+S")
+        save_action.triggered.connect(self._save_project)
+        file_menu.addAction(save_action)
+
+    def _select_combo_text(self, combo, text: str):
+        """Select the item whose text matches `text`, if present."""
+        if not text:
+            return
+        idx = combo.findText(text)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+
+    def _save_project(self):
+        """Save the current session to a .g2kproj file.
+
+        Stores the GDS / LYP / stripped-GDS *paths* (the files are expected to
+        stay where they are), the layer selections and extraction source, and
+        embeds the edited pin list so the work survives across sessions.
+        """
+        self._sync_editor_to_pin_list()
+
+        gds_path = self.gds_path_edit.text().strip()
+        if not gds_path:
+            self._log("Nothing to save yet -- select a GDS first", is_error=True)
+            return
+
+        project = {
+            "format": self.PROJECT_FORMAT,
+            "version": self.PROJECT_VERSION,
+            "gds_path": gds_path,
+            "lyp_path": self.lyp_path_edit.text().strip(),
+            "stripped_gds_path": self.stripped_gds_path or "",
+            "pad_layer": self.pad_layer_combo.currentText(),
+            "text_layer": self.text_layer_combo.currentText(),
+            "extraction_source": self.extraction_source_combo.currentIndex(),
+            "pin_list": None,
+        }
+        if self.current_pin_list is not None and self.current_pin_list.pins:
+            pl = self.current_pin_list
+            project["pin_list"] = {**pl.metadata,
+                                   "pins": [p.to_dict() for p in pl.pins]}
+
+        stem = ""
+        if self.current_pin_list is not None:
+            stem = self.current_pin_list.metadata.get("chiplet_name", "")
+        default_name = f"{stem or Path(gds_path).stem}.g2kproj"
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save Project",
+            str(self.DEFAULT_OUTPUT_DIR / default_name),
+            "GDS-to-KiCad Project (*.g2kproj);;JSON Files (*.json);;All Files (*)"
+        )
+        if not path:
+            self._log("Project save cancelled")
+            return
+        if not Path(path).suffix:
+            path = path.rstrip(".") + ".g2kproj"
+
+        try:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            with atomic_write(path) as f:
+                json.dump(project, f, indent=2)
+            self._log(f"Saved project: {path}")
+        except Exception as e:
+            self._log(f"Error saving project: {e}", is_error=True)
+
+    def _open_project(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Project",
+            str(self.DEFAULT_OUTPUT_DIR),
+            "GDS-to-KiCad Project (*.g2kproj);;JSON Files (*.json);;All Files (*)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                project = json.load(f)
+        except Exception as e:
+            self._log(f"Error reading project: {e}", is_error=True)
+            return
+        if not isinstance(project, dict) or project.get("format") != self.PROJECT_FORMAT:
+            self._log("Not a valid gds-to-kicad project file", is_error=True)
+            return
+        self._load_project(project, source=path)
+
+    def _load_project(self, project: dict, source: str = ""):
+        # Reset per-session state (mirrors _select_gds_file's resets).
+        self.current_pin_list = None
+        self.current_symbol = None
+        self.stripped_gds_path = None
+        self.pad_dicts = []
+        self.layout_preview.set_pads([])
+        self.fp_pad_count_label.setText("Pads: --")
+        self.fp_xref_pin_count.setText("Pins: --")
+        self.fp_xref_mismatch.setText("")
+        # Clear the pin editor so no rows from a previously open project linger
+        # when the incoming project has no embedded pin list.
+        self.pin_editor_table.setRowCount(0)
+        self.pin_editor_summary.setText("No pin list loaded")
+        self.stripped_gds_status.setText("No stripped GDS generated yet")
+        self.stripped_gds_status.setToolTip("")
+        self.extraction_source_combo.setCurrentIndex(0)
+        self.extraction_source_combo.model().item(1).setEnabled(False)
+
+        gds_path = project.get("gds_path", "") or ""
+        lyp_path = project.get("lyp_path", "") or ""
+        stripped = project.get("stripped_gds_path", "") or ""
+
+        self.gds_path_edit.setText(gds_path)
+        if gds_path and not Path(gds_path).exists():
+            self._log(f"Warning: GDS not found at {gds_path}", is_error=True)
+
+        # Load the LYP first so the layer combos are populated before we
+        # restore the saved selections.
+        self.lyp_path_edit.setText(lyp_path)
+        self.lyp_parser = None
+        if lyp_path and Path(lyp_path).exists():
+            self._load_layers_from_lyp(lyp_path)
+        elif lyp_path:
+            self._log(f"Warning: LYP not found at {lyp_path}", is_error=True)
+
+        if self.lyp_parser is not None:
+            self._select_combo_text(self.pad_layer_combo, project.get("pad_layer", ""))
+            self._select_combo_text(self.text_layer_combo, project.get("text_layer", ""))
+
+        # Restore stripped GDS (path only; the file is expected to still exist).
+        if stripped:
+            self.stripped_gds_path = stripped
+            if Path(stripped).exists():
+                self.stripped_gds_status.setText(f"Stripped GDS: {Path(stripped).name}")
+                self.stripped_gds_status.setToolTip(stripped)
+                self.extraction_source_combo.model().item(1).setEnabled(True)
+            else:
+                self._log(f"Warning: stripped GDS not found at {stripped}", is_error=True)
+
+        # Restore extraction source only if the stripped option is valid now.
+        if (project.get("extraction_source", 0) == 1
+                and self.extraction_source_combo.model().item(1).isEnabled()):
+            self.extraction_source_combo.setCurrentIndex(1)
+        else:
+            self.extraction_source_combo.setCurrentIndex(0)
+
+        # Restore the embedded pin list (this repopulates the previews and
+        # cross-references via _build_pad_dicts_from_pin_list).
+        pl_data = project.get("pin_list")
+        if isinstance(pl_data, dict):
+            metadata = {k: v for k, v in pl_data.items() if k != "pins"}
+            pins = [PinEntry.from_dict(p) for p in pl_data.get("pins", [])]
+            self.current_pin_list = PinList(pins=pins, metadata=metadata)
+            self._load_pin_list_into_editor()
+            self._build_pad_dicts_from_pin_list()
+
+        self.scan_btn.setEnabled(
+            bool(self.lyp_parser and gds_path and Path(gds_path).exists())
+        )
+
+        n = len(self.current_pin_list) if self.current_pin_list else 0
+        name = Path(source).name if source else "project"
+        self._log(f"Opened project: {name} ({n} pins)")
+        self.tabs.setCurrentIndex(0)
 
     # =========================================================================
     # File Selectors (Tab 1)
