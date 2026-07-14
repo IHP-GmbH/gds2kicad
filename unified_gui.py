@@ -121,6 +121,11 @@ class UnifiedMainWindow(QMainWindow):
     DEFAULT_OUTPUT_DIR = DATA_DIR / "generated_kicad_symbol_files"
     REGISTRY_PATH = DEFAULT_OUTPUT_DIR / "unified_registry.json"
 
+    # Folder the terminal was in when the tool was launched (captured at import).
+    # Used as the default suggestion for the pin-list export dialog, so the file
+    # lands where the user invoked the tool rather than in an internal output dir.
+    INVOCATION_DIR = Path.cwd()
+
     # Project file: stores the input GDS/LYP/stripped-GDS *paths* (the files
     # are expected to stay in place), the layer selections, the extraction
     # source and the edited pin list, so a session can be reopened later.
@@ -1117,7 +1122,7 @@ class UnifiedMainWindow(QMainWindow):
         default_name = f"{chiplet}_pins.json"
         path, _ = QFileDialog.getSaveFileName(
             self, title,
-            str(self.DEFAULT_OUTPUT_DIR / default_name),
+            str(self.INVOCATION_DIR / default_name),
             "JSON Files (*.json)"
         )
         if not path:
