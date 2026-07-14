@@ -122,8 +122,9 @@ class UnifiedMainWindow(QMainWindow):
     REGISTRY_PATH = DEFAULT_OUTPUT_DIR / "unified_registry.json"
 
     # Folder the terminal was in when the tool was launched (captured at import).
-    # Used as the default suggestion for the pin-list export dialog, so the file
-    # lands where the user invoked the tool rather than in an internal output dir.
+    # Used as the default suggestion for the export dialogs (pin list, .kicad_sym,
+    # .kicad_mod), so exports land where the user invoked the tool rather than in
+    # an internal output dir.
     INVOCATION_DIR = Path.cwd()
 
     # Project file: stores the input GDS/LYP/stripped-GDS *paths* (the files
@@ -493,10 +494,10 @@ class UnifiedMainWindow(QMainWindow):
         self.flip_chip_checkbox.stateChanged.connect(self._on_flip_chip_toggled)
         action_row.addWidget(self.flip_chip_checkbox)
         action_row.addStretch()
-        gen_fp_btn = QPushButton("Generate .kicad_mod")
-        gen_fp_btn.setMinimumHeight(36)
-        gen_fp_btn.clicked.connect(self._generate_footprint)
-        action_row.addWidget(gen_fp_btn)
+        export_fp_btn = QPushButton("Export .kicad_mod")
+        export_fp_btn.setMinimumHeight(36)
+        export_fp_btn.clicked.connect(self._export_footprint)
+        action_row.addWidget(export_fp_btn)
         layout.addLayout(action_row)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -1279,7 +1280,7 @@ class UnifiedMainWindow(QMainWindow):
 
         path, _ = QFileDialog.getSaveFileName(
             self, "Export Symbol",
-            str(self.DEFAULT_OUTPUT_DIR / f"{self.current_symbol.name}.kicad_sym"),
+            str(self.INVOCATION_DIR / f"{self.current_symbol.name}.kicad_sym"),
             "KiCad Symbol (*.kicad_sym)"
         )
         if path:
@@ -1506,7 +1507,7 @@ class UnifiedMainWindow(QMainWindow):
     # =========================================================================
     # Footprint Generator (Tab 4)
     # =========================================================================
-    def _generate_footprint(self):
+    def _export_footprint(self):
         if not self.lyp_parser:
             self._log("Load LYP file first", is_error=True)
             return
@@ -1536,8 +1537,8 @@ class UnifiedMainWindow(QMainWindow):
         default_name = f"{chiplet}.kicad_mod"
 
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save Footprint",
-            str(self.DEFAULT_OUTPUT_DIR / default_name),
+            self, "Export Footprint",
+            str(self.INVOCATION_DIR / default_name),
             "KiCad Footprint (*.kicad_mod)"
         )
         if not path:
