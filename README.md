@@ -4,6 +4,11 @@ You designed a die or a chiplet in your silicon flow, the layout lives in a GDSI
 
 gds2kicad does that translation for you. Point it at a GDS, tell it which layer the pads live on, and it writes a KiCad footprint or symbol with the pads placed at their real coordinates and named from the GDS text labels. It also handles the cases the simple story leaves out: closed chiplets that ship no layer file, dies that mount face-down on an interposer, non-rectangular pads, and feeding a routed board back into a chiplet netlist.
 
+## Status
+
+> [!WARNING]
+> gds2kicad is currently a preview release only!
+
 ## PDK-agnostic by design
 
 There is no PDK baked in and nothing to configure. The converter learns your layer numbers from a standard KLayout `.lyp` layer-properties file that you pass with `--lyp-file`. Any process works as long as you supply that file, or you can skip layer names entirely and hand it the raw `layer/datatype` number directly. There is no `--pdk` flag and no PDK discovery: you choose the layer file explicitly, always.
