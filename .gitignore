@@ -50,3 +50,4 @@ kicad_interposer_lib/
 # OS
 .DS_Store
 Thumbs.db
+docs/
