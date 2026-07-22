@@ -19,7 +19,7 @@ try:
 except ImportError:
     print("Error: KLayout Python module not found.", file=sys.stderr)
     print("Please ensure KLayout is installed and PYTHONPATH is configured.", file=sys.stderr)
-    print("See docs/README.md for setup instructions.", file=sys.stderr)
+    print("See README.md for setup instructions.", file=sys.stderr)
     sys.exit(1)
 
 from lyp_parser import LYPParser

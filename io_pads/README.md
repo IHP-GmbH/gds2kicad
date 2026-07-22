@@ -7,7 +7,8 @@ render the corresponding TopMetal2 geometry in the interposer GDS.
 
 ## Currently supported
 
-- `wire_bond` -- square TopMetal2 pad for external wire bonding (default 100x100 um, configurable).
+- `wire_bond` -- square TopMetal2 pad for external wire bonding. `--io-class` and
+  `--size` are both required; there is no default size.
 
 ## Future I/O classes (architecture supports drop-in)
 

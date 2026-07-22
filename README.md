@@ -1,135 +1,309 @@
 # gds2kicad
 
-You designed a die or a chiplet in your silicon flow, the layout lives in a GDSII file, and now you need it on a board or an interposer in KiCad. KiCad does not read GDS, so the usual fallback is redrawing the bond pads by hand from a datasheet and copying pin names into a symbol cell by cell. For a hundred-pad die that is a day of error-prone busywork, and you do it again every time the layout changes.
+Turn a die or chiplet GDSII into the KiCad parts you need to design a board or
+an interposer around it: footprints, schematic symbols, pin lists, and the
+netlist that flows back into the chiplet assembly format.
 
-gds2kicad does that translation for you. Point it at a GDS, tell it which layer the pads live on, and it writes a KiCad footprint or symbol with the pads placed at their real coordinates and named from the GDS text labels. It also handles the cases the simple story leaves out: closed chiplets that ship no layer file, dies that mount face-down on an interposer, non-rectangular pads, and feeding a routed board back into a chiplet netlist.
+KiCad cannot read GDS. The usual fallback is redrawing bond pads by hand from a
+datasheet and typing pin names into a symbol cell by cell, then doing it again
+every time the layout changes. gds2kicad reads the pad geometry and the text
+labels straight out of the layout, so the KiCad part matches the silicon.
 
 ## Status
 
 > [!WARNING]
 > gds2kicad is currently a preview release only!
 
-## PDK-agnostic by design
-
-There is no PDK baked in and nothing to configure. The converter learns your layer numbers from a standard KLayout `.lyp` layer-properties file that you pass with `--lyp-file`. Any process works as long as you supply that file, or you can skip layer names entirely and hand it the raw `layer/datatype` number directly. There is no `--pdk` flag and no PDK discovery: you choose the layer file explicitly, always.
-
-The `pdks/` directory ships four ready examples:
-
-- `generic.lyp`, a minimal pads-only vocabulary (pad metal `205/0`, pad text `205/25`, outline `206/0`) for black-box chiplets that carry no layer file. This is the default when you omit `--lyp-file`.
-- `interposer.lyp`, the IHP SG13G2 upper-metal stack (Metal4 up through Bump), handy for interposer work.
-- `sg13g2.lyp`, the full IHP SG13G2 layer set.
-- `sky130.lyp`, the full SkyWater sky130 layer set.
-
-IHP SG13G2 is the example we test against most heavily, not a requirement. For any other technology, drop its KLayout `.lyp` into `pdks/` (or pass any path with `--lyp-file`) and reference layers by name.
+**Contents:** [Install](#install) - [Quick start](#quick-start) -
+[Tools](#tools) - [Selecting layers](#selecting-layers) -
+[Workflows](#workflows) - [Where files are written](#where-files-are-written) -
+[Troubleshooting](#troubleshooting) - [Documentation](#documentation)
 
 ## Install
 
-You need Python 3, the KLayout Python module (for reading GDS), and PyQt6 (for the GUIs).
+There is nothing to build and nothing to install: run the scripts from the
+clone root. You need KLayout (reads the GDS) and PyQt6 (for the GUIs).
 
 ```sh
 python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-pip install klayout          # or use a system KLayout install
+pip install -r requirements.txt    # PyQt6
+pip install klayout                # GDS reader
 ```
 
-KLayout does the GDS reading. If `import klayout.db` fails, the converters exit with an error telling you so.
+A system KLayout install with its Python bindings on `PYTHONPATH` works too. If
+`import klayout.db` fails, the converters exit with a message saying so.
 
-## The GUI: the easy way in
+Python 3.11 is the version CI runs. On a slim Linux box or container, PyQt6 also
+needs `libgl1 libegl1 libxkbcommon0 libdbus-1-3 libfontconfig1 libglib2.0-0`, or
+the GUIs die on a Qt platform-plugin error. To run the tests you additionally
+need `pip install pytest PyYAML`.
 
-If you would rather click than memorize flags, `unified_gui.py` is the front end, and the simplest way to use any of this. One window walks the whole job across five tabs: pull the pins out of a GDS, fix up the pin list, design the symbol against a live preview, generate the footprint, and look back over past runs. It drives the same engine as the command line.
+## Quick start
+
+No GDS at hand? Both converters can write themselves a small one, which is the
+quickest way to check the install:
+
+```sh
+python3 gds_to_kicad.py --generate-test-gds     # writes tests/test_footprint.gds
+python3 gds_to_kicad.py tests/test_footprint.gds -o demo.kicad_mod
+```
+
+That gives you 3 pads. They come out numbered, not named, because the fixture
+carries no text labels; a real GDS does.
+
+### With the GUI
+
+The simplest way in, and it drives the same engine as the command line:
 
 ```sh
 python3 unified_gui.py
 ```
 
-![The unified GUI, Symbol Designer tab: pin table on the left, live symbol preview on the right](docs/img/unified-gui.png)
+One window, five tabs in order: **Extract Pins** from a GDS, **Pin List Editor**
+to fix names, sides and types, **Symbol Designer** with a live preview,
+**Footprint Generator**, and a **History** of past runs.
 
-Above is the Symbol Designer: set each pin's side and type on the left, watch the symbol redraw on the right, then export the `.kicad_sym`. If you only want one job, `gds_to_kicad_gui.py` (footprints) and `gds_to_kicad_symbol_gui.py` (symbols) are the focused versions. On a headless box, set `QT_QPA_PLATFORM=offscreen`.
+On a headless machine, set `QT_QPA_PLATFORM=offscreen`.
 
-The GUIs handle name-based layer selection and the common path. The command line below covers the same ground and adds the power-user knobs, raw layer numbers, pad review, flip-chip, `--design-dir`.
-
-## Quickstart: a die to a footprint
-
-The fast path. Give it a GDS and the pad layer, get a `.kicad_mod` back:
+### From the command line
 
 ```sh
-python3 gds_to_kicad.py my_die.gds --lyp-file pdks/sg13g2.lyp \
-    --layer TopMetal2.drawing --text-layer TopMetal2.text -o my_die.kicad_mod
+python3 gds_to_kicad.py die.gds -o die.kicad_mod          # footprint
+python3 gds_to_kicad_symbol.py die.gds -o die.kicad_sym   # symbol
 ```
 
-That reads the top cell, flattens it, pulls box and polygon shapes off the pad layer, matches text labels to pads as names, and writes pads (rectangular as `smd rect`, non-rectangular as `smd custom` with a `gr_poly` primitive), a courtyard, and traceability properties recording the source GDS, the `.lyp`, the layer, and the orientation (`GDS_FILE`, `LYP_FILE`, `GDS_LAYER`, `ORIENTATION`).
+With no layer flags both tools auto-detect the densest pad layer and the text
+layer that names the pads. That works on a clean chiplet GDS. On a real full die
+it will happily return routing, fill and guard rings as "pads", so read
+[Selecting layers](#selecting-layers) and
+[Curating pads by hand](#curating-pads-by-hand) before trusting the result.
 
-Not sure which layer holds the pads? Inspect first:
+## Tools
+
+| Tool | Does |
+| --- | --- |
+| `unified_gui.py` | GUI covering the whole flow: pins, symbol, footprint |
+| `gds_to_kicad.py` | GDS to `.kicad_mod` footprint |
+| `gds_to_kicad_symbol.py` | GDS to `.kicad_sym` symbol library |
+| `blackbox_chiplet.py` | Pad map (JSON or CSV) to a stand-in GDS |
+| `footprint_to_pinlist.py` | `.kicad_mod` to pin list JSON |
+| `kicad_netlist_to_chiplet.py` | KiCad `.net` to chiplet YAML, CSV or `.chiplet` |
+| `io_pads/generate_io_pad.py` | Parametric interposer I/O pad symbol and footprint |
+| `io_pads/kicad_pcb_to_iopads.py` | Routed `.kicad_pcb` to `io_pads.json` |
+
+`gds_to_kicad_gui.py` and `gds_to_kicad_symbol_gui.py` are single-purpose GUIs
+for footprints and symbols. Every tool accepts `--help`.
+
+## Selecting layers
+
+There is no PDK baked in, no `--pdk` flag and no PDK discovery. You always say
+explicitly where the pads are, in one of three ways:
+
+| Precedence | How | Example |
+| --- | --- | --- |
+| 1 | Raw GDS number, ignores the `.lyp` | `--pad-layer-number 134/0` |
+| 2 | Layer name from a KLayout `.lyp` | `--lyp-file pdks/sg13g2.lyp --layer TopMetal2.drawing` |
+| 3 | Nothing, auto-detect the densest pad layer | (no flags) |
+
+Pin names come from a separate text layer, selected the same way:
+`--text-layer NAME`, `--text-layer-number N/D`, or auto-detect.
+
+> **Two things that will bite you.** First, the flag spelling differs between
+> the converters: `gds_to_kicad.py` uses `--layer`, `gds_to_kicad_symbol.py`
+> uses `--pad-layer`. The `*-layer-number` flags are the same on both.
+>
+> Second, and this one costs people an afternoon: if you name the pad layer with
+> `--layer` and say nothing about text, `gds_to_kicad.py` emits **numbered**
+> pads instead of named ones, silently. Add `--text-layer NAME`, or
+> `--auto-text` to let it find the text layer itself. The symbol tool does not
+> have this problem: it derives `TopMetal2.text` from `TopMetal2.drawing` on its
+> own, which is why it has no `--auto-text` flag. When both tools auto-detect
+> the pad layer, both auto-detect the text layer too.
+
+### Bundled layer files
+
+`pdks/` ships four ready `.lyp` files:
+
+| File | Contents |
+| --- | --- |
+| `generic.lyp` | **Default.** Pads-only vocabulary: pad metal `205/0`, pad text `205/25`, outline `206/0`. For closed chiplets that ship no layer file. |
+| `sg13g2.lyp` | Full IHP SG13G2 layer set |
+| `sky130.lyp` | Full SkyWater sky130 layer set |
+| `interposer.lyp` | SG13G2 upper metals through Bump, for interposer work |
+
+Any technology works: drop its KLayout `.lyp` into `pdks/`, or pass any path
+with `--lyp-file`. IHP SG13G2 is what we test against most, not a requirement.
+
+### Inspecting a GDS first
 
 ```sh
-python3 gds_to_kicad.py my_die.gds --scan-layers                    # suggests pad/text candidates
-python3 gds_to_kicad.py my_die.gds --list-layers --lyp-file pdks/sky130.lyp
+python3 gds_to_kicad.py die.gds --scan-layers                        # suggest pad/text candidates
+python3 gds_to_kicad.py die.gds --list-layers --lyp-file pdks/sky130.lyp   # dump the parsed .lyp
 ```
 
-If you have no usable `.lyp`, e.g. a closed-PDK GDS, name the layer by its raw `N/D` number, or let the densest-pad-layer auto-detector pick:
+## Workflows
+
+### Die to footprint
 
 ```sh
-python3 gds_to_kicad.py chiplet.gds --pad-layer-number 134/0 --text-layer-number 134/25 -o chiplet.kicad_mod
-python3 gds_to_kicad.py chiplet.gds -o chiplet.kicad_mod            # no layer flags: auto-detect
+python3 gds_to_kicad.py die.gds --lyp-file pdks/sg13g2.lyp \
+    --layer TopMetal2.drawing --text-layer TopMetal2.text -o die.kicad_mod
 ```
 
-For a die that mounts face-down on an interposer, add `--flip-chip` to mirror X so the footprint reads as seen from the interposer side.
+Reads the top cell, flattens it, pulls box and polygon shapes off the pad layer,
+and names each pad from the nearest text label. Rectangular pads become
+`smd rect`; non-rectangular pads become `smd custom` with a `gr_poly` primitive,
+so the real shape is preserved. It also writes a courtyard and traceability
+properties recording the source GDS, the `.lyp`, the layer and the orientation
+(`GDS_FILE`, `LYP_FILE`, `GDS_LAYER`, `ORIENTATION`).
 
-### When auto-detect isn't enough: pad review
+For a die that mounts face-down on an interposer, add `--flip-chip` to mirror X
+so the footprint reads as seen from the interposer side.
 
-Real die GDS files are full of routing, fills, and guard rings that are not bond pads. For those there is a human-in-the-loop step. First strip the GDS down to just the pad layer and labels:
+### Die to symbol
 
 ```sh
-python3 gds_to_kicad.py my_die.gds --generate-pad-review review.gds
+python3 gds_to_kicad_symbol.py die.gds --lyp-file pdks/sg13g2.lyp \
+    --pad-layer TopMetal2.drawing -o die.kicad_sym
 ```
 
-Open `review.gds` in KLayout, delete everything that is not a real pad, save. Then build the footprint from the cleaned-up GDS plus an authoritative pin list:
+Same pad and text extraction, emitted as a KiCad 6+ `.kicad_sym`. Pins are
+arranged automatically: power top and bottom, signals left and right. Extras:
+`--symbol-name`, `--footprint-ref`, and `--max-text-distance` (a DBU cutoff for
+matching text to pads).
+
+There is a two-step path when the automatic result needs fixing. Dump an
+editable pin list, correct names, sides and types, then rebuild from it with no
+GDS involved:
 
 ```sh
-python3 gds_to_kicad.py --from-pad-review review.gds --pin-list pins.json -o my_die.kicad_mod
+python3 gds_to_kicad_symbol.py die.gds --extract-pins pins.json
+python3 gds_to_kicad_symbol.py --from-pin-list pins.json -o die.kicad_sym
 ```
 
-Pads are named by nearest-neighbor matching against the pin list, with warnings for anything unmatched.
+In that JSON each pin carries a `name`, a `side` (`left`, `right`, `top`,
+`bottom`) and a `type` (`passive`, `input`, `output`, `bidirectional`,
+`tri_state`, `power_in`, `power_out`, `unspecified`), plus its geometry in DBU.
+The same file is what the Pin List Editor tab edits, and what `--pin-list`
+expects in the pad-review workflow below.
 
-## The rest of the suite
+### Curating pads by hand
 
-**GDS to symbol.** `gds_to_kicad_symbol.py` runs the same pad-and-text extraction and emits a KiCad 6+ `.kicad_sym` library. It auto-arranges pins, power top and bottom, signals left and right, and writes the schematic body for you.
+This is the normal path for real silicon, not an advanced fallback. A full die
+GDS is mostly routing, fill and guard rings, and auto-detect cannot tell those
+from bond pads. Strip the GDS down to the pad layer plus labels, clean it up in
+KLayout, then build from the result:
 
 ```sh
-python3 gds_to_kicad_symbol.py my_die.gds --lyp-file pdks/sg13g2.lyp --pad-layer TopMetal2.drawing -o my_die.kicad_sym
+python3 gds_to_kicad.py die.gds --generate-pad-review review.gds
+klayout -e -l pdks/sg13g2.lyp review.gds   # delete everything that is not a real pad, save
+python3 gds_to_kicad.py --from-pad-review review.gds --pin-list pins.json -o die.kicad_mod
 ```
 
-It has the same name / raw-number / auto-detect layer selection, plus a two-step human-in-the-loop path: `--extract-pins pins.json` dumps an editable pin list, you fix names, sides, and types, then `--from-pin-list pins.json` regenerates the symbol with no GDS needed.
+`--pin-list` is **required** here: it is the authoritative list of names, and
+pads are matched to it by nearest neighbor, with warnings for anything left
+unmatched. Produce it with `gds_to_kicad_symbol.py --extract-pins pins.json` or
+with `footprint_to_pinlist.py`.
 
-**Black-box mode.** When you only know a chiplet's pad map, names, centers, sizes from a datasheet, and have no GDS and no layer file, `blackbox_chiplet.py` synthesizes a minimal stand-in GDS. It stamps pad metal, pad-name labels, and a die outline onto the generic canonical layers (`205/0`, `205/25`, `206/0`), so the result drops straight into the converters above with no flags.
+### A chiplet with no GDS
+
+When you only have a pad map from a datasheet (names, centers, sizes) and no
+layout and no layer file, synthesize a minimal stand-in GDS:
 
 ```sh
-python3 blackbox_chiplet.py chiplet_pads.json -o chiplet.gds      # JSON or CSV pad spec
-python3 blackbox_chiplet.py pads.csv -o chiplet.gds --no-manifest
+python3 blackbox_chiplet.py pads.json -o chiplet.gds
+python3 blackbox_chiplet.py pads.csv  -o chiplet.gds --no-manifest
 ```
 
-The spec is JSON or CSV, chosen by extension. CSV is a `name,x_um,y_um,w_um,h_um` header with one pad per row; the JSON form adds an optional explicit `die` size and a `chiplet_name`. Pad `x`/`y` are **center** coordinates. Without an explicit die, the outline is derived from pad extents plus a margin. Alongside the GDS it writes a `<stem>.boundaries.json` manifest carrying the die outline as the chiplet boundary for assembly DRC (suppress with `--no-manifest`).
+The spec is JSON or CSV, chosen by extension. CSV is a `name,x_um,y_um,w_um,h_um`
+header with one pad per row; JSON adds an optional explicit `die` size and a
+`chiplet_name`. Pad `x`/`y` are **center** coordinates. Without an explicit die,
+the outline comes from the pad extents plus a margin.
 
-**Netlist to chiplet.** `kicad_netlist_to_chiplet.py` turns a KiCad S-expression netlist (`.net`) into chiplet-flow YAML and/or CSV, or injects a `netlist:` section straight into a `.chiplet` file:
+Pads, labels and outline are stamped on the canonical generic layers
+(`205/0`, `205/25`, `206/0`), so the output feeds the converters above with no
+flags at all. Alongside the GDS it writes a `<stem>.boundaries.json` manifest
+carrying the die outline as the chiplet boundary for assembly DRC; suppress it
+with `--no-manifest`.
+
+### Board back to chiplet netlist
 
 ```sh
 python3 kicad_netlist_to_chiplet.py design.net --yaml nets.yaml --csv nets.csv
 python3 kicad_netlist_to_chiplet.py design.net --inject board.chiplet --summary
 ```
 
-Nets are classified power/ground/signal by name. Footprints from the `io_pads` library (or any ref prefix you pass with `--external-ref-prefix J`) are flagged `external: true`. `footprint_to_pinlist.py` goes the other way, pulling pad geometry out of one or more `.kicad_mod` files into a PinList JSON.
+Converts a KiCad S-expression netlist into chiplet-flow YAML and/or CSV, or
+injects a `netlist:` section straight into a `.chiplet` file. Nets are classified
+power, ground or signal by name. Footprints from the `io_pads` library, or any
+ref prefix you pass with `--external-ref-prefix J`, are flagged `external: true`.
+Pass at least one of `--yaml`, `--csv`, `--inject` or `--summary`.
 
-**I/O pad helpers.** `io_pads/generate_io_pad.py` emits a parametric KiCad symbol and footprint for an external interposer I/O pad, tagged with `IO_CLASS` and `IO_PAD_SIZE_UM` properties. Only `wire_bond` is implemented today; `flipped_bump` and `tsv_bump` are reserved and rejected. After routing, `io_pads/kicad_pcb_to_iopads.py` walks a `.kicad_pcb`, keeps the footprints carrying an `IO_CLASS`, and writes an `io_pads.json` of locations, sizes, and nets (mm to um, Y negated for the GDS Y-up convention).
+Going the other way, `footprint_to_pinlist.py` pulls pad geometry out of one or
+more `.kicad_mod` files into a pin list JSON.
+
+### Interposer I/O pads
 
 ```sh
 python3 io_pads/generate_io_pad.py --io-class wire_bond --size 100x100
 python3 io_pads/kicad_pcb_to_iopads.py design.kicad_pcb -o io_pads.json
 ```
 
-## Where things go
+`generate_io_pad.py` emits a parametric KiCad symbol and footprint for an
+external interposer pad, tagged with `IO_CLASS` and `IO_PAD_SIZE_UM` properties.
+Only `wire_bond` is implemented today; `flipped_bump` and `tsv_bump` are
+reserved and rejected.
 
-By default, generated files land in the current directory (footprints under `generated_kicad_footprint_files/`, symbols under `generated_kicad_symbol_files/`). Set `GDS_TO_KICAD_DATA_DIR` to pin that base elsewhere, use `-o` for an exact path, or `--design-dir DIR` to follow the `<DIR>/<design>.pretty/` per-design convention.
+After routing, `kicad_pcb_to_iopads.py` walks the `.kicad_pcb`, keeps the
+footprints carrying an `IO_CLASS`, and writes pad locations, sizes and nets to
+JSON (mm to um, Y negated for the GDS Y-up convention). Full library setup is in
+[io_pads/README.md](io_pads/README.md).
+
+## Where files are written
+
+From the **command line**, generated files land in the current directory:
+footprints under `generated_kicad_footprint_files/`, symbols under
+`generated_kicad_symbol_files/`.
+
+| To control it | Use |
+| --- | --- |
+| Exact output path | `-o FILE` |
+| Per-design `<DIR>/<design>.pretty/` convention | `--design-dir DIR` (footprint tool only) |
+| Different base directory | `GDS_TO_KICAD_DATA_DIR` environment variable |
+
+The **GUIs** work differently: every export goes through a save dialog that
+starts in the directory you launched the GUI from. Only the conversion history
+registry is written under `generated_kicad_symbol_files/`.
+
+One more: `io_pads/generate_io_pad.py` writes back into your clone
+(`io_pads/kicad_symbols/`, `io_pads/kicad_footprints/`) unless you pass
+`--out-dir`.
+
+## Troubleshooting
+
+| Symptom | Cause |
+| --- | --- |
+| `No module named klayout` | `pip install klayout`, or put a system KLayout's bindings on `PYTHONPATH` |
+| Qt "xcb platform plugin" error on Linux | Missing Qt system libraries, see [Install](#install); or use `QT_QPA_PLATFORM=offscreen` |
+| Footprint pads come out numbered, not named | You passed `--layer` but no text layer; add `--auto-text` or `--text-layer` |
+| Thousands of pads, huge output file | Auto-detect grabbed routing or fill; use [pad review](#curating-pads-by-hand) |
+| `pdks/...lyp` not found | The examples use paths relative to the clone root; run from there or pass an absolute `--lyp-file` |
+
+## Documentation
+
+- [io_pads/README.md](io_pads/README.md), the I/O pad library workflow.
+- `--help` is authoritative for flags; this README covers the common paths.
+
+Tests (needs `pytest` and `PyYAML`, see [Install](#install)):
+
+```sh
+QT_QPA_PLATFORM=offscreen pytest tests -q
+```
+
+20 skips are expected: they need a sibling repo that is not part of this clone.
+
+Upstream: [github.com/IHP-GmbH/gds2kicad](https://github.com/IHP-GmbH/gds2kicad).
 
 ## License
 
-GPL-3.0-or-later. See [LICENSE](LICENSE). Internals, conventions, and how to run the test suite are in [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md).
+GPL-3.0-or-later. See [LICENSE](LICENSE).
