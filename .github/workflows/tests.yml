@@ -2,11 +2,26 @@ name: tests
 
 on:
   push:
+    branches: [dev, main]
   pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # One KLayout for the whole ecosystem. The source of truth is
+  # `ARG KLAYOUT_PIP` in the adk-tools Dockerfile. Unpinned, this job would
+  # resolve whatever wheel is newest on the day it runs, which is how the
+  # ecosystem ended up with four notions of "the supported KLayout".
+  KLAYOUT_VERSION: "0.30.5"
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest: a runner image that rolls forward
+    # under the project changes what a green run means without a commit.
+    runs-on: ubuntu-24.04
     env:
       QT_QPA_PLATFORM: offscreen
     steps:
@@ -23,9 +38,29 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+          # Without this the pip cache keys on nothing repository-specific, so
+          # a dependency change reuses the previous run's wheels.
+          cache-dependency-path: requirements.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt pytest klayout PyYAML
+        run: pip install -r requirements.txt pytest "klayout==${KLAYOUT_VERSION}" PyYAML
 
       - name: Run tests
         run: pytest tests -q
+
+  # The one required status check. A single collector context per repository
+  # means a ruleset names `ci-gate` everywhere and never has to be edited when
+  # the job list inside a workflow changes.
+  ci-gate:
+    needs: [tests]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every gating job to have succeeded
+        # `needs` alone does not gate: with `if: always()` this job runs even
+        # when a dependency failed, so the result has to be compared
+        # explicitly. Without the comparison the gate reports green after its
+        # dependencies went red.
+        run: |
+          echo "tests: ${{ needs.tests.result }}"
+          test "${{ needs.tests.result }}" = "success"
