@@ -300,7 +300,14 @@ Tests (needs `pytest` and `PyYAML`, see [Install](#install)):
 QT_QPA_PLATFORM=offscreen pytest tests -q
 ```
 
-20 skips are expected: they need a sibling repo that is not part of this clone.
+20 skips are expected, and `-ra` (on by default, see `pytest.ini`) prints the
+reason for each one. Ten need an interposer `.lyp`, a `PDK_ROOT` or an `ADK_ROOT`
+that a standalone clone does not have. The other ten, all in
+`tests/test_netlist_converter.py`, look for a demo netlist and `.chiplet` under
+`kicad_designs/kicad_interposer_hyperlynx_to_gds/chiplet_files/`, and that
+directory is empty: those ten cannot run anywhere today, here or in CI. Either
+vendor the two small fixtures into `tests/` or drop the tests; do not read their
+skip as an environment problem.
 
 Upstream: [github.com/IHP-GmbH/gds2kicad](https://github.com/IHP-GmbH/gds2kicad).
 
