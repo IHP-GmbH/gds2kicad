@@ -310,6 +310,17 @@ class UnifiedMainWindow(QMainWindow):
         prep_btn_row.addWidget(open_full_btn)
         prep_layout.addLayout(prep_btn_row)
 
+        # Optional: keep PATH shapes (e.g. wires routing pillars to pads) on the
+        # selected layer. Off by default = historical behavior (paths dropped).
+        self.include_paths_checkbox = QCheckBox("Include paths (wires) on pad layer")
+        self.include_paths_checkbox.setChecked(False)
+        self.include_paths_checkbox.setToolTip(
+            "When off (default), PATH shapes on the pad layer are dropped from "
+            "the stripped GDS, keeping only box/polygon pad shapes.\n"
+            "Turn on to also copy paths (e.g. wires connecting pillars to pads)."
+        )
+        prep_layout.addWidget(self.include_paths_checkbox)
+
         self.stripped_gds_status = QLabel("No stripped GDS generated yet")
         self.stripped_gds_status.setFont(QFont("Monospace", 9))
         prep_layout.addWidget(self.stripped_gds_status)
@@ -1412,12 +1423,14 @@ class UnifiedMainWindow(QMainWindow):
 
         try:
             Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+            include_paths = self.include_paths_checkbox.isChecked()
             count = PadReview.generate(
                 gds_path, output_path,
                 pad_layer=pad_layer,
                 text_layer=text_layer,
                 text_layers=text_layers,
                 pin_list=pin_list,
+                include_paths=include_paths,
             )
             self.stripped_gds_path = output_path
             self.stripped_gds_status.setText(
@@ -1426,7 +1439,9 @@ class UnifiedMainWindow(QMainWindow):
             self.stripped_gds_status.setToolTip(output_path)
             self.extraction_source_combo.model().item(1).setEnabled(True)
             self.extraction_source_combo.setCurrentIndex(1)
-            self._log(f"Generated stripped GDS: {count} shapes -> {output_path}")
+            paths_note = "paths included" if include_paths else "paths dropped"
+            self._log(f"Generated stripped GDS: {count} shapes ({paths_note}) "
+                      f"-> {output_path}")
             self._log("Edit in KLayout to remove non-pad structures, then Extract.")
 
         except Exception as e:

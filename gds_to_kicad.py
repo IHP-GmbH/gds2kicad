@@ -623,6 +623,10 @@ Pad review workflow (human-in-the-loop):
                        help='Generate footprint from user-edited pad review GDS')
     parser.add_argument('--pin-list', metavar='PIN_LIST_JSON',
                        help='Pin list JSON for pad naming (used with --from-pad-review)')
+    parser.add_argument('--include-paths', action='store_true',
+                       help='Keep PATH shapes (e.g. wires routing pillars to pads) '
+                            'on the pad layer when generating the pad review GDS. '
+                            'Default drops them, keeping only box/polygon pad shapes.')
 
     args = parser.parse_args()
 
@@ -706,9 +710,11 @@ Pad review workflow (human-in-the-loop):
             pad_layer=pad_layer,
             text_layer=text_layer_info,
             pin_list=pl,
+            include_paths=args.include_paths,
         )
         print(f"Generated pad review GDS: {args.generate_pad_review}")
-        print(f"  {count} shapes on pad layer")
+        note = " (paths included)" if args.include_paths else " (paths dropped)"
+        print(f"  {count} shapes on pad layer{note}")
         print(f"  Edit in KLayout: klayout -e {args.generate_pad_review}")
         return 0
 

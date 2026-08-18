@@ -93,6 +93,50 @@ class TestGenerate:
             shape_count += 1
         assert shape_count == 5
 
+    def test_paths_dropped_by_default(self, tmp_path):
+        """PATH shapes on the pad layer are dropped unless include_paths=True."""
+        src = tmp_path / "with_path.gds"
+        layout = db.Layout()
+        top = layout.create_cell("SRC_CELL")
+        pl = layout.layer(134, 0)
+        top.shapes(pl).insert(db.Box(0, 0, 80000, 80000))          # 1 pad
+        top.shapes(pl).insert(                                      # 1 wire (path)
+            db.Path([db.Point(0, 40000), db.Point(200000, 40000)], 2000))
+        layout.write(str(src))
+
+        out = str(tmp_path / "review.gds")
+        count = PadReview.generate(str(src), out, pad_layer=(134, 0))
+        assert count == 1  # only the box pad, the path is dropped
+
+        rd = db.Layout()
+        rd.read(out)
+        top_out = rd.top_cell()
+        kinds = [s.is_path() for s in top_out.shapes(rd.layer(134, 0)).each()]
+        assert True not in kinds  # no path survived
+
+    def test_paths_kept_when_include_paths(self, tmp_path):
+        """include_paths=True copies PATH shapes into the pad review GDS."""
+        src = tmp_path / "with_path.gds"
+        layout = db.Layout()
+        top = layout.create_cell("SRC_CELL")
+        pl = layout.layer(134, 0)
+        top.shapes(pl).insert(db.Box(0, 0, 80000, 80000))          # 1 pad
+        top.shapes(pl).insert(                                      # 1 wire (path)
+            db.Path([db.Point(0, 40000), db.Point(200000, 40000)], 2000))
+        layout.write(str(src))
+
+        out = str(tmp_path / "review.gds")
+        count = PadReview.generate(
+            str(src), out, pad_layer=(134, 0), include_paths=True)
+        assert count == 2  # box pad + path wire
+
+        rd = db.Layout()
+        rd.read(out)
+        top_out = rd.top_cell()
+        path_count = sum(1 for s in top_out.shapes(rd.layer(134, 0)).each()
+                         if s.is_path())
+        assert path_count == 1
+
     def test_text_from_source(self, source_gds, tmp_path):
         """Text should be copied from source when no pin_list."""
         out = str(tmp_path / "review.gds")

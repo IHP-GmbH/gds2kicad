@@ -31,6 +31,7 @@ class PadReview:
                  text_layer: Optional[Tuple[int, int]] = None,
                  text_layers: Optional[List[Tuple[int, int]]] = None,
                  pin_list: Optional[PinList] = None,
+                 include_paths: bool = False,
                  flatten: bool = True):
         """Create a pad review GDS with only pad layer shapes and text labels.
 
@@ -46,6 +47,10 @@ class PadReview:
             text_layer: (layer_num, datatype) for a single text layer (optional)
             text_layers: list of (layer_num, datatype) for multiple text layers
             pin_list: PinList to use for text labels at pad centers
+            include_paths: When True, PATH shapes on the pad layer (e.g. wires
+                routing pillars to pads) are copied into the output as paths.
+                Default False preserves the historical behavior of dropping
+                paths, since a pad review normally keeps only pad-like shapes.
             flatten: Whether to flatten cell hierarchy before extraction
         """
         # Load source
@@ -75,11 +80,15 @@ class PadReview:
             elif shape.is_polygon():
                 out_cell.shapes(out_pad_layer).insert(shape.polygon)
                 pad_count += 1
+            elif include_paths and shape.is_path():
+                out_cell.shapes(out_pad_layer).insert(shape.path)
+                pad_count += 1
             else:
                 skipped += 1
         if skipped:
-            print(f"Warning: skipped {skipped} non-box/non-polygon shape(s) "
-                  f"(e.g. paths) on pad layer {pad_layer} of {source_gds}",
+            hint = "" if include_paths else " (e.g. paths; pass include_paths=True to keep them)"
+            print(f"Warning: skipped {skipped} non-copied shape(s)"
+                  f"{hint} on pad layer {pad_layer} of {source_gds}",
                   file=sys.stderr)
 
         # Merge text_layer into text_layers list
