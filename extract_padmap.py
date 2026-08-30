@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Pad maps for the TV1 dies, in the schema blackbox_chiplet.py consumes.
+"""Pad maps for a chiplet die, in the schema blackbox_chiplet.py consumes.
 
 Two modes, one schema, one place for the naming rule.
 
