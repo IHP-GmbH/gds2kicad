@@ -85,6 +85,7 @@ it will happily return routing, fill and guard rings as "pads", so read
 | `unified_gui.py` | GUI covering the whole flow: pins, symbol, footprint |
 | `gds_to_kicad.py` | GDS to `.kicad_mod` footprint |
 | `gds_to_kicad_symbol.py` | GDS to `.kicad_sym` symbol library |
+| `gds_to_kicad_project.py` | Stripped interposer GDS to a full KiCad project (`.kicad_pro` + `.kicad_sch` + `.kicad_pcb`) |
 | `blackbox_chiplet.py` | Pad map (JSON or CSV) to a stand-in GDS |
 | `footprint_to_pinlist.py` | `.kicad_mod` to pin list JSON |
 | `kicad_netlist_to_chiplet.py` | KiCad `.net` to chiplet YAML, CSV or `.chiplet` |
@@ -93,6 +94,32 @@ it will happily return routing, fill and guard rings as "pads", so read
 
 `gds_to_kicad_gui.py` and `gds_to_kicad_symbol_gui.py` are single-purpose GUIs
 for footprints and symbols. Every tool accepts `--help`.
+
+## Interposer to KiCad project
+
+`gds_to_kicad_project.py` reuses a whole interposer layout in KiCad. It takes a
+GDS stripped to just the top routing metal plus its net-label text (TopMetal2 =
+134/0, text 134/25 for IHP intm4tm2) and writes a complete KiCad 9 project: the
+`.kicad_pcb` (bond-pad and cu-pillar footprints on their nets, routing wires as
+copper tracks, fill and planes as graphic copper, an `Edge.Cuts` outline), a
+bond-pads-only `.kicad_sch`, and a `.kicad_pro`. There are no active components;
+the result is a base you finish in KiCad.
+
+```sh
+python3 gds_to_kicad_project.py Interposer_stripped.gds \
+    --pad-layer-number 134/0 --text-layer-number 134/25 --emit all --out-dir out/
+```
+
+Nets come from the layout: shapes that touch form a net, and the text on a
+cu-pillar names it (a bond-pad on the same net inherits that name). Unnamed
+pillars and standalone bond-pads become not-connects. Shape roles (pillar, pad,
+wire, fill, frame, plane) are read from geometry with thresholds in an
+`InterposerProfile`; retune them with `--profile profile.json`, or pass
+`--full-gds` so the un-stripped layout's marker layers (41/35, 41/0) calibrate
+and confirm the pillar and bond-pad sizes. `--dump-model model.json` writes the
+intermediate model without emitting KiCad, for inspection. The KiCad layer stack
+is cloned from the interposer PDK's template board when present (set
+`INTERPOSER_ROOT` or `--template-pcb`), with a builtin fallback otherwise.
 
 ## Selecting layers
 

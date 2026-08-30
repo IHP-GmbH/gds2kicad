@@ -3,12 +3,13 @@
 """
 Unified GDS to KiCad Workflow GUI
 
-Single application with 5 tabs:
+Single application with 6 tabs:
   1. Extract Pins - load GDS/LYP, prepare stripped GDS, extract pin list
   2. Pin List Editor - review/edit pin names, types, sides
   3. Symbol Designer - generate .kicad_sym from pin list
   4. Footprint Generator - generate .kicad_mod from extraction data
-  5. History - conversion registry
+  5. Interposer Board - convert a stripped interposer GDS into a KiCad project
+  6. History - conversion registry
 """
 
 import sys
@@ -41,6 +42,10 @@ from symbol_layout import (
 )
 from preview_widgets import SymbolPreviewWidget, LayoutPreviewWidget
 from _paths import resolve_data_dir, atomic_write
+
+import interposer_model
+import interposer_profile
+import kicad_project_writer
 
 
 # Style override for QComboBox embedded in QTableWidget cells
@@ -144,6 +149,7 @@ class UnifiedMainWindow(QMainWindow):
         self.current_symbol: Optional[SymbolDefinition] = None
         self.stripped_gds_path: Optional[str] = None
         self.pad_dicts: List[dict] = []
+        self.current_interposer_model: Optional[interposer_model.InterposerModel] = None
 
         self._setup_ui()
         self.setStyleSheet(STYLESHEET)
@@ -168,6 +174,7 @@ class UnifiedMainWindow(QMainWindow):
         self._build_pin_editor_tab()
         self._build_symbol_tab()
         self._build_footprint_tab()
+        self._build_interposer_board_tab()
         self._build_history_tab()
 
         # Vertical splitter: tabs (top) + log (bottom) -- user can drag to resize
@@ -577,6 +584,98 @@ class UnifiedMainWindow(QMainWindow):
         self.tabs.addTab(tab, "4. Footprint Generator")
 
     # =========================================================================
+    # Tab 6: Interposer Board (stripped interposer GDS -> KiCad project)
+    # =========================================================================
+    def _build_interposer_board_tab(self):
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        # Input group
+        input_group = QGroupBox("Interposer Input")
+        ig_layout = QVBoxLayout(input_group)
+
+        # Stripped GDS
+        gds_row = QHBoxLayout()
+        gds_label = QLabel("Stripped GDS:")
+        gds_label.setFixedWidth(110)
+        self.interposer_gds_edit = QLineEdit()
+        self.interposer_gds_edit.setPlaceholderText(
+            "Select stripped interposer GDS (TopMetal2 copper + text)..."
+        )
+        if self.stripped_gds_path:
+            self.interposer_gds_edit.setText(self.stripped_gds_path)
+        gds_btn = QPushButton("Browse...")
+        gds_btn.clicked.connect(self._select_interposer_gds)
+        gds_row.addWidget(gds_label)
+        gds_row.addWidget(self.interposer_gds_edit)
+        gds_row.addWidget(gds_btn)
+        ig_layout.addLayout(gds_row)
+
+        # Copper layer (layer/datatype)
+        cu_row = QHBoxLayout()
+        cu_label = QLabel("Copper Layer:")
+        cu_label.setFixedWidth(110)
+        self.interposer_cu_edit = QLineEdit("134/0")
+        self.interposer_cu_edit.setPlaceholderText("layer/datatype (e.g. 134/0)")
+        cu_row.addWidget(cu_label)
+        cu_row.addWidget(self.interposer_cu_edit)
+        cu_row.addStretch()
+        ig_layout.addLayout(cu_row)
+
+        # Text layer (layer/datatype)
+        txt_row = QHBoxLayout()
+        txt_label = QLabel("Text Layer:")
+        txt_label.setFixedWidth(110)
+        self.interposer_text_edit = QLineEdit("134/25")
+        self.interposer_text_edit.setPlaceholderText("layer/datatype (e.g. 134/25)")
+        txt_row.addWidget(txt_label)
+        txt_row.addWidget(self.interposer_text_edit)
+        txt_row.addStretch()
+        ig_layout.addLayout(txt_row)
+
+        # Output directory (optional)
+        out_row = QHBoxLayout()
+        out_label = QLabel("Output Dir:")
+        out_label.setFixedWidth(110)
+        self.interposer_out_edit = QLineEdit()
+        self.interposer_out_edit.setPlaceholderText(
+            "Optional (default: alongside input GDS, else cwd)"
+        )
+        out_btn = QPushButton("Browse...")
+        out_btn.clicked.connect(self._select_interposer_out_dir)
+        out_row.addWidget(out_label)
+        out_row.addWidget(self.interposer_out_edit)
+        out_row.addWidget(out_btn)
+        ig_layout.addLayout(out_row)
+
+        layout.addWidget(input_group)
+
+        # Build + export actions
+        action_group = QGroupBox("Build & Export")
+        ag_layout = QVBoxLayout(action_group)
+
+        btn_row = QHBoxLayout()
+        build_btn = QPushButton("Build Model")
+        build_btn.setMinimumHeight(36)
+        build_btn.clicked.connect(self._build_interposer_model)
+        self.export_interposer_btn = QPushButton("Export KiCad Project")
+        self.export_interposer_btn.setMinimumHeight(36)
+        self.export_interposer_btn.setEnabled(False)
+        self.export_interposer_btn.clicked.connect(self._export_interposer_project)
+        btn_row.addWidget(build_btn)
+        btn_row.addWidget(self.export_interposer_btn)
+        ag_layout.addLayout(btn_row)
+
+        self.interposer_model_status = QLabel("No interposer model built yet")
+        self.interposer_model_status.setFont(QFont("Monospace", 9))
+        ag_layout.addWidget(self.interposer_model_status)
+
+        layout.addWidget(action_group)
+
+        layout.addStretch()
+        self.tabs.addTab(tab, "5. Interposer Board")
+
+    # =========================================================================
     # Tab 5: History
     # =========================================================================
     def _build_history_tab(self):
@@ -606,7 +705,7 @@ class UnifiedMainWindow(QMainWindow):
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
-        self.tabs.addTab(tab, "5. History")
+        self.tabs.addTab(tab, "6. History")
 
     # =========================================================================
     # Menu bar + Project save/load
@@ -1583,6 +1682,109 @@ class UnifiedMainWindow(QMainWindow):
 
         except Exception as e:
             self._log(f"Footprint generation error: {e}", is_error=True)
+
+    # =========================================================================
+    # Interposer Board Operations (Tab 6)
+    # =========================================================================
+    def _select_interposer_gds(self):
+        start = self.interposer_gds_edit.text().strip() or str(Path.cwd())
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Stripped Interposer GDS",
+            start,
+            "GDSII Files (*.gds *.GDS);;All Files (*)"
+        )
+        if path:
+            self.interposer_gds_edit.setText(path)
+            self._log(f"Selected interposer GDS: {Path(path).name}")
+
+    def _select_interposer_out_dir(self):
+        path = QFileDialog.getExistingDirectory(
+            self, "Select Output Directory",
+            str(self.INVOCATION_DIR)
+        )
+        if path:
+            self.interposer_out_edit.setText(path)
+
+    def _build_interposer_model(self):
+        """Parse the stripped interposer GDS into an InterposerModel and log it."""
+        gds_path = self.interposer_gds_edit.text().strip()
+        if not gds_path or not Path(gds_path).exists():
+            self._log("Select a valid stripped interposer GDS first", is_error=True)
+            return
+
+        self._log(f"Building interposer model from: {Path(gds_path).name}")
+        QApplication.processEvents()
+
+        try:
+            overlay = {}
+            cu_text = self.interposer_cu_edit.text().strip()
+            if cu_text:
+                overlay["pad_layer"] = interposer_profile._as_layer(cu_text)
+            txt_text = self.interposer_text_edit.text().strip()
+            if txt_text:
+                overlay["label_layer"] = interposer_profile._as_layer(txt_text)
+
+            profile = interposer_profile.InterposerProfile().merge(overlay)
+            model = interposer_model.build_model(gds_path, profile=profile)
+            self.current_interposer_model = model
+            self.export_interposer_btn.setEnabled(True)
+
+            self._log(f"Model: {model.summary()}")
+            rc = model.role_counts()
+            rc_str = ", ".join(f"{k}={v}" for k, v in sorted(rc.items()))
+            self._log(f"  Roles: {rc_str or '(none)'}")
+            named_nets = sum(1 for n in model.nets if n.is_connected)
+            self._log(f"  Pads: {len(model.pads)}  |  "
+                      f"Nets: {len(model.nets)} ({named_nets} named)")
+            for w in model.metadata.get("net_warnings", []):
+                self._log(f"  net warning: {w}")
+
+            self.interposer_model_status.setText(
+                f"Model: {model.name} "
+                f"({len(model.pads)} pads, {len(model.nets)} nets)"
+            )
+            self.interposer_model_status.setStyleSheet(
+                f"color: {COLORS['success']};"
+            )
+        except Exception as e:
+            self.current_interposer_model = None
+            self.export_interposer_btn.setEnabled(False)
+            self._log(f"Interposer model build error: {e}", is_error=True)
+
+    def _export_interposer_project(self):
+        """Emit a full KiCad project (.kicad_pcb + .kicad_sch + .kicad_pro)."""
+        if not self.current_interposer_model:
+            self._log("Build an interposer model first", is_error=True)
+            return
+
+        out_dir = self.interposer_out_edit.text().strip()
+        if not out_dir:
+            gds_path = self.interposer_gds_edit.text().strip()
+            if gds_path:
+                out_dir = str(Path(gds_path).resolve().parent)
+            else:
+                out_dir = str(self.INVOCATION_DIR)
+
+        self._log(f"Exporting KiCad project to: {out_dir}")
+        QApplication.processEvents()
+
+        try:
+            written = kicad_project_writer.write_project(
+                self.current_interposer_model, out_dir, emit="all"
+            )
+            for path in written:
+                self._log(f"Wrote {path}")
+            self._log(f"Exported {len(written)} file(s).")
+
+            self.registry.add_entry(
+                "interposer_project",
+                source=Path(self.current_interposer_model.source_gds).name,
+                output=self.current_interposer_model.name,
+                pin_count=len(self.current_interposer_model.pads),
+            )
+            self._refresh_history()
+        except Exception as e:
+            self._log(f"Interposer project export error: {e}", is_error=True)
 
     # =========================================================================
     # History Operations (Tab 5)
