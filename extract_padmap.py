@@ -292,6 +292,13 @@ def cmd_extract(args):
                    if not p["name"].startswith(_POWER_PREFIXES)])
 
     bb = top.dbbox()
+    # The die top-cell GDS bbox in native database units (die-local frame), same
+    # convention as a pin list's center_x_dbu. This is the die outline whose centre
+    # the bbox_center anchor's reference point sits at; it comes from the GDS top
+    # cell, NOT from pad extents (pads sit inside the die edge, so pad extents would
+    # undersize it). Carried downstream so pin-list mounting can place a bbox_center
+    # die without guessing its size.
+    bb_dbu = top.bbox()
     spec = {
         "chiplet_name": args.name or top.name,
         "_provenance": {
@@ -303,6 +310,8 @@ def cmd_extract(args):
         },
         "die": {"bbox_um": [round(bb.left, 3), round(bb.bottom, 3),
                             round(bb.right, 3), round(bb.top, 3)]},
+        "die_bbox_dbu": {"x_min": bb_dbu.left, "y_min": bb_dbu.bottom,
+                         "x_max": bb_dbu.right, "y_max": bb_dbu.top},
         "pads": pads,
     }
     _write(spec, args.output)
