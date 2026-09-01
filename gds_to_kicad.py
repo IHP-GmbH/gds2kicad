@@ -94,7 +94,8 @@ class GDSToKiCad:
         dbu_um = self._resolve_dbu(layout)
         return dbu_um * 1e-3
 
-    def convert(self, gds_path: str, output_path: str, flip_chip: bool = False):
+    def convert(self, gds_path: str, output_path: str, flip_chip: bool = False,
+                die_thickness_um: Optional[float] = None):
         """Convert GDS file to KiCad footprint.
 
         Args:
@@ -182,7 +183,8 @@ class GDSToKiCad:
         # Generate footprint
         self._generate_kicad_footprint(top_cell.name, pad_dicts, output_path, gds_path,
                                         pad_names=pad_names, dbu_to_mm=dbu_to_mm,
-                                        flip_chip=flip_chip)
+                                        flip_chip=flip_chip,
+                                        die_thickness_um=die_thickness_um)
 
         return True
 
@@ -259,7 +261,8 @@ class GDSToKiCad:
                                     gds_path: str, pad_names: Optional[Dict] = None,
                                     dbu_to_mm: Optional[float] = None,
                                     gds_property_path: Optional[str] = None,
-                                    flip_chip: bool = False):
+                                    flip_chip: bool = False,
+                                    die_thickness_um: Optional[float] = None):
         """Generate KiCad footprint file with numbered pads.
 
         pad_dicts: list of dicts with keys:
@@ -301,7 +304,17 @@ class GDSToKiCad:
             f.write(f'  (property "LYP_FILE" "{lyp_filename}")\n')
             f.write(f'  (property "GDS_LAYER" "{self.layer_name} ({layer_num}/{layer_dt})")\n')
             orientation = "flip_chip" if flip_chip else "face_up"
-            f.write(f'  (property "ORIENTATION" "{orientation}")\n\n')
+            f.write(f'  (property "ORIENTATION" "{orientation}")\n')
+            # Die thickness in um for the assembly z-stack. chiplet-export reads
+            # this DIE_THICKNESS_UM property into hyp-to-gds --die-thicknesses; when
+            # absent the export keeps its 0.0 default, so only emit it when known.
+            if die_thickness_um is not None:
+                if not (die_thickness_um > 0):
+                    raise ValueError(
+                        f"die_thickness_um must be a positive value in um, "
+                        f"got {die_thickness_um!r}")
+                f.write(f'  (property "DIE_THICKNESS_UM" "{die_thickness_um:g}")\n')
+            f.write('\n')
 
             # Reference and value text
             f.write('  (fp_text reference "REF**" (at 0 0) (layer "F.SilkS")\n')
@@ -380,7 +393,8 @@ class GDSToKiCad:
     def convert_from_pad_review(self, edited_gds: str, pin_list: PinList,
                                 output_path: str,
                                 gds_property_path: Optional[str] = None,
-                                flip_chip: bool = False):
+                                flip_chip: bool = False,
+                                die_thickness_um: Optional[float] = None):
         """Generate footprint from a user-edited pad review GDS.
 
         Uses pin_list for pad naming instead of text extraction from the
@@ -439,6 +453,7 @@ class GDSToKiCad:
             dbu_to_mm=dbu_to_mm,
             gds_property_path=gds_property_path,
             flip_chip=flip_chip,
+            die_thickness_um=die_thickness_um,
         )
 
         return True
@@ -616,6 +631,13 @@ Pad review workflow (human-in-the-loop):
                        help='Mirror X coordinates for flip-chip (face-down) die orientation. '
                             'Generates footprint as seen from interposer side.')
 
+    # Die thickness for the assembly z-stack (assembly metadata, not GDS geometry)
+    parser.add_argument('--die-thickness-um', type=float, default=None, metavar='UM',
+                       help='Die thickness in microns, written as the DIE_THICKNESS_UM '
+                            'footprint property. chiplet-export reads it into '
+                            'hyp-to-gds --die-thicknesses for the assembly z-stack. '
+                            'Omit to leave it unset (export defaults to 0.0).')
+
     # Pad review GDS workflow flags
     parser.add_argument('--generate-pad-review', metavar='OUTPUT_GDS',
                        help='Generate pad review GDS with only pad layer for editing')
@@ -738,6 +760,7 @@ Pad review workflow (human-in-the-loop):
         success = converter.convert_from_pad_review(
             args.from_pad_review, pin_list, args.output,
             flip_chip=getattr(args, 'flip_chip', False),
+            die_thickness_um=getattr(args, 'die_thickness_um', None),
         )
         return 0 if success else 1
 
@@ -774,7 +797,8 @@ Pad review workflow (human-in-the-loop):
                             pad_layer=pad_layer,
                             text_layer=text_layer_tuple)
     success = converter.convert(args.input, args.output,
-                                flip_chip=getattr(args, 'flip_chip', False))
+                                flip_chip=getattr(args, 'flip_chip', False),
+                                die_thickness_um=getattr(args, 'die_thickness_um', None))
 
     return 0 if success else 1
 

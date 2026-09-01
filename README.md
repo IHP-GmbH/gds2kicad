@@ -187,6 +187,11 @@ properties recording the source GDS, the `.lyp`, the layer and the orientation
 For a die that mounts face-down on an interposer, add `--flip-chip` to mirror X
 so the footprint reads as seen from the interposer side.
 
+Die thickness is assembly metadata, not GDS geometry, so it is only written when
+you pass it: `--die-thickness-um 300` emits a `DIE_THICKNESS_UM` property that
+chiplet-export reads into hyp-to-gds `--die-thicknesses` for the assembly z-stack.
+Omit it and the property is left out (the export defaults it to 0.0).
+
 ### Die to symbol
 
 ```sh
