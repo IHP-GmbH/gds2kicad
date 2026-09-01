@@ -75,6 +75,34 @@ class TestDieThicknessProperty:
 
         assert _thickness_property(Path(output).read_text()) == "112.5"
 
+    def test_gate_colocated_with_gds_file(self, tmp_path, interposer_lyp):
+        # chiplet-export only honors DIE_THICKNESS_UM on a footprint that also
+        # carries GDS_FILE (its "die footprint" gate); a property on a footprint
+        # without GDS_FILE is silently ignored. The legacy writer emits both in
+        # the one die footprint, so the property is never stranded.
+        gds_path = _create_test_gds(tmp_path / "t.gds")
+        output = str(tmp_path / "gate.kicad_mod")
+
+        converter = GDSToKiCad(interposer_lyp, "TopMetal2.drawing")
+        converter.convert(str(gds_path), output, die_thickness_um=200.0)
+
+        content = Path(output).read_text()
+        assert '(property "DIE_THICKNESS_UM"' in content
+        assert '(property "GDS_FILE"' in content
+
+    def test_value_has_no_unit_suffix(self, tmp_path, interposer_lyp):
+        # The reader is a raw float(text): "150" / "150.0" parse, "150um" does
+        # not. Guard that the emitted value is bare-numeric, never suffixed.
+        gds_path = _create_test_gds(tmp_path / "t.gds")
+        output = str(tmp_path / "nosuffix.kicad_mod")
+
+        converter = GDSToKiCad(interposer_lyp, "TopMetal2.drawing")
+        converter.convert(str(gds_path), output, die_thickness_um=150.0)
+
+        value = _thickness_property(Path(output).read_text())
+        assert value is not None
+        float(value)  # must parse as the reader does; raises if suffixed
+
     @pytest.mark.parametrize("bad", [0, 0.0, -1.0, -725])
     def test_nonpositive_raises(self, tmp_path, interposer_lyp, bad):
         gds_path = _create_test_gds(tmp_path / "t.gds")
