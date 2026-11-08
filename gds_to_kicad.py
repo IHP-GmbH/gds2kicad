@@ -10,6 +10,7 @@ Supports optional text layer for pin name association.
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
@@ -25,6 +26,7 @@ except ImportError:
 from lyp_parser import LYPParser
 from pin_list import PinList
 from pad_review import PadReview
+from die_outline import is_review_outline, read_die_outline
 from sexpr import sanitize_sexpr_token
 from _paths import atomic_write
 
@@ -43,13 +45,21 @@ class GDSToKiCad:
                  auto_detect_text: bool = False,
                  dbu: Optional[float] = None,
                  pad_layer: Optional[Tuple[int, int]] = None,
-                 text_layer: Optional[Tuple[int, int]] = None):
+                 text_layer: Optional[Tuple[int, int]] = None,
+                 die_outline_layer: Optional[Tuple[int, int]] = None):
         self.lyp_parser = lyp_parser
         self.text_layer_name = text_layer_name
         self.auto_detect_text = auto_detect_text
         self._dbu_override = dbu
         # Optional raw (layer, datatype) text override (bypasses name lookup).
         self._text_layer_override = text_layer
+        # Optional raw (layer, datatype) carrying the die outline. When set, the
+        # courtyard is drawn from that outline instead of the pad bounding box,
+        # and a missing or unusable outline is a refusal rather than a fallback:
+        # naming the layer is a statement that the outline is there, so silently
+        # reverting to the pad hull would emit a footprint that reads the same in
+        # both cases while meaning a different die size.
+        self.die_outline_layer = die_outline_layer
 
         if pad_layer is not None:
             # Raw layer-number path: use the given (layer, datatype) directly,
@@ -94,7 +104,8 @@ class GDSToKiCad:
         dbu_um = self._resolve_dbu(layout)
         return dbu_um * 1e-3
 
-    def convert(self, gds_path: str, output_path: str, flip_chip: bool = False):
+    def convert(self, gds_path: str, output_path: str, flip_chip: bool = False,
+                die_thickness_um: Optional[float] = None):
         """Convert GDS file to KiCad footprint.
 
         Args:
@@ -179,10 +190,28 @@ class GDSToKiCad:
         boxes = [pd["bbox"] for pd in pad_dicts]
         self._print_bounding_box_info(boxes, dbu_to_mm=dbu_to_mm)
 
+        # Die outline, when its layer was named. Both of these raise, so the
+        # refusal happens here and no file is written.
+        die_outline = None
+        if self.die_outline_layer is not None:
+            self._refuse_dbu_override(layout, gds_path)
+            if not pad_dicts:
+                raise ValueError(
+                    "no pads found on layer %d/%d of %s; a footprint with a die "
+                    "outline and no pads is not written"
+                    % (self.pad_layer[0], self.pad_layer[1], gds_path))
+            die_outline = self._extract_die_outline(layout, top_cell)
+            self._check_pads_inside_outline(pad_dicts, die_outline, dbu_um)
+            print("Die outline %d/%d: %.3f x %.3f um"
+                  % (self.die_outline_layer[0], self.die_outline_layer[1],
+                     die_outline.width() * dbu_um, die_outline.height() * dbu_um))
+
         # Generate footprint
         self._generate_kicad_footprint(top_cell.name, pad_dicts, output_path, gds_path,
                                         pad_names=pad_names, dbu_to_mm=dbu_to_mm,
-                                        flip_chip=flip_chip)
+                                        flip_chip=flip_chip,
+                                        die_thickness_um=die_thickness_um,
+                                        die_outline=die_outline)
 
         return True
 
@@ -198,6 +227,14 @@ class GDSToKiCad:
         shapes = cell.shapes(layer_index)
 
         for shape in shapes.each():
+            if is_review_outline(shape):
+                # Same refusal as the pad-review read-back: this file is a pad
+                # review, and its pad layer resolved to the die outline.
+                raise ValueError(
+                    "pad layer %d/%d holds the die outline box written by "
+                    "--generate-pad-review, not pads; convert a review with "
+                    "--from-pad-review, or name the pad layer with "
+                    "--pad-layer-number or --layer" % tuple(self.pad_layer))
             if shape.is_box():
                 pads.append({
                     "bbox": shape.box,
@@ -214,6 +251,62 @@ class GDSToKiCad:
                 })
 
         return pads
+
+    def _extract_die_outline(self, layout: db.Layout, cell: db.Cell) -> db.Box:
+        """Return the die outline box from self.die_outline_layer.
+
+        Delegates to die_outline.read_die_outline, the one read rule shared with
+        the pad-review generator; see there for every refusal.
+        """
+        return read_die_outline(layout, cell, self.die_outline_layer)
+
+    def _refuse_dbu_override(self, layout: db.Layout, gds_path: str) -> None:
+        """Refuse a --dbu that differs from the file's DBU when an outline is read.
+
+        The footprint would be drawn at the override scale while
+        DIE_OUTLINE_LAYER sends a consumer to the GDS, which it reads at the
+        file's own DBU, so one footprint would declare two die sizes.
+        """
+        if (self._dbu_override is not None
+                and abs(self._dbu_override - layout.dbu) > 1e-12):
+            raise ValueError(
+                "--dbu %g differs from the DBU %g um of %s; with "
+                "--die-outline-layer the footprint must use the file's DBU, "
+                "because the outline is read from the file"
+                % (self._dbu_override, layout.dbu, gds_path))
+
+    def _check_pads_inside_outline(self, pad_dicts: List[dict], outline: db.Box,
+                                   dbu_um: float) -> None:
+        """Refuse when any pad falls outside the die outline.
+
+        A pad outside the die body means the two were read in different frames
+        or off different layers, and the footprint would then carry a courtyard
+        that does not contain its own pads. That is worth stopping for: it is
+        the shape of a wrong --die-outline-layer, and it is invisible in the
+        emitted file.
+        """
+        outside = []
+        for index, pad in enumerate(pad_dicts):
+            box = pad["bbox"]
+            if (box.left < outline.left or box.right > outline.right
+                    or box.bottom < outline.bottom or box.top > outline.top):
+                outside.append((index, box))
+
+        if outside:
+            shown = ", ".join(
+                "pad %d at (%.3f, %.3f)..(%.3f, %.3f) um"
+                % (i, b.left * dbu_um, b.bottom * dbu_um,
+                   b.right * dbu_um, b.top * dbu_um)
+                for i, b in outside[:3])
+            more = "" if len(outside) <= 3 else " and %d more" % (len(outside) - 3)
+            raise ValueError(
+                "%d of %d pads fall outside the die outline "
+                "(%.3f, %.3f)..(%.3f, %.3f) um: %s%s. Check that "
+                "--die-outline-layer and the pad layer are read from the same "
+                "cell and the same frame."
+                % (len(outside), len(pad_dicts),
+                   outline.left * dbu_um, outline.bottom * dbu_um,
+                   outline.right * dbu_um, outline.top * dbu_um, shown, more))
 
     def _print_bounding_box_info(self, pads: List[db.Box],
                                 dbu_to_mm: Optional[float] = None):
@@ -259,13 +352,18 @@ class GDSToKiCad:
                                     gds_path: str, pad_names: Optional[Dict] = None,
                                     dbu_to_mm: Optional[float] = None,
                                     gds_property_path: Optional[str] = None,
-                                    flip_chip: bool = False):
+                                    flip_chip: bool = False,
+                                    die_thickness_um: Optional[float] = None,
+                                    die_outline: Optional[db.Box] = None):
         """Generate KiCad footprint file with numbered pads.
 
         pad_dicts: list of dicts with keys:
             bbox (db.Box), is_polygon (bool), polygon_points (list or None)
         gds_property_path: if set, used for GDS_FILE property instead of gds_path
         flip_chip: if True, mirror X coordinates (die seen from interposer side)
+        die_outline: if set, the courtyard rectangle in DBU and the trigger for
+            the DIE_OUTLINE_LAYER property; otherwise the courtyard is the pad
+            bounding box, unchanged, and no outline layer is declared
         """
         print(f"Generating KiCad footprint: {output_path}")
 
@@ -301,7 +399,25 @@ class GDSToKiCad:
             f.write(f'  (property "LYP_FILE" "{lyp_filename}")\n')
             f.write(f'  (property "GDS_LAYER" "{self.layer_name} ({layer_num}/{layer_dt})")\n')
             orientation = "flip_chip" if flip_chip else "face_up"
-            f.write(f'  (property "ORIENTATION" "{orientation}")\n\n')
+            f.write(f'  (property "ORIENTATION" "{orientation}")\n')
+            # Die thickness in um for the assembly z-stack. chiplet-export reads
+            # this DIE_THICKNESS_UM property into hyp-to-gds --die-thicknesses; when
+            # absent the export keeps its 0.0 default, so only emit it when known.
+            if die_thickness_um is not None:
+                if not (die_thickness_um > 0):
+                    raise ValueError(
+                        f"die_thickness_um must be a positive value in um, "
+                        f"got {die_thickness_um!r}")
+                f.write(f'  (property "DIE_THICKNESS_UM" "{die_thickness_um:g}")\n')
+            # Which GDS layer holds the die outline, as bare "L/D", so a
+            # consumer can size the die from the die GDS in its own frame rather
+            # than from KiCad geometry. Only when the outline on that layer was
+            # read and passed every refusal; never a default.
+            if die_outline is not None:
+                outline_layer, outline_dt = self.die_outline_layer
+                f.write(f'  (property "DIE_OUTLINE_LAYER" '
+                        f'"{int(outline_layer)}/{int(outline_dt)}")\n')
+            f.write('\n')
 
             # Reference and value text
             f.write('  (fp_text reference "REF**" (at 0 0) (layer "F.SilkS")\n')
@@ -355,8 +471,47 @@ class GDSToKiCad:
                     f.write('    (layers "F.Cu" "F.Paste" "F.Mask")\n')
                     f.write('  )\n')
 
-            # Courtyard from pad bounding box
-            if pad_dicts:
+            # Courtyard. From the die outline when one was given, else from the
+            # pad bounding box, which is what this always did.
+            #
+            # The pad hull is not the die. It is the extent of the pad ring, so a
+            # die whose pads are inset comes out smaller than the die is, and the
+            # consumer that reads this courtyard (chiplet-export) turns it into
+            # the .chiplet `dimensions`, i.e. into the die size the assembly then
+            # believes. On the shipped demo that error is small; on a 1 mm die
+            # with 70 um pads inset 65 um it is 134 um in each axis.
+            #
+            # The stroke differs between the two paths on purpose. The consumer
+            # does not read this rectangle, it reads KiCad's courtyard cache
+            # bbox, and that bbox is not the drawn rectangle: measured on the
+            # committed demo (fp_rect 0.68 x 2.516339 mm at stroke 0.05 giving
+            # .chiplet dimensions 770.0 x 2606.339 um), it comes out as
+            # rect + 2*stroke - 10 um. At stroke 0.005 the two corrections cancel
+            # and the dimensions equal the drawn rectangle, which is the only
+            # reason the outline survives the round trip intact.
+            #
+            # That relation is COMPATIBILITY WITH THE PINNED KiCad RUNTIME, not a
+            # universal fact about the cache: it was derived from two frozen
+            # artifacts, which can only show that those two agree, never what a
+            # future KiCad does. A real pcbnew generated-footprint -> export
+            # dimension check is required before calling this integration
+            # correct, and is deliberately not claimed here.
+            if die_outline is not None:
+                if flip_chip:
+                    # After X-mirror, min/max swap. Same transform as the pads
+                    # above, so the courtyard and the pads stay in one frame.
+                    min_x = -die_outline.right * DBU_TO_MM
+                    max_x = -die_outline.left * DBU_TO_MM
+                else:
+                    min_x = die_outline.left * DBU_TO_MM
+                    max_x = die_outline.right * DBU_TO_MM
+                # Y is negated in KiCad, so top and bottom swap.
+                min_y = -die_outline.top * DBU_TO_MM
+                max_y = -die_outline.bottom * DBU_TO_MM
+                f.write(f'\n  (fp_rect (start {min_x:.6f} {min_y:.6f}) (end {max_x:.6f} {max_y:.6f})\n')
+                f.write('    (stroke (width 0.005) (type solid)) (fill none) (layer "F.CrtYd")\n')
+                f.write('  )\n')
+            elif pad_dicts:
                 all_left = [pd["bbox"].left for pd in pad_dicts]
                 all_right = [pd["bbox"].right for pd in pad_dicts]
                 if flip_chip:
@@ -380,7 +535,8 @@ class GDSToKiCad:
     def convert_from_pad_review(self, edited_gds: str, pin_list: PinList,
                                 output_path: str,
                                 gds_property_path: Optional[str] = None,
-                                flip_chip: bool = False):
+                                flip_chip: bool = False,
+                                die_thickness_um: Optional[float] = None):
         """Generate footprint from a user-edited pad review GDS.
 
         Uses pin_list for pad naming instead of text extraction from the
@@ -432,6 +588,52 @@ class GDSToKiCad:
         boxes = [pd["bbox"] for pd in fp_pads]
         self._print_bounding_box_info(boxes, dbu_to_mm=dbu_to_mm)
 
+        # Same extraction and the same containment check as convert(). The
+        # outline is read from the file GDS_FILE will name, because that is the
+        # file a consumer reads DIE_OUTLINE_LAYER from: the original die GDS when
+        # gds_property_path is given (the review keeps its coordinates, so the
+        # pads share its frame), else the edited review GDS itself. Reused rather
+        # than reimplemented: two copies of a validation rule drift.
+        die_outline = None
+        if self.die_outline_layer is not None:
+            outline_gds = gds_property_path or edited_gds
+            outline_layout = db.Layout()
+            outline_layout.read(outline_gds)
+            top_cell = outline_layout.top_cell()
+            if not top_cell:
+                print("Error: No top cell found in %s" % outline_gds,
+                      file=sys.stderr)
+                return False
+            # The outline box is compared with the pads in DBU, so both files
+            # must share one grid; a review written at another DBU would put
+            # the pads and the outline in different frames without an error.
+            if abs(outline_layout.dbu - tmp_layout.dbu) > 1e-12:
+                raise ValueError(
+                    "%s has DBU %g um but %s has DBU %g um; the die outline and "
+                    "the pads must share one DBU. Regenerate the review with "
+                    "--generate-pad-review from this die GDS."
+                    % (outline_gds, outline_layout.dbu, edited_gds,
+                       tmp_layout.dbu))
+            self._refuse_dbu_override(outline_layout, outline_gds)
+            # No flatten: the read is hierarchical, and this may be a full die.
+            try:
+                die_outline = self._extract_die_outline(outline_layout, top_cell)
+            except ValueError as exc:
+                if gds_property_path:
+                    raise ValueError("%s: %s" % (outline_gds, exc))
+                # Read from the review itself: the usual cause is a review
+                # generated without the option, or an outline box deleted
+                # while editing, not a wrong layer on the die.
+                raise ValueError(
+                    "%s: %s. If this is a pad review, regenerate it with "
+                    "--generate-pad-review and the same --die-outline-layer, or "
+                    "restore the outline box removed while editing."
+                    % (outline_gds, str(exc).rstrip(".")))
+            self._check_pads_inside_outline(fp_pads, die_outline, dbu_um)
+            print("Die outline %d/%d: %.3f x %.3f um"
+                  % (self.die_outline_layer[0], self.die_outline_layer[1],
+                     die_outline.width() * dbu_um, die_outline.height() * dbu_um))
+
         self._generate_kicad_footprint(
             pin_list.metadata.get("chiplet_name", Path(edited_gds).stem),
             fp_pads, output_path, edited_gds,
@@ -439,6 +641,8 @@ class GDSToKiCad:
             dbu_to_mm=dbu_to_mm,
             gds_property_path=gds_property_path,
             flip_chip=flip_chip,
+            die_thickness_um=die_thickness_um,
+            die_outline=die_outline,
         )
 
         return True
@@ -596,6 +800,16 @@ Pad review workflow (human-in-the-loop):
                             'name lookup; use for a chiplet GDS with no named LYP entry. '
                             'If neither --layer nor this is given, the densest pad layer '
                             'is auto-detected.')
+    parser.add_argument('--die-outline-layer', metavar='N/D',
+                       help='Raw GDS layer as N/D carrying the die outline (the '
+                            'generic black-box writes 206/0). When given, the '
+                            'F.CrtYd courtyard is the die outline instead of the '
+                            'pad bounding box, the layer is recorded as a '
+                            'DIE_OUTLINE_LAYER property, and an absent, ambiguous '
+                            'or non-rectangular outline is an error rather than a '
+                            'fallback. With --generate-pad-review the outline is '
+                            'copied into the review GDS. Omit to keep the '
+                            'pad-hull courtyard.')
     parser.add_argument('--text-layer',
                        help='Text layer name for pin names (e.g., TopMetal2.text)')
     parser.add_argument('--text-layer-number', metavar='N/D',
@@ -615,6 +829,13 @@ Pad review workflow (human-in-the-loop):
     parser.add_argument('--flip-chip', action='store_true',
                        help='Mirror X coordinates for flip-chip (face-down) die orientation. '
                             'Generates footprint as seen from interposer side.')
+
+    # Die thickness for the assembly z-stack (assembly metadata, not GDS geometry)
+    parser.add_argument('--die-thickness-um', type=float, default=None, metavar='UM',
+                       help='Die thickness in microns, written as the DIE_THICKNESS_UM '
+                            'footprint property. chiplet-export reads it into '
+                            'hyp-to-gds --die-thicknesses for the assembly z-stack. '
+                            'Omit to leave it unset (export defaults to 0.0).')
 
     # Pad review GDS workflow flags
     parser.add_argument('--generate-pad-review', metavar='OUTPUT_GDS',
@@ -678,6 +899,39 @@ Pad review workflow (human-in-the-loop):
         print(f"Suggested text layers: {', '.join(st) if st else '(none found)'}")
         return 0
 
+    # Resolved once, above the dispatch, because every path that touches a die
+    # honours it: both footprint paths, and --generate-pad-review, which must
+    # carry the outline into the review GDS or --from-pad-review cannot read it
+    # back. It used to be resolved only on the direct path, below a `return`
+    # that the pad-review path takes first, so --die-outline-layer was accepted
+    # and silently ignored there: the run exited 0 and wrote a legacy pad-hull
+    # courtyard, which is the one outcome this option exists to make impossible.
+    # Presence, not truthiness: an empty value (an unset shell variable) must
+    # be refused, not read as "option absent". The spec is matched strictly
+    # because it is written verbatim into a property another tool parses.
+    die_outline_layer = None
+    if getattr(args, 'die_outline_layer', None) is not None:
+        spec = args.die_outline_layer.strip()
+        if not re.fullmatch(r"\d+(/\d+)?", spec):
+            parser.error("--die-outline-layer: invalid layer spec '%s'; "
+                         "expected 'N/D' or 'N'" % args.die_outline_layer)
+        die_outline_layer = parse_layer_spec(spec)
+        if max(die_outline_layer) > 65535:
+            parser.error("--die-outline-layer: %s is outside the GDS layer "
+                         "range 0..65535" % spec)
+
+    def refuse_outline_as_pads(pad_layer):
+        # The outline is one die-sized box, and on a real die also one boundary
+        # per stdcell, so pad auto-detect can pick it on a review GDS that now
+        # carries it. Pads read from the outline layer would pass every later
+        # check (the outline contains itself), so stop here instead.
+        if die_outline_layer is not None and pad_layer == die_outline_layer:
+            parser.error(
+                "the pad layer resolved to %d/%d, which is also "
+                "--die-outline-layer; pads cannot be read from the die outline "
+                "layer. If the pad layer was auto-detected, name it with "
+                "--pad-layer-number or --layer" % die_outline_layer)
+
     # Generate pad review GDS
     if args.generate_pad_review:
         if not args.input:
@@ -688,6 +942,7 @@ Pad review workflow (human-in-the-loop):
         if pad_layer is None:
             parser.error(f"Could not resolve a pad layer (layer '{layer_name}' not in "
                          f"LYP, or no pad geometry to auto-detect)")
+        refuse_outline_as_pads(pad_layer)
 
         # Resolve text layer
         text_layer_info = None
@@ -706,6 +961,7 @@ Pad review workflow (human-in-the-loop):
             pad_layer=pad_layer,
             text_layer=text_layer_info,
             pin_list=pl,
+            die_outline_layer=die_outline_layer,
         )
         print(f"Generated pad review GDS: {args.generate_pad_review}")
         print(f"  {count} shapes on pad layer")
@@ -728,10 +984,14 @@ Pad review workflow (human-in-the-loop):
         if pad_layer is None:
             parser.error(f"Could not resolve a pad layer (layer '{layer_name}' not in "
                          f"LYP, or no pad geometry to auto-detect)")
-        converter = GDSToKiCad(lyp_parser, layer_name, dbu=args.dbu, pad_layer=pad_layer)
+        refuse_outline_as_pads(pad_layer)
+        converter = GDSToKiCad(lyp_parser, layer_name, dbu=args.dbu,
+                               pad_layer=pad_layer,
+                               die_outline_layer=die_outline_layer)
         success = converter.convert_from_pad_review(
             args.from_pad_review, pin_list, args.output,
             flip_chip=getattr(args, 'flip_chip', False),
+            die_thickness_um=getattr(args, 'die_thickness_um', None),
         )
         return 0 if success else 1
 
@@ -752,6 +1012,7 @@ Pad review workflow (human-in-the-loop):
         parser.error("Could not determine a pad layer. Pass --layer NAME, "
                      "--pad-layer-number N/D, or ensure the GDS has pad geometry "
                      "to auto-detect.")
+    refuse_outline_as_pads(pad_layer)
 
     # Text layer precedence: --text-layer-number > --text-layer (name) >
     # auto-detected raw text layer (pad names are the point of black-box mode).
@@ -766,9 +1027,11 @@ Pad review workflow (human-in-the-loop):
                             auto_detect_text=args.auto_text,
                             dbu=args.dbu,
                             pad_layer=pad_layer,
-                            text_layer=text_layer_tuple)
+                            text_layer=text_layer_tuple,
+                            die_outline_layer=die_outline_layer)
     success = converter.convert(args.input, args.output,
-                                flip_chip=getattr(args, 'flip_chip', False))
+                                flip_chip=getattr(args, 'flip_chip', False),
+                                die_thickness_um=getattr(args, 'die_thickness_um', None))
 
     return 0 if success else 1
 

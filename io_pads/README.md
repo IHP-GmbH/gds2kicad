@@ -66,6 +66,21 @@ python kicad_pcb_to_iopads.py path/to/design.kicad_pcb -o io_pads.json
 Walks all footprints in the PCB, filters those whose property `IO_CLASS`
 is set, and emits a sidecar JSON consumed by `hyp_to_gds.py --io-pads`.
 
+Each pad's `net` is the planner's net name. A board interposer-pnr
+`export --form` drew against a sheet carries the sheet's names, so pass the
+report that export wrote beside it (a board whose carrier footprints link sheet
+symbols, a draft board updated from its sheet included, needs it too):
+
+```bash
+python kicad_pcb_to_iopads.py draft.kicad_pcb --export-report export.json -o io_pads.json
+```
+
+A routed net goes back to its planner name, a pad no routed net binds is
+unbound (`""`), and a net the report does not name is refused. Such a board
+without its report is refused, and so is a report written for another board
+(other carrier references, or another IO_PAD_ID on one); a board drawn against
+no sheet, with no carrier linked to a sheet symbol, needs none.
+
 Coordinate convention: KiCad PCB stores positions Y-down in millimeters.
 The output JSON is in micrometers with Y negated to match the GDS Y-up
 convention used by `hyp_to_gds.py`.

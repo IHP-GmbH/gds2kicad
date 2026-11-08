@@ -1,0 +1,43 @@
+cosim_setup_symbols.json sha256 e244f11f0ffd762d74207f59614863c6d34cb2bbfcfae945c10e30cb79f11d5d:
+a byte copy of the co-simulation flow's symbol spec, unchanged, Apache-2.0 there;
+listed in .reuse/dep5.
+
+v8_units/: the units golden. units.kicad_sch, chiplet_dies.kicad_sym and
+chiplet_system.kicad_sym are what tests/test_classic_connectivity.py
+draw_units_golden writes (a test there checks they still are); units.net is
+their netlist from the ADK-Tools runtime image's kicad-cli 9.99.0:
+kicad-cli sch export netlist --format kicadsexpr --output units.net units.kicad_sch
+  units.kicad_sch sha256 ed31583337535fa86f6a381040ca7bb93be2b1e902de1786c182fa677b21743d
+  chiplet_dies.kicad_sym sha256 409a3bf2b8275b2b93203d584215bbfc95f165862cd55fe6552285563805ab96
+  chiplet_system.kicad_sym sha256 984aeea947a32ec5788d5bf82e211d4088eab0c6668518f936abe4bb90f57c6e
+  units.net sha256 dd1d6880ab166603d36ec68a96fcb27abdb3f89c3fd692ef670197dc04291fd6
+
+form_export/: a board interposer-pnr export --form drew against a sheet, at
+interposer-pnr 0120739, and drew again byte for byte at adf9dbf. Its round_trip is
+version 3, a sheet board without reserved copper, which the reader at the commit
+_vendor/round_trip_names.SOURCE states still reads. They are its tests/test_sheet_form.py
+carrier case with a lone sheet net (the inputs its tests/test_round_trip_names.py
+reads): export_with_form(out, data, pads=CARRIER_PADS) with
+data = with_carriers(form_data()) plus net(LONE, ("D_ROT", "A1")), run with
+HCDP_ROOT set. draft.kicad_pcb and io_pads.chiplet (the assembly it exported, whose
+io_pads are the planner's) are as written, with the output folder taken out of the
+GDS_FILE paths. export.json keeps only format, version and round_trip of the report,
+with the same paths shortened.
+  draft.kicad_pcb sha256 de1c21d953f522520d75b40f9ed19ce6391c38c08f2ff70d297aeb30c5d488ba
+  io_pads.chiplet sha256 f6079e9169d18c8455286fc38cf22c4fb6f067046f21a9ebe034a3e725fccca8
+  export.json sha256 2b33386c10d6abb358ce3a1de11bc9162272f9dd830b9b2280353a8c51b11015
+
+draft_pair/: a draft-path pair from packaging-flow examples/padring_die_cmos5l,
+cut with interposer-pnr 6dca40f and gds_to_kicad 0eac5d5 in the ADK-Tools runtime
+image: bumps, pdn, route and export ran fresh on the .chiplet and supply mesh the
+flow elaborated (packaging-flow 8f9939a). 6dca40f is the branch commit the run
+used; the same change landed on interposer-pnr dev as 2e6d0e6, on a later base,
+so the digests below, not that commit, are what binds the files. board.kicad_pcb is the export's board
+as written; design.chiplet is that .chiplet; U1, U2 and U3.pins.json are the pin
+lists of PICORV32A_CMOS5L, PAD_FRAME_A and PAD_FRAME_B the export read.
+tests/test_draft_pair_kicad.py draws the sheet from them.
+  board.kicad_pcb sha256 9eca915a4bbdaace4148dacd2968bab7d51490bd6b63304e09e3800e974fcc59
+  design.chiplet sha256 9e43a3d003ddd2e77f694aaadac7365e5225e40b85f3b2083b4b4e33112dc17d
+  U1.pins.json sha256 e24ccbfbbe253d07e16476c84e606869e149283c7d8cee79957aa3bc19f5d021
+  U2.pins.json sha256 62b9c16a28ebc6e28c49ecf5bdb37e21ebf4e1a40a4c3dedbb997f319003b75f
+  U3.pins.json sha256 ef2483dd0e862181c7800307c1eff1ff45ab8fe9d891e8915eabe0661042c56b

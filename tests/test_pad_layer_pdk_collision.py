@@ -36,7 +36,7 @@ def _ihp_sg13g2_used_layers():
     Exchange family 190-194 and 257 that the streamout .map omits."""
     root = os.environ.get("PDK_ROOT")
     if not root:
-        pytest.skip("PDK_ROOT unset; cannot verify against the IHP layer set")
+        pytest.skip("PDK_ROOT unset: needs the PDK libs.tech")
     lyp = (Path(root) / "ihp-sg13g2" / "libs.tech" / "klayout" / "tech"
            / "sg13g2.lyp")
     if not lyp.exists():

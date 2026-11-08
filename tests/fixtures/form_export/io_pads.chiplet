@@ -1,0 +1,78 @@
+format_version: "1.0"
+assembly:
+  name: "three_die"
+  units: um
+technologies:
+  intm4tm2: {dbu: 0.001}
+  sg13g2: {dbu: 0.001}
+components:
+  - id: interposer
+    type: interposer
+    technology: intm4tm2
+    anchor: bbox_center
+    top_cell: INTERPOSER
+    position: {x: 3000.0, y: 2500.0, z: 0.0}
+    dimensions: {width: 6000.0, height: 5000.0, thickness: 13.83}
+    io_pads:
+      - id: J_EXT
+        io_class: wire_bond
+        net: D_UP_A0
+        position: {x: 200.0, y: 190.0}
+        size: {x: 80.0, y: 80.0}
+        layer: TopMetal2
+      - id: J_VSS
+        io_class: wire_bond
+        net: vss
+        position: {x: 5800.0, y: 2500.0}
+        size: {x: 80.0, y: 80.0}
+        layer: TopMetal2
+      - id: J_VSS2
+        io_class: wire_bond
+        net: vss
+        position: {x: 5800.0, y: 3000.0}
+        size: {x: 80.0, y: 80.0}
+        layer: TopMetal2
+  - id: D_UP
+    type: die
+    technology: sg13g2
+    anchor: bbox_center
+    orientation: flip_chip
+    connection: cupillar_opt1
+    top_cell: CELL_D_UP
+    layout: D_UP.gds
+    position: {x: 2000.0, y: 1500.0, z: 57.83}
+    dimensions: {width: 1000.0, height: 1000.0, thickness: 750.0}
+    rotation: {z: 0.0}
+  - id: D_FLIP
+    type: die
+    technology: sg13g2
+    anchor: gds_origin
+    orientation: flip_chip
+    connection: cupillar_opt1
+    top_cell: CELL_D_FLIP
+    layout: D_FLIP.gds
+    position: {x: 4000.0, y: 1000.0, z: 57.83}
+    dimensions: {width: 1000.0, height: 1000.0, thickness: 750.0}
+    rotation: {z: 0.0}
+  - id: D_ROT
+    type: die
+    technology: sg13g2
+    anchor: bbox_center
+    orientation: flip_chip
+    connection: cupillar_opt1
+    top_cell: CELL_D_ROT
+    layout: D_ROT.gds
+    position: {x: 2000.0, y: 3500.0, z: 57.83}
+    dimensions: {width: 1000.0, height: 1000.0}
+    rotation: {z: 90.0}
+  - id: D_FR
+    type: die
+    technology: sg13g2
+    anchor: gds_origin
+    orientation: flip_chip
+    connection: cupillar_opt1
+    top_cell: CELL_D_FR
+    layout: D_FR.gds
+    position: {x: 4000.0, y: 3500.0, z: 57.83}
+    dimensions: {width: 1000.0, height: 1000.0, thickness: 750.0}
+    rotation: {z: 90.0}
