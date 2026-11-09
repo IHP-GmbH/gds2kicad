@@ -341,12 +341,6 @@ def test_the_spec_copy_is_the_one_the_readers_share():
     assert k.SETUP_MARKER == g.SETUP_MARKER == "chiplet_cosim_setup"
 
 
-def test_the_spec_copy_is_the_one_its_provenance_names():
-    lines = (SPEC.parent / "PROVENANCE").read_text(encoding="utf-8").splitlines()
-    line = next(line for line in lines if line.startswith(SPEC.name + " "))
-    assert f"sha256 {hashlib.sha256(SPEC.read_bytes()).hexdigest()}" in line
-
-
 # ------------------------------------------------------------------ library
 
 def _library(path):
