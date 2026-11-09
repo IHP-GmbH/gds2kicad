@@ -1,0 +1,313 @@
+(export
+	(version "E")
+	(design
+		(source "/work/units.kicad_sch")
+		(date "2026-10-28T08:01:31+0000")
+		(tool "Eeschema 9.99.0-unknown")
+		(sheet
+			(number "1")
+			(name "/")
+			(tstamps "/")
+			(title_block
+				(title "units")
+				(company)
+				(rev)
+				(date)
+				(source "units.kicad_sch")
+				(comment
+					(number "1")
+					(value "")
+				)
+				(comment
+					(number "2")
+					(value "")
+				)
+				(comment
+					(number "3")
+					(value "")
+				)
+				(comment
+					(number "4")
+					(value "")
+				)
+				(comment
+					(number "5")
+					(value "")
+				)
+				(comment
+					(number "6")
+					(value "")
+				)
+				(comment
+					(number "7")
+					(value "")
+				)
+				(comment
+					(number "8")
+					(value "")
+				)
+				(comment
+					(number "9")
+					(value "")
+				)
+			)
+		)
+	)
+	(components
+		(comp
+			(ref "J1")
+			(value "EXT_PAD")
+			(footprint "chiplet_carrier:EXT_PAD_80um")
+			(fields
+				(field
+					(name "Edge")
+				)
+				(field
+					(name "Footprint") "chiplet_carrier:EXT_PAD_80um")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "chiplet_system")
+				(part "EXT_PAD")
+				(description "")
+			)
+			(property
+				(name "Edge")
+				(value "")
+			)
+			(property
+				(name "Sheetname")
+				(value "")
+			)
+			(property
+				(name "Sheetfile")
+				(value "units.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "f5428a15-ed27-5e1c-8e01-cde9e61166c8")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U1")
+			(value "RAIL")
+			(footprint "chiplet_dies:RAIL")
+			(description "chiplet die")
+			(fields
+				(field
+					(name "Die") "dies/RAIL")
+				(field
+					(name "Method")
+				)
+				(field
+					(name "Thickness_um")
+				)
+				(field
+					(name "Footprint") "chiplet_dies:RAIL")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "chiplet die")
+			)
+			(libsource
+				(lib "chiplet_dies")
+				(part "RAIL")
+				(description "chiplet die")
+			)
+			(property
+				(name "Die")
+				(value "dies/RAIL")
+			)
+			(property
+				(name "Method")
+				(value "")
+			)
+			(property
+				(name "Thickness_um")
+				(value "")
+			)
+			(property
+				(name "Sheetname")
+				(value "")
+			)
+			(property
+				(name "Sheetfile")
+				(value "units.kicad_sch")
+			)
+			(duplicate_pin_numbers_are_jumpers "1")
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "2309d4c1-b895-5f52-9c06-b3141c0db174")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "VDD")
+						)
+						(pin
+							(num "VSS")
+						)
+						(pin
+							(num "IN")
+						)
+						(pin
+							(num "OUT")
+						)
+					)
+				)
+			)
+		)
+	)
+	(groups)
+	(libparts
+		(libpart
+			(lib "chiplet_dies")
+			(part "RAIL")
+			(description "chiplet die")
+			(fields
+				(field
+					(name "Reference") "U")
+				(field
+					(name "Value") "RAIL")
+				(field
+					(name "Footprint") "chiplet_dies:RAIL")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "chiplet die")
+				(field
+					(name "Die") "dies/RAIL")
+				(field
+					(name "Method")
+				)
+				(field
+					(name "Thickness_um")
+				)
+			)
+			(pins
+				(pin
+					(num "IN")
+					(name "IN")
+					(type "input")
+				)
+				(pin
+					(num "OUT")
+					(name "OUT")
+					(type "output")
+				)
+				(pin
+					(num "VDD")
+					(name "VDD")
+					(type "power_in")
+				)
+				(pin
+					(num "VSS")
+					(name "VSS")
+					(type "power_in")
+				)
+			)
+		)
+		(libpart
+			(lib "chiplet_system")
+			(part "EXT_PAD")
+			(fields
+				(field
+					(name "Reference") "J")
+				(field
+					(name "Value") "EXT_PAD")
+				(field
+					(name "Footprint") "chiplet_carrier:EXT_PAD_80um")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+				(field
+					(name "Edge")
+				)
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "1")
+					(type "passive")
+				)
+			)
+		)
+	)
+	(libraries)
+	(nets
+		(net
+			(code "1")
+			(name "IN0")
+			(class "Default")
+			(node
+				(ref "U1")
+				(pin "IN")
+				(pinfunction "IN_IN")
+				(pintype "input")
+			)
+		)
+		(net
+			(code "2")
+			(name "SIG")
+			(class "Default")
+			(node
+				(ref "J1")
+				(pin "1")
+				(pinfunction "1_1")
+				(pintype "passive")
+			)
+			(node
+				(ref "U1")
+				(pin "OUT")
+				(pinfunction "OUT_OUT")
+				(pintype "output")
+			)
+		)
+		(net
+			(code "3")
+			(name "unconnected-(U1-PadVDD)")
+			(class "Default")
+			(node
+				(ref "U1")
+				(pin "VDD")
+				(pinfunction "VDD_VDD")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "4")
+			(name "unconnected-(U1-PadVSS)")
+			(class "Default")
+			(node
+				(ref "U1")
+				(pin "VSS")
+				(pinfunction "VSS_VSS")
+				(pintype "power_in")
+			)
+		)
+	)
+)

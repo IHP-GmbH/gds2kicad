@@ -43,6 +43,7 @@ from preview_widgets import SymbolPreviewWidget, LayoutPreviewWidget
 from _paths import resolve_data_dir, atomic_write
 
 
+
 # Style override for QComboBox embedded in QTableWidget cells
 TABLE_COMBO_STYLE = "QComboBox { min-width: 0px; padding: 2px 4px; }"
 

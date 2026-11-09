@@ -1,0 +1,654 @@
+format_version: '1.0'
+assembly:
+  name: cf_padring_die_cmos5l
+  description: An ihp-sg13cmos5l pad-ring die built by LibreLane's stock Chip flow
+    and two ihp-sg13cmos5l pad frames, admitted and flipped onto an IntM4TM2 carrier
+    with wire-bond pads; the pad frames' supplies on a TopMetal1/TopMetal2 mesh
+  units: um
+technologies:
+  intm4tm2:
+    description: IHP 130nm IntM4TM2 aluminium BEOL interposer
+    layer_properties: ${INTERPOSER_PDK_ROOT}/libs.tech/klayout/tech/intm4tm2.lyp
+    stackup: ${CHIPLET_STUDIO_ROOT}/configs/stackups/intm4tm2.yaml
+    dbu: 0.001
+  sg13cmos5l:
+    layer_properties: ${PDK_ROOT}/ihp-sg13cmos5l/libs.tech/klayout/tech/sg13cmos5l.lyp
+    stackup: ${CHIPLET_STUDIO_ROOT}/configs/stackups/ihp-sg13cmos5l.yaml
+    dbu: 0.001
+components:
+- id: interposer
+  type: interposer
+  technology: intm4tm2
+  anchor: bbox_center
+  top_cell: CF_CARRIER
+  position:
+    x: 2150.0
+    y: 1550.0
+    z: 0.0
+  dimensions:
+    width: 4300.0
+    height: 3100.0
+    thickness: 10.8103
+  attachment_surface_z: 10.8103
+  io_pads:
+  - id: J_U1_IO_BOND_outputs[0].output_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_outputs[0].output_pad
+    position:
+      x: 1775.0
+      y: 2960.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_outputs[1].output_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_outputs[1].output_pad
+    position:
+      x: 1925.0
+      y: 2960.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_outputs[2].output_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_outputs[2].output_pad
+    position:
+      x: 2075.0
+      y: 2960.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_outputs[3].output_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_outputs[3].output_pad
+    position:
+      x: 2225.0
+      y: 2960.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_IOVSS
+    io_class: wire_bond
+    net: IOVSS
+    position:
+      x: 2375.0
+      y: 2960.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_IOVDD
+    io_class: wire_bond
+    net: IOVDD
+    position:
+      x: 2525.0
+      y: 2960.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_inputs[2].input_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_inputs[2].input_pad
+    position:
+      x: 1850.0
+      y: 140.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_inputs[1].input_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_inputs[1].input_pad
+    position:
+      x: 2000.0
+      y: 140.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_inputs[0].input_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_inputs[0].input_pad
+    position:
+      x: 2150.0
+      y: 140.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_rst_n_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_rst_n_pad
+    position:
+      x: 2300.0
+      y: 140.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_clk_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_clk_pad
+    position:
+      x: 2450.0
+      y: 140.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_inputs[3].input_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_inputs[3].input_pad
+    position:
+      x: 140.0
+      y: 800.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_VDD
+    io_class: wire_bond
+    net: VDD
+    position:
+      x: 140.0
+      y: 950.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_VSS
+    io_class: wire_bond
+    net: VSS
+    position:
+      x: 140.0
+      y: 1100.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_inputs[4].input_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_inputs[4].input_pad
+    position:
+      x: 140.0
+      y: 1250.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_inputs[5].input_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_inputs[5].input_pad
+    position:
+      x: 140.0
+      y: 1400.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_inputs[6].input_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_inputs[6].input_pad
+    position:
+      x: 140.0
+      y: 1550.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_inputs[7].input_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_inputs[7].input_pad
+    position:
+      x: 140.0
+      y: 1700.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_bidirs[0].bidir_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_bidirs[0].bidir_pad
+    position:
+      x: 140.0
+      y: 1850.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_bidirs[1].bidir_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_bidirs[1].bidir_pad
+    position:
+      x: 140.0
+      y: 2000.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_bidirs[2].bidir_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_bidirs[2].bidir_pad
+    position:
+      x: 140.0
+      y: 2150.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U1_IO_BOND_bidirs[3].bidir_pad
+    io_class: wire_bond
+    net: U1_IO_BOND_bidirs[3].bidir_pad
+    position:
+      x: 140.0
+      y: 2300.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U3_ext[0]
+    io_class: wire_bond
+    net: U3_ext[0]
+    position:
+      x: 4160.0
+      y: 875.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U3_ext[1]
+    io_class: wire_bond
+    net: U3_ext[1]
+    position:
+      x: 4160.0
+      y: 1025.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U3_ext[2]
+    io_class: wire_bond
+    net: U3_ext[2]
+    position:
+      x: 4160.0
+      y: 1175.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U3_ext[3]
+    io_class: wire_bond
+    net: U3_ext[3]
+    position:
+      x: 4160.0
+      y: 1325.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_VDDA
+    io_class: wire_bond
+    net: VDDA
+    position:
+      x: 4160.0
+      y: 1475.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U2_ext[0]
+    io_class: wire_bond
+    net: U2_ext[0]
+    position:
+      x: 4160.0
+      y: 1625.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_VSSA
+    io_class: wire_bond
+    net: VSSA
+    position:
+      x: 4160.0
+      y: 1775.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U2_ext[1]
+    io_class: wire_bond
+    net: U2_ext[1]
+    position:
+      x: 4160.0
+      y: 1925.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U2_ext[2]
+    io_class: wire_bond
+    net: U2_ext[2]
+    position:
+      x: 4160.0
+      y: 2075.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+  - id: J_U2_ext[3]
+    io_class: wire_bond
+    net: U2_ext[3]
+    position:
+      x: 4160.0
+      y: 2225.0
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+- id: U1
+  type: die
+  technology: sg13cmos5l
+  anchor: bbox_center
+  orientation: flip_chip
+  connection: sg13cmos5l_flow_demo_pillar
+  top_cell: chip_top
+  position:
+    x: 1375.0
+    y: 1550.0
+    z: 54.8103
+  dimensions:
+    width: 1603.0
+    height: 1603.0
+    thickness: 0.0
+  rotation:
+    z: 0.0
+- id: U2
+  type: die
+  technology: sg13cmos5l
+  anchor: bbox_center
+  orientation: flip_chip
+  connection: sg13cmos5l_flow_demo_pillar
+  top_cell: PAD_FRAME_A
+  position:
+    x: 3000.0
+    y: 2170.0
+    z: 54.8103
+  dimensions:
+    width: 1500.0
+    height: 1000.0
+    thickness: 0.0
+  rotation:
+    z: 0.0
+- id: U3
+  type: die
+  technology: sg13cmos5l
+  anchor: bbox_center
+  orientation: flip_chip
+  connection: sg13cmos5l_flow_demo_pillar
+  top_cell: PAD_FRAME_B
+  position:
+    x: 3000.0
+    y: 1080.0
+    z: 54.8103
+  dimensions:
+    width: 1500.0
+    height: 1000.0
+    thickness: 0.0
+  rotation:
+    z: 0.0
+netlist:
+  nets:
+  - name: d2d_a3
+    connections:
+    - component: U1
+      pin: IO_BOND_outputs[4].output_pad
+      layer: TopMetal2
+    - component: U2
+      pin: d2d[3]
+      layer: TopMetal2
+  - name: d2d_a2
+    connections:
+    - component: U1
+      pin: IO_BOND_outputs[5].output_pad
+      layer: TopMetal2
+    - component: U2
+      pin: d2d[2]
+      layer: TopMetal2
+  - name: d2d_a1
+    connections:
+    - component: U1
+      pin: IO_BOND_outputs[6].output_pad
+      layer: TopMetal2
+    - component: U2
+      pin: d2d[1]
+      layer: TopMetal2
+  - name: d2d_a0
+    connections:
+    - component: U1
+      pin: IO_BOND_outputs[7].output_pad
+      layer: TopMetal2
+    - component: U2
+      pin: d2d[0]
+      layer: TopMetal2
+  - name: d2d_b0
+    connections:
+    - component: U1
+      pin: IO_BOND_bidirs[7].bidir_pad
+      layer: TopMetal2
+    - component: U3
+      pin: d2d[0]
+      layer: TopMetal2
+  - name: d2d_b1
+    connections:
+    - component: U1
+      pin: IO_BOND_bidirs[6].bidir_pad
+      layer: TopMetal2
+    - component: U3
+      pin: d2d[1]
+      layer: TopMetal2
+  - name: d2d_b2
+    connections:
+    - component: U1
+      pin: IO_BOND_bidirs[5].bidir_pad
+      layer: TopMetal2
+    - component: U3
+      pin: d2d[2]
+      layer: TopMetal2
+  - name: d2d_b3
+    connections:
+    - component: U1
+      pin: IO_BOND_bidirs[4].bidir_pad
+      layer: TopMetal2
+    - component: U3
+      pin: d2d[3]
+      layer: TopMetal2
+  - name: U1_IO_BOND_inputs[4].input_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_inputs[4].input_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_inputs[5].input_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_inputs[5].input_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_inputs[6].input_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_inputs[6].input_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_inputs[7].input_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_inputs[7].input_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_bidirs[0].bidir_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_bidirs[0].bidir_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_bidirs[1].bidir_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_bidirs[1].bidir_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_bidirs[2].bidir_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_bidirs[2].bidir_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_bidirs[3].bidir_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_bidirs[3].bidir_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_outputs[3].output_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_outputs[3].output_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_outputs[2].output_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_outputs[2].output_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_outputs[1].output_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_outputs[1].output_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_outputs[0].output_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_outputs[0].output_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_clk_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_clk_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_rst_n_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_rst_n_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_inputs[0].input_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_inputs[0].input_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_inputs[1].input_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_inputs[1].input_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_inputs[2].input_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_inputs[2].input_pad
+      layer: TopMetal2
+  - name: U1_IO_BOND_inputs[3].input_pad
+    connections:
+    - component: U1
+      pin: IO_BOND_inputs[3].input_pad
+      layer: TopMetal2
+  - name: U2_ext[0]
+    connections:
+    - component: U2
+      pin: ext[0]
+      layer: TopMetal2
+  - name: U2_ext[1]
+    connections:
+    - component: U2
+      pin: ext[1]
+      layer: TopMetal2
+  - name: U2_ext[2]
+    connections:
+    - component: U2
+      pin: ext[2]
+      layer: TopMetal2
+  - name: U2_ext[3]
+    connections:
+    - component: U2
+      pin: ext[3]
+      layer: TopMetal2
+  - name: U3_ext[0]
+    connections:
+    - component: U3
+      pin: ext[0]
+      layer: TopMetal2
+  - name: U3_ext[1]
+    connections:
+    - component: U3
+      pin: ext[1]
+      layer: TopMetal2
+  - name: U3_ext[2]
+    connections:
+    - component: U3
+      pin: ext[2]
+      layer: TopMetal2
+  - name: U3_ext[3]
+    connections:
+    - component: U3
+      pin: ext[3]
+      layer: TopMetal2
+  - name: VDD
+    class: power
+    connections:
+    - component: U1
+      pin: IO_BOND_vdd_pads[0].vdd_pad
+      layer: TopMetal2
+  - name: VSS
+    class: ground
+    connections:
+    - component: U1
+      pin: IO_BOND_vss_pads[0].vss_pad
+      layer: TopMetal2
+  - name: IOVDD
+    class: power
+    connections:
+    - component: U1
+      pin: IO_BOND_iovdd_pads[0].iovdd_pad
+      layer: TopMetal2
+  - name: IOVSS
+    class: ground
+    connections:
+    - component: U1
+      pin: IO_BOND_iovss_pads[0].iovss_pad
+      layer: TopMetal2
+  - name: VDDA
+    class: power
+    connections:
+    - component: U2
+      pin: VDDA_0
+      layer: TopMetal2
+    - component: U2
+      pin: VDDA_1
+      layer: TopMetal2
+    - component: U3
+      pin: VDDA_0
+      layer: TopMetal2
+    - component: U3
+      pin: VDDA_1
+      layer: TopMetal2
+  - name: VSSA
+    class: ground
+    connections:
+    - component: U2
+      pin: VSSA_0
+      layer: TopMetal2
+    - component: U2
+      pin: VSSA_1
+      layer: TopMetal2
+    - component: U3
+      pin: VSSA_0
+      layer: TopMetal2
+    - component: U3
+      pin: VSSA_1
+      layer: TopMetal2

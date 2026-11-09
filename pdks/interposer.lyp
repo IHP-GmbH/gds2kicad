@@ -1,5 +1,12 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <!--
+ SPDX-License-Identifier: Apache-2.0
+ SPDX-FileCopyrightText: 2024 IHP PDK Authors
+ SPDX-FileCopyrightText: 2026 IHP GmbH
+
+ Derived from IHP-Open-PDK ihp-sg13g2/libs.tech/klayout/tech/sg13g2.lyp
+ (Apache-2.0): reduced to the layers below and recoloured.
+
  Interposer PDK - Derived from IHP SG13G2
 
  Contains only upper metal layers suitable for interposer routing:

@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gds2kicad"
+version = "0.1.0"
+description = "Turn a die or chiplet GDSII into KiCad parts, and routed KiCad designs back into the chiplet assembly format."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+# requirements.txt keeps PyQt6 and PyYAML for a plain `pip install -r`; this
+# list adds klayout, which every converter imports. One requirement per entry,
+# no markers.
+dependencies = ["PyQt6>=6.6.0", "PyYAML>=5.1", "klayout"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+# Flat layout: every tool is a module at the clone root, run as a script from
+# there. An editable install puts the same modules on sys.path.
+[tool.setuptools]
+py-modules = [
+    "_paths", "blackbox_chiplet", "chiplet_to_kicad_sch", "cosim_setup_sheets", "die_handout",
+    "die_outline",
+    "extract_padmap", "footprint_to_pinlist", "gds_to_kicad",
+    "gds_to_kicad_symbol", "kicad_netlist_to_chiplet",
+    "kicad_sch_to_connectivity", "kicad_sch_to_cosim_setup",
+    "kicad_sym_writer", "lyp_parser", "pad_review",
+    "pin_extractor", "pin_list", "preview_widgets", "sexpr", "sexpr_io", "sheet_check",
+    "symbol_layout", "theme", "unified_gui",
+]
+# The vendored reader is a package, not a flat module. Named here so a clone
+# and an install both import it. The py-modules above stay the tools.
+packages = ["_vendor", "_vendor.chiplet_format_io"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# -ra prints the reason for every skip, so a new one is visible the day it
+# appears. --strict-markers and --strict-config turn a typo in a marker or an
+# ini key into an error instead of a silently ignored line.
+#
+# A bare `pytest` starts no external tool: the cases that run kicad-cli are
+# deselected here, because a kicad-cli on PATH is enough to start them. A
+# command-line -m replaces this one, so they are one flag away:
+#   pytest -m kicad_cli
+# GDS_TO_KICAD_REQUIRE_KICAD_CLI=1 then turns a missing kicad-cli into a failure.
+addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not kicad_cli"]
+markers = [
+    "kicad_cli: runs the real kicad-cli on a drawn sheet (opt-in, pytest -m kicad_cli); skips without kicad-cli on PATH",
+]
+
+# The skips a test runner may accept, each a reason fragment and a node id
+# fragment; any other skip is a failure.
+[tool.tierrun]
+declared-skips = [
+    # The IHP PDK is not installed everywhere; these cases compare against it.
+    {reason = "PDK_ROOT unset", nodeid = "tests/test_sg13g2_lyp_source.py"},
+    {reason = "PDK_ROOT unset", nodeid = "tests/test_pad_layer_pdk_collision.py"},
+    # The demo netlist and .chiplet these cases read are not in the repository.
+    {reason = "Demo netlist not found", nodeid = "tests/test_netlist_converter.py"},
+    {reason = "Demo chiplet not found", nodeid = "tests/test_netlist_converter.py"},
+]

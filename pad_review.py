@@ -20,6 +20,8 @@ except ImportError:
     sys.exit(1)
 
 from pin_list import PinList
+from die_outline import (REVIEW_OUTLINE_PROPERTY, is_review_outline,
+                         read_die_outline)
 
 
 class PadReview:
@@ -31,7 +33,8 @@ class PadReview:
                  text_layer: Optional[Tuple[int, int]] = None,
                  text_layers: Optional[List[Tuple[int, int]]] = None,
                  pin_list: Optional[PinList] = None,
-                 flatten: bool = True):
+                 flatten: bool = True,
+                 die_outline_layer: Optional[Tuple[int, int]] = None):
         """Create a pad review GDS with only pad layer shapes and text labels.
 
         Copies all shapes from the pad layer in the source GDS into a new GDS.
@@ -47,6 +50,11 @@ class PadReview:
             text_layers: list of (layer_num, datatype) for multiple text layers
             pin_list: PinList to use for text labels at pad centers
             flatten: Whether to flatten cell hierarchy before extraction
+            die_outline_layer: (layer_num, datatype) of the die outline. When
+                set, the outline is read by die_outline.read_die_outline (a
+                refusal raises ValueError before anything is written) and its
+                one box is written to the review GDS, so --from-pad-review with
+                --die-outline-layer can read it back.
         """
         # Load source
         src_layout = db.Layout()
@@ -57,8 +65,10 @@ class PadReview:
         if flatten:
             src_top.flatten(1)
 
-        # Create output layout
+        # Create output layout on the source grid: shapes are copied in DBU,
+        # so another DBU would rescale every pad.
         out_layout = db.Layout()
+        out_layout.dbu = src_layout.dbu
         out_cell = out_layout.create_cell(src_top.name)
 
         # Copy pad layer shapes
@@ -78,9 +88,19 @@ class PadReview:
             else:
                 skipped += 1
         if skipped:
-            print(f"Warning: skipped {skipped} non-box/non-polygon shape(s) "
-                  f"(e.g. paths) on pad layer {pad_layer} of {source_gds}",
+            print(f"Warning: skipped {skipped} non-copied shape(s)"
+                  f" (paths, texts) on pad layer {pad_layer} of {source_gds}",
                   file=sys.stderr)
+
+        if die_outline_layer is not None:
+            # One validated box, read by the same rule as the conversion, so a
+            # bad outline is refused here rather than after the manual edit,
+            # and the review carries a single outline shape instead of every
+            # raw piece (a real die has one stdcell boundary per cell).
+            outline = read_die_outline(src_layout, src_top, die_outline_layer)
+            tag = out_layout.properties_id([list(REVIEW_OUTLINE_PROPERTY)])
+            out_cell.shapes(out_layout.layer(*die_outline_layer)).insert(
+                outline, tag)
 
         # Merge text_layer into text_layers list
         all_text_layers = list(text_layers or [])
@@ -150,6 +170,15 @@ class PadReview:
         idx = 0
         skipped = 0
         for shape in shapes.each():
+            if is_review_outline(shape):
+                # The pad layer resolved to the layer the review's die outline
+                # is on (auto-detect can rank it first). One die-sized "pad"
+                # would pass every later check, so refuse whatever the flags.
+                raise ValueError(
+                    "pad layer %d/%d of %s holds the die outline box written by "
+                    "--generate-pad-review, not pads; name the pad layer with "
+                    "--pad-layer-number or --layer"
+                    % (pad_layer[0], pad_layer[1], edited_gds))
             box = None
             is_polygon = False
             polygon_points = None

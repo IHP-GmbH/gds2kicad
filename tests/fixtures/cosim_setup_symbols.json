@@ -1,0 +1,81 @@
+{
+  "format": "chiplet_cosim.cosim_setup_symbols",
+  "version": "1.0",
+  "marker": "chiplet_cosim_setup",
+  "kinds": {
+    "simulation": {
+      "sheet": "system", "count": "one", "pins": [],
+      "required": ["cosim_base_sha256", "chiplet_base_sha256", "lock", "tran_step", "tran_stop", "temp",
+                   "stimulus_module", "stimulus_tests"],
+      "optional": ["views_roots"],
+      "lists": ["stimulus_tests", "views_roots"]
+    },
+    "models": {
+      "sheet": "system", "count": "many", "pins": [],
+      "required": ["pdk", "revision", "files"],
+      "optional": ["osdi", "order"],
+      "lists": ["files", "osdi"]
+    },
+    "supply": {
+      "sheet": "system", "count": "many", "pins": [],
+      "required": ["net", "volts"],
+      "optional": ["order"],
+      "lists": []
+    },
+    "crossing": {
+      "sheet": "system", "count": "many", "pins": [],
+      "required": ["net", "kind"],
+      "optional": ["channel", "subckt", "source", "origin", "edge", "routed_sha256", "order"],
+      "lists": []
+    },
+    "bench": {
+      "sheet": "system", "count": "at_most_one", "pins": "per_row",
+      "required": ["file", "subckt"],
+      "optional": ["sides"],
+      "lists": ["sides"]
+    },
+    "die": {
+      "sheet": "die", "count": "one", "pins": [],
+      "required": ["die", "top_cell", "treatment"],
+      "optional": ["view", "pdk", "librelane_config", "eda_views", "contract", "binding_declared",
+                   "locals"],
+      "lists": ["locals"]
+    },
+    "port": {
+      "sheet": "die", "count": "many", "pins": [],
+      "required": ["port", "role", "direction"],
+      "optional": ["order"],
+      "lists": []
+    },
+    "block": {
+      "sheet": "die", "count": "many", "pins": "per_row",
+      "required": ["name"],
+      "optional": ["cell", "view", "netlist_kind", "order"],
+      "lists": []
+    },
+    "conversion": {
+      "sheet": "die", "count": "many", "pins": ["net"],
+      "required": ["port", "supply", "low", "high", "rise", "fall"],
+      "optional": ["order"],
+      "lists": []
+    },
+    "probe": {
+      "sheet": "die", "count": "many", "pins": [],
+      "required": ["net"],
+      "optional": ["block", "path", "order"],
+      "lists": ["path"]
+    },
+    "subckt": {
+      "sheet": "subckt", "count": "one", "pins": [],
+      "required": ["role", "subckt"],
+      "optional": ["net"],
+      "lists": []
+    },
+    "subckt_port": {
+      "sheet": "subckt", "count": "many", "pins": ["node"],
+      "required": ["name", "order"],
+      "optional": [],
+      "lists": []
+    }
+  }
+}
