@@ -1,0 +1,48 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: gds2kicad
+Source: https://github.com/IHP-GmbH/gds2kicad
+
+Files: pdks/sg13g2.lyp
+Copyright: 2024 IHP PDK Authors
+License: Apache-2.0
+Comment: Byte copy of IHP-Open-PDK ihp-sg13g2/libs.tech/klayout/tech/sg13g2.lyp
+ at 22f43352dd8219f9007eb659e422e0d5fe28c5fb, unchanged; pinned by
+ tests/test_sg13g2_lyp_source.py.
+
+Files: pdks/sky130.lyp
+Copyright: open_pdks contributors
+License: Apache-2.0
+Comment: Byte copy of open_pdks sky130/klayout/sky130.lyp at
+ fce0ba7077052bd8217c9d148ed657478608ab2f, unchanged (git blob
+ ad00629a9b5ad86444a33087b885a35828c78faa). The file carries no header of its
+ own; open_pdks is Apache-2.0.
+
+Files: pdks/interposer.lyp
+Copyright: 2024 IHP PDK Authors
+ 2026 IHP GmbH
+License: Apache-2.0
+Comment: Derived from IHP-Open-PDK sg13g2.lyp: reduced to the upper metals and
+ recoloured. The file header says the same.
+
+Files: tests/fixtures/cosim_setup_symbols.json
+Copyright: 2026 IHP GmbH
+License: Apache-2.0
+Comment: Byte copy of the co-simulation flow's symbol spec, unchanged; its
+ sha256 is in tests/fixtures/PROVENANCE.
+
+Files: gds_files/for_thermal_eval/Metal_Test/Metal_Test.gds
+Copyright: IHP GmbH
+License: GPL-3.0-or-later
+Comment: Example die layout, in the repository since the first preview release.
+
+Files: tests/fixtures/draft_pair/*
+Copyright: 2026 IHP GmbH
+License: GPL-3.0-or-later
+Comment: Inputs and board of packaging-flow examples/padring_die_cmos5l, which
+ is GPL-3.0-or-later; tests/fixtures/PROVENANCE says how they were made.
+
+Files: tests/fixtures/pasted_symbols/* tests/fixtures/hierarchical_symbols/*
+Copyright: 2026 IHP GmbH
+License: GPL-3.0-or-later
+Comment: Generated from this repository's carrier example; the real KiCad
+ netlists and their source sheets are recorded in tests/fixtures/PROVENANCE.

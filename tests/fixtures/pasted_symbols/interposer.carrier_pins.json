@@ -1,0 +1,63 @@
+{
+  "chiplet_sha256": "ed07c71f8411669087262e2845a9a295c43c885fe40e642f5e74dd98493797a1",
+  "component": "interposer",
+  "format": "gds2kicad.carrier-pins",
+  "pins": [
+    {
+      "io_class": "wire_bond",
+      "layer": "TopMetal2",
+      "name": "J_VDD",
+      "net": "VDD",
+      "port": "J_VDD",
+      "side": "left",
+      "type": "passive",
+      "x_um": 100.0,
+      "y_um": 500.0
+    },
+    {
+      "io_class": "wire_bond",
+      "layer": "TopMetal2",
+      "name": "J_S0",
+      "net": "sig0",
+      "port": "J_S0",
+      "side": "right",
+      "type": "passive",
+      "x_um": 1900.0,
+      "y_um": 600.0
+    },
+    {
+      "io_class": "wire_bond",
+      "layer": "TopMetal2",
+      "name": "J_P",
+      "net": "probe",
+      "port": "J_P",
+      "side": "top",
+      "type": "passive",
+      "x_um": 1000.0,
+      "y_um": 950.0
+    },
+    {
+      "io_class": "wire_bond",
+      "layer": "TopMetal2",
+      "name": "J_EXT",
+      "net": "ext",
+      "port": "J_EXT",
+      "side": "bottom",
+      "type": "passive",
+      "x_um": 1000.0,
+      "y_um": 50.0
+    },
+    {
+      "io_class": "wire_bond",
+      "layer": "TopMetal2",
+      "name": "J_NC",
+      "net": null,
+      "port": "J_NC",
+      "side": "right",
+      "type": "passive",
+      "x_um": 1900.0,
+      "y_um": 400.0
+    }
+  ],
+  "version": "1.0"
+}

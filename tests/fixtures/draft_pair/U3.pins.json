@@ -1,0 +1,288 @@
+{
+  "version": "1.0",
+  "chiplet_name": "PAD_FRAME_B",
+  "source": "pad-frame spec sha256 ca379f09b0b5f59807f56b5e066f6b1c057a195c83715c71db3265fa405756f6",
+  "source_type": "pad_frame_spec",
+  "dbu_um": 0.001,
+  "coordinate_frame": "die-local DEF frame, Y up; the flip-chip footprint mirrors X",
+  "geometry": "pin centre and size are the Passiv (9/0) opening of the bond pad master placed at the frame spec's pad centre; electrode_dbu is its TopMetal1 plate",
+  "gds_source": "layout.gds",
+  "identity": {
+    "primary": "the pad name the frame spec gives",
+    "alias": "the pad name; a pad frame gives each pad a port of its own",
+    "alias_rule": "coupon contact assigner: nearest die edge; sides right, top, left, bottom; ascending along the edge; repeated port labels gain _0, _1, ... in that order",
+    "electrical": "port, net, direction and role as the frame spec states them; no circuit stands behind them"
+  },
+  "die_bbox_dbu": {
+    "x_min": 0.0,
+    "y_min": 0.0,
+    "x_max": 1500000.0,
+    "y_max": 1000000.0
+  },
+  "pins": [
+    {
+      "name": "d2d[0]",
+      "type": "input",
+      "side": "right",
+      "pad_index": 0,
+      "center_x_dbu": 1395000.0,
+      "center_y_dbu": 545000.0,
+      "width_dbu": 65800.0,
+      "height_dbu": 65800.0,
+      "port": "d2d[0]",
+      "ordinal": 0,
+      "net": "d2d[0]",
+      "direction": "INPUT",
+      "role": "SIGNAL",
+      "alias": "d2d[0]",
+      "electrode_dbu": [
+        1360000,
+        510000,
+        1430000,
+        580000
+      ]
+    },
+    {
+      "name": "d2d[1]",
+      "type": "input",
+      "side": "right",
+      "pad_index": 1,
+      "center_x_dbu": 1395000.0,
+      "center_y_dbu": 645000.0,
+      "width_dbu": 65800.0,
+      "height_dbu": 65800.0,
+      "port": "d2d[1]",
+      "ordinal": 0,
+      "net": "d2d[1]",
+      "direction": "INPUT",
+      "role": "SIGNAL",
+      "alias": "d2d[1]",
+      "electrode_dbu": [
+        1360000,
+        610000,
+        1430000,
+        680000
+      ]
+    },
+    {
+      "name": "d2d[2]",
+      "type": "input",
+      "side": "right",
+      "pad_index": 2,
+      "center_x_dbu": 1395000.0,
+      "center_y_dbu": 745000.0,
+      "width_dbu": 65800.0,
+      "height_dbu": 65800.0,
+      "port": "d2d[2]",
+      "ordinal": 0,
+      "net": "d2d[2]",
+      "direction": "INPUT",
+      "role": "SIGNAL",
+      "alias": "d2d[2]",
+      "electrode_dbu": [
+        1360000,
+        710000,
+        1430000,
+        780000
+      ]
+    },
+    {
+      "name": "d2d[3]",
+      "type": "input",
+      "side": "right",
+      "pad_index": 3,
+      "center_x_dbu": 1395000.0,
+      "center_y_dbu": 845000.0,
+      "width_dbu": 65800.0,
+      "height_dbu": 65800.0,
+      "port": "d2d[3]",
+      "ordinal": 0,
+      "net": "d2d[3]",
+      "direction": "INPUT",
+      "role": "SIGNAL",
+      "alias": "d2d[3]",
+      "electrode_dbu": [
+        1360000,
+        810000,
+        1430000,
+        880000
+      ]
+    },
+    {
+      "name": "VDDA_1",
+      "type": "power_in",
+      "side": "top",
+      "pad_index": 4,
+      "center_x_dbu": 250000.0,
+      "center_y_dbu": 895000.0,
+      "width_dbu": 65800.0,
+      "height_dbu": 65800.0,
+      "port": "VDDA_1",
+      "ordinal": 0,
+      "net": "VDDA_1",
+      "direction": "INOUT",
+      "role": "POWER",
+      "alias": "VDDA_1",
+      "electrode_dbu": [
+        215000,
+        860000,
+        285000,
+        930000
+      ]
+    },
+    {
+      "name": "VDDA_0",
+      "type": "power_in",
+      "side": "top",
+      "pad_index": 5,
+      "center_x_dbu": 1150000.0,
+      "center_y_dbu": 895000.0,
+      "width_dbu": 65800.0,
+      "height_dbu": 65800.0,
+      "port": "VDDA_0",
+      "ordinal": 0,
+      "net": "VDDA_0",
+      "direction": "INOUT",
+      "role": "POWER",
+      "alias": "VDDA_0",
+      "electrode_dbu": [
+        1115000,
+        860000,
+        1185000,
+        930000
+      ]
+    },
+    {
+      "name": "ext[0]",
+      "type": "bidirectional",
+      "side": "left",
+      "pad_index": 6,
+      "center_x_dbu": 105000.0,
+      "center_y_dbu": 545000.0,
+      "width_dbu": 65800.0,
+      "height_dbu": 65800.0,
+      "port": "ext[0]",
+      "ordinal": 0,
+      "net": "ext[0]",
+      "direction": "INOUT",
+      "role": "SIGNAL",
+      "alias": "ext[0]",
+      "electrode_dbu": [
+        70000,
+        510000,
+        140000,
+        580000
+      ]
+    },
+    {
+      "name": "ext[1]",
+      "type": "bidirectional",
+      "side": "left",
+      "pad_index": 7,
+      "center_x_dbu": 105000.0,
+      "center_y_dbu": 645000.0,
+      "width_dbu": 65800.0,
+      "height_dbu": 65800.0,
+      "port": "ext[1]",
+      "ordinal": 0,
+      "net": "ext[1]",
+      "direction": "INOUT",
+      "role": "SIGNAL",
+      "alias": "ext[1]",
+      "electrode_dbu": [
+        70000,
+        610000,
+        140000,
+        680000
+      ]
+    },
+    {
+      "name": "ext[2]",
+      "type": "bidirectional",
+      "side": "left",
+      "pad_index": 8,
+      "center_x_dbu": 105000.0,
+      "center_y_dbu": 745000.0,
+      "width_dbu": 65800.0,
+      "height_dbu": 65800.0,
+      "port": "ext[2]",
+      "ordinal": 0,
+      "net": "ext[2]",
+      "direction": "INOUT",
+      "role": "SIGNAL",
+      "alias": "ext[2]",
+      "electrode_dbu": [
+        70000,
+        710000,
+        140000,
+        780000
+      ]
+    },
+    {
+      "name": "ext[3]",
+      "type": "bidirectional",
+      "side": "left",
+      "pad_index": 9,
+      "center_x_dbu": 105000.0,
+      "center_y_dbu": 845000.0,
+      "width_dbu": 65800.0,
+      "height_dbu": 65800.0,
+      "port": "ext[3]",
+      "ordinal": 0,
+      "net": "ext[3]",
+      "direction": "INOUT",
+      "role": "SIGNAL",
+      "alias": "ext[3]",
+      "electrode_dbu": [
+        70000,
+        810000,
+        140000,
+        880000
+      ]
+    },
+    {
+      "name": "VSSA_1",
+      "type": "power_in",
+      "side": "bottom",
+      "pad_index": 10,
+      "center_x_dbu": 250000.0,
+      "center_y_dbu": 105000.0,
+      "width_dbu": 65800.0,
+      "height_dbu": 65800.0,
+      "port": "VSSA_1",
+      "ordinal": 0,
+      "net": "VSSA_1",
+      "direction": "INOUT",
+      "role": "GROUND",
+      "alias": "VSSA_1",
+      "electrode_dbu": [
+        215000,
+        70000,
+        285000,
+        140000
+      ]
+    },
+    {
+      "name": "VSSA_0",
+      "type": "power_in",
+      "side": "bottom",
+      "pad_index": 11,
+      "center_x_dbu": 1150000.0,
+      "center_y_dbu": 105000.0,
+      "width_dbu": 65800.0,
+      "height_dbu": 65800.0,
+      "port": "VSSA_0",
+      "ordinal": 0,
+      "net": "VSSA_0",
+      "direction": "INOUT",
+      "role": "GROUND",
+      "alias": "VSSA_0",
+      "electrode_dbu": [
+        1115000,
+        70000,
+        1185000,
+        140000
+      ]
+    }
+  ]
+}
