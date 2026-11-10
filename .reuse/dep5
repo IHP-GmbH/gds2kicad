@@ -40,3 +40,9 @@ Copyright: 2026 IHP GmbH
 License: GPL-3.0-or-later
 Comment: Inputs and board of packaging-flow examples/padring_die_cmos5l, which
  is GPL-3.0-or-later; tests/fixtures/PROVENANCE says how they were made.
+
+Files: tests/fixtures/pasted_symbols/* tests/fixtures/hierarchical_symbols/*
+Copyright: 2026 IHP GmbH
+License: GPL-3.0-or-later
+Comment: Generated from this repository's carrier example; the real KiCad
+ netlists and their source sheets are recorded in tests/fixtures/PROVENANCE.

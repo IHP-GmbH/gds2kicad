@@ -11,47 +11,166 @@ into the carrier (``pad_carriers``, ``fold_pads``); the connectivity reader
 """
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple
 
 import sexpr_io as sx
 from chiplet_to_kicad_sch import (BASE_DIGEST_PREFIX, EXT_PAD, IDENTITY_PROPERTY,
-                                  SETUP_MARKER, SYSTEM_LIB, _refusal)
+                                  PAD_ID_PROPERTY, SETUP_MARKER, SYSTEM_LIB, _refusal)
 
 
-def read_kicad_netlist(path, carriers: Optional[Dict[str, set]] = None) -> dict:
+_UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+UNIT_SUFFIX = re.compile(r"_(\d+)_\d+$")
+
+
+class InputError(Exception):
+    """An input is missing or is not what it claims to be; no form is written."""
+
+
+class PadSymbol(NamedTuple):
+    ref: str
+    lib: Optional[str]
+    part: Optional[str]
+    identity: Optional[str]
+    io_pad_id: Optional[str] = None
+    copies: int = 1
+
+
+class Sheet(NamedTuple):
+    placed: list
+    by_uuid: dict
+    cache: dict
+    multi_unit: set
+
+
+class Placements(NamedTuple):
+    pairs: list
+    multi_unit: bool
+    shared: bool
+
+
+def cache_key(symbol):
+    return _value(symbol, "lib_name") or _value(symbol, "lib_id")
+
+
+def read_schematic(path):
+    try:
+        tree = sx.parse(Path(path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        raise InputError(f"KiCad schematic {path} is unreadable: {exc}") from exc
+    if not isinstance(tree, list) or sx.head(tree) != "kicad_sch":
+        raise InputError(f"{path} is not a KiCad schematic")
+    cache, multi = {}, set()
+    for symbol in sx.find_all(sx.find(tree, "lib_symbols") or [], "symbol"):
+        name = str(symbol[1])
+        cache[name] = symbol
+        for unit in sx.find_all(symbol, "symbol"):
+            match = UNIT_SUFFIX.search(str(unit[1]))
+            if match and int(match[1]) > 1:
+                multi.add(name)
+    placed = sx.find_all(tree, "symbol")
+    return Sheet(placed, {_value(s, "uuid"): s for s in placed
+                         if _value(s, "uuid") is not None}, cache, multi)
+
+
+def component_placements(comp, sheet):
+    """Resolve KiCad's merged component in every reader, including classic.
+    Distinct units of one cached part are one symbol (primary UUID last).
+    A repeated unit or mixed parts keep every placement and share a Reference.
+    Missing, malformed and unresolved UUIDs retain classic's input errors."""
+    ref = _value(comp, "ref")
+    uuids = [str(stamp) for stamp in (sx.find(comp, "tstamps") or [])[1:]]
+    if not uuids or any(_UUID.fullmatch(stamp) is None for stamp in uuids):
+        raise InputError(f"symbol {ref} has no valid component UUID in tstamps; "
+                         "export the schematic again with kicad-cli")
+    if any(uuid not in sheet.by_uuid for uuid in uuids):
+        raise InputError(f"symbol {ref} has a UUID absent from the root schematic; "
+                         "export the schematic again with kicad-cli")
+    placed = [sheet.by_uuid[u] for u in uuids]
+    multi = any(cache_key(s) in sheet.multi_unit for s in placed)
+    parts = {cache_key(s) for s in placed}
+    units = [_value(s, "unit") or "1" for s in placed]
+    shared = len(uuids) > 1 and (not multi or len(parts) > 1 or len(set(units)) < len(units))
+    pairs = list(zip(uuids, placed)) if shared else [(uuids[-1], placed[-1])]
+    return Placements(pairs, multi, shared)
+
+
+def netlist_property(comp, name):
+    for prop in sx.find_all(comp, "property"):
+        if _value(prop, "name") == name:
+            return _value(prop, "value")
+    for field in sx.find_all(sx.find(comp, "fields") or [], "field"):
+        if _value(field, "name") == name:
+            return str(field[-1]) if len(field) > 2 and not isinstance(field[-1], list) else ""
+    return None
+
+
+def pad_id(symbol):
+    """Stable pad id; an absent or empty field uses the older Reference."""
+    return symbol.io_pad_id or symbol.ref
+
+
+def netlist_symbols(components, sheet):
+    """One named row per root component, with its shared placement count.
+    A child's placed UUIDs live in its own file; hierarchy is refused by the
+    connectivity reader before those components can be imported."""
+    symbols = []
+    for comp in root_components(components):
+        if netlist_property(comp, SETUP_MARKER):
+            continue
+        source = sx.find(comp, "libsource") or []
+        copies = len(component_placements(comp, sheet).pairs)
+        symbols.append(PadSymbol(_value(comp, "ref"), _value(source, "lib"),
+                                 _value(source, "part"), netlist_property(comp, IDENTITY_PROPERTY),
+                                 netlist_property(comp, PAD_ID_PROPERTY), copies))
+    return symbols
+
+
+def root_components(components):
+    return [c for c in components if _value(sx.find(c, "sheetpath") or [], "names") == "/"]
+
+
+def reference_counts(symbols):
+    counts = Counter()
+    for symbol in symbols:
+        counts[symbol.ref] += symbol.copies
+    return counts
+
+
+def duplicate_references(counts):
+    """The symbol-level owner of the shared-reference refusal and its message."""
+    return [_refusal("duplicate_reference", f"{counts[ref]} symbols are named {ref}; "
+                     "annotate the sheet so every symbol has its own", component=ref)
+            for ref in sorted(counts) if counts[ref] > 1]
+
+
+def read_kicad_netlist(path, carriers: Optional[Dict[str, set]] = None, *, schematic=None) -> dict:
     """What KiCad resolved: named nets as {(reference, pin)}, pins on no net,
     the identity property per reference, the base digest from the title block,
     and the refusals of the pad fold. Reads the kicadsexpr netlist ``kicad-cli
     sch export netlist`` writes. A carrier's pads, EXT_PAD symbols carrying its
     identity, are folded back into the carrier (``pad_carriers`` with
-    ``carriers``, then ``fold_pads``); a pad that does not fold stays a symbol."""
+    ``carriers``, then ``fold_pads``); a pad that does not fold stays a symbol.
+    Shared References are refused from the same placement grouping as the
+    connectivity reader. ``schematic`` defaults to the netlist's source path,
+    relative to the netlist when needed; its placed UUIDs must resolve."""
     tree = sx.parse(Path(path).read_text(encoding="utf-8"))
-    symbols: List[Tuple[str, Optional[str], Optional[str], Optional[str]]] = []
-    setup = set()
-    comps = sx.find(tree, "components") or []
-    for comp in sx.find_all(comps, "comp"):
-        ref = str(_value(comp, "ref"))
-        source = sx.find(comp, "libsource") or []
-        ident = None
-        for prop in sx.find_all(comp, "property"):
-            if _value(prop, "name") == IDENTITY_PROPERTY:
-                ident = _value(prop, "value")
-            if _value(prop, "name") == SETUP_MARKER and _value(prop, "value"):
-                setup.add(ref)
-        if ref in setup:
-            continue
-        if ident is None:
-            for field in sx.find_all(sx.find(comp, "fields") or [], "field"):
-                if _value(field, "name") == IDENTITY_PROPERTY and len(field) > 2:
-                    ident = str(field[-1]) if not isinstance(field[-1], list) else None
-        symbols.append((ref, _value(source, "lib"), _value(source, "part"), ident))
-    pads, refusals = pad_carriers(symbols, carriers)
-    identity = {ref: ident for ref, _lib, _part, ident in symbols if ref not in pads}
+    if schematic is None:
+        source = _value(sx.find(tree, "design") or [], "source")
+        if source is None:
+            raise InputError(f"netlist {path} names no source schematic")
+        schematic = Path(path).parent / source
+    comps = sx.find_all(sx.find(tree, "components") or [], "comp")
+    setup = {_value(c, "ref") for c in comps if netlist_property(c, SETUP_MARKER)}
+    symbols = netlist_symbols(comps, read_schematic(schematic))
+    pads, pad_refusals = pad_carriers(symbols, carriers)
+    refusals = [*duplicate_references(reference_counts(symbols)), *pad_refusals]
+    identity = {s.ref: s.identity for s in symbols if s.ref not in pads}
 
     nets: Dict[str, frozenset] = {}
     unconnected = set()
@@ -80,51 +199,62 @@ def is_pad(lib, part) -> bool:
     return lib == SYSTEM_LIB and part == EXT_PAD
 
 
-def pad_carriers(symbols: Iterable[Tuple[str, Optional[str], Optional[str], Optional[str]]],
-                 carriers: Optional[Dict[str, set]] = None
-                 ) -> Tuple[Dict[str, str], List[dict]]:
-    """``(pads, refusals)``: each EXT_PAD symbol that folds into a carrier, by
-    Reference to the carrier id, and why the others do not.
+def pad_carriers(symbols: Iterable[PadSymbol], carriers: Optional[Dict[str, set]] = None
+                 ) -> Tuple[Dict[str, Tuple[str, str]], List[dict]]:
+    """Reference -> (carrier id, pad id), with refused pads left unfolded.
 
-    ``symbols`` are the sheet's symbols other than setup symbols, each
-    ``(reference, lib, part, identity)``; an EXT_PAD with no identity is a
-    designer's pad and not folded. A pad is refused when its Reference names
-    another symbol too (``duplicate_reference``, naming the Reference), or,
-    given ``carriers`` (carrier id to its pad ids), when its identity is not a
-    carrier or its Reference not one of that carrier's pads (``unknown_pad``,
-    naming the carrier and the pad). A refused pad is left unfolded."""
+    A designer EXT_PAD has no carrier identity and never folds. If any carrier
+    pad has a non-empty IO_PAD_ID, all must; otherwise the whole older sheet
+    uses References. Missing fields are missing_identity (carrier, Reference).
+    Unknown carriers and pad ids are unknown_pad, checked before duplicate_pad
+    (one carrier and pad id, listing each Reference once; neither copy folds).
+    Shared References decline to fold; the symbol-level duplicate_references
+    owns that refusal, using the same placement counts in every reader.
+    """
     symbols = list(symbols)
-    count = Counter(ref for ref, *_ in symbols)
-    pads: Dict[str, str] = {}
-    refusals: List[dict] = []
-    for ref, lib, part, ident in symbols:
-        if not is_pad(lib, part) or ident is None:
+    counts = reference_counts(symbols)
+    candidates = [s for s in symbols if is_pad(s.lib, s.part) and s.identity is not None]
+    use_fields = any(s.io_pad_id for s in candidates)
+    by_pad = defaultdict(set)
+    for symbol in candidates:
+        if not use_fields or symbol.io_pad_id:
+            by_pad[symbol.identity, pad_id(symbol)].add(symbol.ref)
+    pads, refusals, refused_pads = {}, [], set()
+    for symbol in candidates:
+        ref, carrier, pid = symbol.ref, symbol.identity, pad_id(symbol)
+        if counts[ref] > 1:
             continue
-        if count[ref] > 1:
-            if not any(r["component"] == ref for r in refusals
-                       if r["code"] == "duplicate_reference"):
+        if carriers is not None and carrier not in carriers:
+            refusals.append(_refusal(
+                "unknown_pad", f"pad symbol {ref} names {carrier}, which is not a carrier "
+                f"on this sheet", component=carrier, terminal=pid))
+        elif use_fields and not symbol.io_pad_id:
+            refusals.append(_refusal(
+                "missing_identity", f"pad symbol {ref} of {carrier} has no {PAD_ID_PROPERTY}; "
+                "restore its pad identity", component=carrier, terminal=ref))
+        elif carriers is not None and pid not in carriers[carrier]:
+            refusals.append(_refusal(
+                "unknown_pad", f"pad symbol {ref} names {pid}, which is not one of "
+                f"{carrier}'s io pads", component=carrier, terminal=pid))
+        elif len(by_pad[carrier, pid]) > 1:
+            if (carrier, pid) not in refused_pads:
+                refs = ", ".join(sorted(by_pad[carrier, pid]))
                 refusals.append(_refusal(
-                    "duplicate_reference", f"{count[ref]} symbols are named {ref}; a "
-                    f"carrier pad's Reference names it alone", component=ref))
-        elif carriers is not None and ident not in carriers:
-            refusals.append(_refusal(
-                "unknown_pad", f"pad symbol {ref} names {ident}, which is not a carrier "
-                f"on this sheet", component=ident, terminal=ref))
-        elif carriers is not None and ref not in carriers[ident]:
-            refusals.append(_refusal(
-                "unknown_pad", f"pad symbol {ref} is not one of {ident}'s io pads",
-                component=ident, terminal=ref))
+                    "duplicate_pad", f"carrier {carrier}'s io pad {pid} is named by "
+                    f"pad symbols {refs}; give each pad its own {PAD_ID_PROPERTY}",
+                    component=carrier, terminal=pid))
+                refused_pads.add((carrier, pid))
         else:
-            pads[ref] = ident
+            pads[ref] = (carrier, pid)
     return pads, refusals
 
 
-def fold_pads(endpoint: Tuple[str, str], pads: Dict[str, str]) -> Tuple[str, str]:
-    """A node on a carrier's pad, (pad id, "1"), as the carrier's terminal,
+def fold_pads(endpoint: Tuple[str, str], pads: Dict[str, Tuple[str, str]]) -> Tuple[str, str]:
+    """A node on a carrier's pad, (Reference, "1"), as the carrier's terminal,
     (carrier, pad id); ``pads`` maps each pad symbol's Reference to its
-    carrier. Any other node is returned as it is."""
+    (carrier id, pad id). Any other node is returned as it is."""
     ref, pin = endpoint
-    return (pads[ref], ref) if ref in pads and pin == "1" else endpoint
+    return pads[ref] if ref in pads and pin == "1" else endpoint
 
 
 def _value(node, tag):
@@ -204,6 +334,9 @@ def run_check(sch_path, expected_nets, expected_free, base_sha256,
             tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-5:]
             return {"word": "failed", "exit_code": proc.returncode,
                     "reason": "kicad-cli wrote no netlist", "output": tail}
-        got = read_kicad_netlist(net_path, carriers)
+        try:
+            got = read_kicad_netlist(net_path, carriers, schematic=sch_path)
+        except InputError as exc:
+            return {"word": "failed", "reason": str(exc)}
     diffs = compare(expected_nets, expected_free, base_sha256, got)
     return {"word": "differs" if diffs else "matches", "differences": diffs}

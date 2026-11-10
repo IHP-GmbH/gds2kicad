@@ -27,7 +27,7 @@ def _files(tmp_path, sheet=None, edit=None, erc=None):
     net, schematic, lib = bt._blank_files(tmp_path)
     tree = sx.parse(net.read_text(encoding="utf-8"))
     for comp in sx.find_all(sx.find(tree, "components"), "comp"):
-        comp.append(["tstamps", sx.Quoted(UUIDS[k._value(comp, "ref")])])
+        sx.find(comp, "tstamps")[1:] = [sx.Quoted(UUIDS[k._value(comp, "ref")])]
     if edit:
         edit(tree)
     net.write_text(sx.dumps(tree) + "\n", encoding="utf-8")
@@ -226,7 +226,7 @@ def test_other_modes_do_not_scan_rails_or_write_classic_keys(tmp_path, mode):
         report = None
     else:
         net, sch, report, _ = bt._files(tmp_path)
-    sch.write_text(_sheet(_rail(volts="bad")), encoding="utf-8")
+    bt._edit(sch, lambda tree: tree.append(_rail(volts="bad")))
     form = k.read_form(net, sch, report, sch.with_name("form.json"), library=library)
     assert not {"rails", "open", "system_library"} & form.keys()
     assert all(not {"key", "value", "footprint", "fields"} & s.keys() for s in form["symbols"])

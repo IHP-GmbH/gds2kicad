@@ -2,6 +2,7 @@
 """kicad_sch_to_connectivity: a kicad-cli netlist of the system sheet read back
 as the connectivity form. Host tests read hand-built netlists; the tests at the
 end need kicad-cli and run the generator, KiCad and this reader end to end."""
+import copy
 import hashlib
 import json
 import os
@@ -17,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import chiplet_to_kicad_sch as g  # noqa: E402
 import kicad_sch_to_connectivity as k  # noqa: E402
 import sexpr_io as sx  # noqa: E402
+import sheet_check as sc  # noqa: E402
 from tests import test_chiplet_to_kicad_sch as gt  # noqa: E402
 from tests.sheet_drawing import draw_from_library  # noqa: E402
 
@@ -52,8 +54,9 @@ def _netlist(comps=None, libparts=None, nets=None, sheets=("/",), digest=DIGEST,
         + (f' (property (name "{g.IDENTITY_PROPERTY}") (value "{ident}"))' if ident else "")
         + "".join(f' (property (name "{name}") (value "{value}"))'
                   for name, value in props.get(ref, {}).items())
-        + ' (property (name "Sheetname") (value "")) (sheetpath (names "/") (tstamps "/")))\n'
-        for ref, (ident, part) in comps.items())
+        + ' (property (name "Sheetname") (value "")) (sheetpath (names "/") (tstamps "/"))'
+        + f' (tstamps "{g.uid("netlist", str(i))}"))\n'
+        for i, (ref, (ident, part)) in enumerate(comps.items()))
     lib_text = "".join(
         f'(libpart (lib "{libs.get(part, lib)}") (part "{part}") (pins '
         + "".join(f'(pin (num "{n}") (name "{n}") (type "passive"))' for n in pins)
@@ -80,9 +83,9 @@ def _erc(violations=(), source="sys.kicad_sch"):
 def _files(tmp_path, netlist=None, erc=None):
     sheet = tmp_path / "kicad" / "sys.kicad_sch"
     sheet.parent.mkdir(parents=True, exist_ok=True)
-    sheet.write_text("(kicad_sch)\n", encoding="utf-8")
     net = sheet.with_suffix(".net")
     net.write_text(_netlist() if netlist is None else netlist, encoding="utf-8")
+    _stub_sheet(net, sheet)
     report = tmp_path / "pnr" / "schematic.json"
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text('{"word": "written"}\n', encoding="utf-8")
@@ -91,6 +94,26 @@ def _files(tmp_path, netlist=None, erc=None):
         erc_path = sheet.with_name("erc.json")
         erc_path.write_text(json.dumps(erc), encoding="utf-8")
     return net, sheet, report, erc_path
+
+
+def _stub_sheet(net, sheet):
+    """Minimal matching placement/cache data for hand-built netlist cases.
+    Real merged-copy coverage uses the pinned KiCad pair below."""
+    tree = ["kicad_sch", ["lib_symbols"]]
+    try:
+        exported = sx.parse(net.read_text(encoding="utf-8"))
+    except ValueError:
+        exported = []
+    cache = sx.find(tree, "lib_symbols")
+    for comp in sx.find_all(sx.find(exported, "components") or [], "comp"):
+        src = sx.find(comp, "libsource") or []
+        lib, part = k._value(src, "lib"), k._value(src, "part")
+        key = f"{lib}:{part}"
+        if key not in {str(s[1]) for s in sx.find_all(cache, "symbol")}:
+            cache.append(["symbol", sx.Quoted(key), ["symbol", sx.Quoted(f"{part}_1_1")]])
+        for uuid in (sx.find(comp, "tstamps") or [])[1:]:
+            tree.append(["symbol", ["uuid", uuid], ["lib_id", sx.Quoted(key)], ["unit", "1"]])
+    sheet.write_text(sx.dumps(tree) + "\n", encoding="utf-8")
 
 
 def _form(tmp_path, netlist=None, erc=None):
@@ -141,10 +164,17 @@ def test_auto_names_are_kicads_own(tmp_path):
         "Net-(U1-A0)": True, "Net_A": False}
 
 
-def test_symbol_without_identity_is_listed_with_null(tmp_path):
+def test_designer_symbol_without_identity_is_listed_with_null(tmp_path):
     comps = dict(COMPS, U3=(None, "DIE_B"))
-    form = _form(tmp_path, _netlist(comps=comps))
+    form = _form(tmp_path, _netlist(comps=comps, libs={"DIE_B": "designer"}))
     assert {"ref": "U3", "identity": None, "pins": ["B0", "VDD"]} in form["symbols"]
+    assert form["refusals"] == []
+
+
+def test_generated_die_without_identity_is_refused(tmp_path):
+    form = _form(tmp_path, _netlist(comps=dict(COMPS, U3=(None, "DIE_B"))))
+    assert _codes(form) == [("missing_identity", "U3", None, None)]
+    assert "U3" in form["refusals"][0]["message"]
 
 
 def test_endpoints_stay_raw_and_unique(tmp_path):
@@ -264,10 +294,10 @@ PAD_NETS = {
 }
 
 
-def _pad_form(tmp_path, comps=PAD_COMPS, nets=PAD_NETS, pads=("J1", "J2")):
+def _pad_form(tmp_path, comps=PAD_COMPS, nets=PAD_NETS, pads=("J1", "J2"), props=None):
     """A sheet whose carrier ``ip`` the generator drew with ``pads``."""
     net, sheet, report, _ = _files(tmp_path, _netlist(comps=comps, libparts=PAD_PARTS,
-                                                      nets=nets, libs=PAD_LIBS))
+                                                      nets=nets, libs=PAD_LIBS, props=props))
     pins = report.with_name("ip.carrier_pins.json")
     pins.write_text(json.dumps({"pins": [{"name": p} for p in pads]}), encoding="utf-8")
     report.write_text(json.dumps({
@@ -289,6 +319,81 @@ def test_a_carriers_pads_read_as_the_carrier(tmp_path):
     nets = {n["name"]: n["endpoints"] for n in form["nets"]}
     assert nets["sig0"] == [["U1", "A0"], ["U2", "B0"], ["ip", "J1"]]
     assert nets["unconnected-(J2-Pad1)"] == [["ip", "J2"]]
+
+
+@pytest.mark.parametrize("pad_id", [None, "", "J1"])
+def test_pad_identity_field_and_older_reference_fallback(tmp_path, pad_id):
+    props = {} if pad_id is None else {r: {g.PAD_ID_PROPERTY: r if pad_id else ""}
+                                             for r in ("J1", "J2")}
+    assert _pad_form(tmp_path, props=props)["refusals"] == []
+
+
+def test_pad_identity_field_wins_over_reference(tmp_path):
+    form = _pad_form(tmp_path, props={"J1": {g.PAD_ID_PROPERTY: "original"},
+                                      "J2": {g.PAD_ID_PROPERTY: "J2"}},
+                     pads=("original", "J2"))
+    assert form["refusals"] == []
+    assert {"ref": "ip", "identity": "ip", "pins": ["J2", "original"]} in form["symbols"]
+    assert ("ip", "original") in _named(form)["sig0"]
+
+
+@pytest.mark.parametrize("missing", [None, ""])
+def test_pad_identity_fallback_is_for_the_whole_older_sheet(tmp_path, missing):
+    props = {"J1": {g.PAD_ID_PROPERTY: "J1"}}
+    if missing is not None:
+        props["J2"] = {g.PAD_ID_PROPERTY: missing}
+    form = _pad_form(tmp_path, props=props)
+    assert _codes(form) == [("missing_identity", "ip", "J2", None)]
+    assert {"ref": "J2", "identity": "ip", "pins": ["1"]} in form["symbols"]
+
+
+def test_fieldless_pad_does_not_collide_with_a_field_bearing_pad(tmp_path):
+    form = _pad_form(tmp_path, props={"J1": {g.PAD_ID_PROPERTY: "J2"}})
+    assert _codes(form) == [("missing_identity", "ip", "J2", None)]
+    assert {"ref": "ip", "identity": "ip", "pins": ["J2"]} in form["symbols"]
+
+
+def test_pad_reference_can_equal_its_carrier_id(tmp_path):
+    form = _pad_form(tmp_path, comps=dict(COMPS, ip=("ip", "EXT_PAD"), J2=("ip", "EXT_PAD")),
+                     props={"ip": {g.PAD_ID_PROPERTY: "J1"}, "J2": {g.PAD_ID_PROPERTY: "J2"}},
+                     nets={"sig0": [("ip", "1"), ("U1", "A0")]})
+    assert form["refusals"] == []
+    assert [s for s in form["symbols"] if s["ref"] == "ip"] == [
+        {"ref": "ip", "identity": "ip", "pins": ["J1", "J2"]}]
+    assert _named(form)["sig0"] == {("ip", "J1"), ("U1", "A0")}
+
+
+@pytest.mark.parametrize("carrier,pid", [("other", "J1"), ("ip", "absent")])
+def test_unknown_pad_precedes_a_duplicate_pad_hint(tmp_path, carrier, pid):
+    form = _pad_form(tmp_path, comps=dict(COMPS, **{
+        ref: (carrier, "EXT_PAD") for ref in ("J1", "J2")}),
+        props={ref: {g.PAD_ID_PROPERTY: pid} for ref in ("J1", "J2")})
+    assert _codes(form) == [("unknown_pad", carrier, pid, None)] * 2
+
+
+def test_duplicate_pad_message_lists_each_reference_once():
+    symbols = [sc.PadSymbol("J1", g.SYSTEM_LIB, g.EXT_PAD, "ip", "pad", copies=2),
+               sc.PadSymbol("J1x", g.SYSTEM_LIB, g.EXT_PAD, "ip", "pad")]
+    pads, refused = sc.pad_carriers(symbols, {"ip": {"pad"}})
+    assert pads == {}
+    assert len(refused) == 1 and refused[0]["code"] == "duplicate_pad"
+    assert "pad symbols J1, J1x;" in refused[0]["message"]
+
+
+def test_duplicate_pad_identity_refuses_both_copies(tmp_path):
+    form = _pad_form(tmp_path, props={r: {g.PAD_ID_PROPERTY: "J1"} for r in ("J1", "J2")})
+    assert _codes(form) == [("duplicate_pad", "ip", "J1", None)]
+    assert all(s["ref"] != "ip" for s in form["symbols"])
+    assert {"J1", "J2"} <= {s["ref"] for s in form["symbols"]}
+    assert all(text in form["refusals"][0]["message"] for text in ("ip", "J1", "J2"))
+
+
+def test_pad_identity_is_scoped_to_its_carrier(tmp_path):
+    comps = dict(PAD_COMPS, J2=("other", "EXT_PAD"))
+    form = _pad_form(tmp_path, comps=comps, props={r: {g.PAD_ID_PROPERTY: "J1"} for r in ("J1", "J2")})
+    # "other" is not a drawn carrier, but its J1 does not duplicate ip's J1.
+    assert _codes(form) == [("unknown_pad", "other", "J1", None)]
+    assert {"ref": "ip", "identity": "ip", "pins": ["J1"]} in form["symbols"]
 
 
 def test_a_pad_the_generator_did_not_draw_is_refused_and_left_unfolded(tmp_path):
@@ -313,6 +418,7 @@ def test_two_pads_under_one_reference_are_refused(tmp_path):
                       encoding="utf-8")
     form = k.read_form(net, sheet, report, sheet.with_name("connectivity.json"))
     assert ("duplicate_reference", "J1", None, None) in _codes(form)
+    assert sum(r["code"] == "duplicate_reference" for r in form["refusals"]) == 1
 
 
 def test_a_pad_sharing_its_reference_with_a_die_is_refused(tmp_path):
@@ -327,6 +433,7 @@ def test_a_pad_sharing_its_reference_with_a_die_is_refused(tmp_path):
                       encoding="utf-8")
     form = k.read_form(net, sheet, report, sheet.with_name("connectivity.json"))
     assert ("duplicate_reference", "J1", None, None) in _codes(form)
+    assert sum(r["code"] == "duplicate_reference" for r in form["refusals"]) == 1
     assert {"ref": "ip", "identity": "ip", "pins": ["J2"]} in form["symbols"]
 
 
@@ -354,6 +461,122 @@ def test_a_pin_list_without_pins_is_not_accepted(tmp_path):
     net, sheet = tmp_path / "kicad" / "sys.net", tmp_path / "kicad" / "sys.kicad_sch"
     with pytest.raises(k.InputError, match="no 'pins' array"):
         k.read_form(net, sheet, report, tmp_path / "c.json")
+
+
+PASTED = Path(__file__).parent / "fixtures" / "pasted_symbols"
+HIERARCHICAL = Path(__file__).parent / "fixtures" / "hierarchical_symbols"
+
+
+def _pinned_pasted_form(tmp_path, mode="generated", *, sheet=None, net=None):
+    sheet = PASTED / "sys.draft.kicad_sch" if sheet is None else sheet
+    net = PASTED / "sys.draft.net" if net is None else net
+    if mode == "check":
+        return sc.read_kicad_netlist(net, schematic=sheet)
+    report, library = PASTED / "schematic.json", None
+    if mode == "blank":
+        report = None
+        library = tmp_path / "chiplet.kicad_sym"
+        library.write_text("(kicad_symbol_lib)\n", encoding="utf-8")
+    return k.read_form(net, sheet, report, tmp_path / "form.json", library=library)
+
+
+@pytest.mark.parametrize("fixture", [PASTED, HIERARCHICAL])
+def test_schematic_fixture_bytes_match_the_provenance(fixture):
+    text = (fixture.parent / "PROVENANCE").read_text(encoding="utf-8")
+    for path in fixture.iterdir():
+        assert f"  {path.name} sha256 {_sha(path)}\n" in text
+
+
+@pytest.mark.parametrize("mode", ["generated", "blank"])
+def test_pinned_two_sheet_layout_keeps_the_hierarchy_refusal(tmp_path, mode):
+    root = HIERARCHICAL / "sys.draft.kicad_sch"
+    net = HIERARCHICAL / "sys.draft.net"
+    exported = sx.parse(net.read_text(encoding="utf-8"))
+    child = next(c for c in sx.find_all(sx.find(exported, "components"), "comp")
+                 if k._value(c, "ref") == "U_CHILD")
+    child_uuid = str(sx.find(child, "tstamps")[1])
+    assert child_uuid not in sc.read_schematic(root).by_uuid
+    assert child_uuid in sc.read_schematic(HIERARCHICAL / "child.kicad_sch").by_uuid
+    report, library = HIERARCHICAL / "schematic.json", None
+    if mode == "blank":
+        report = None
+        library = tmp_path / "chiplet.kicad_sym"
+        library.write_text("(kicad_symbol_lib)\n", encoding="utf-8")
+    form = k.read_form(net, root, report, tmp_path / "form.json", library=library)
+    assert ("hierarchical_sheet", None, None, None) in _codes(form)
+    assert "U_CHILD" not in {s["ref"] for s in form["symbols"]}
+
+
+def test_classic_hierarchy_keeps_child_setup_endpoints_out(tmp_path):
+    """Filtering placed root symbols must preserve classic's setup handling."""
+    net = tmp_path / "sys.draft.net"
+    tree = sx.parse((HIERARCHICAL / net.name).read_text(encoding="utf-8"))
+    child = next(c for c in sx.find_all(sx.find(tree, "components"), "comp")
+                 if k._value(c, "ref") == "U_CHILD")
+    child.append(["property", ["name", sx.Quoted(g.SETUP_MARKER)], ["value", sx.Quoted("setup")]])
+    net.write_text(sx.dumps(tree), encoding="utf-8")
+    library = tmp_path / "chiplet.kicad_sym"
+    system = tmp_path / "chiplet_system.kicad_sym"
+    for path in (library, system):
+        path.write_text("(kicad_symbol_lib)\n", encoding="utf-8")
+    form = k.read_form(net, HIERARCHICAL / "sys.draft.kicad_sch", None, tmp_path / "form.json",
+                       library=library, system_library=system)
+    assert ("hierarchical_sheet", None, None, None) in _codes(form)
+    assert not any(ref == "U_CHILD" for n in form["nets"] for ref, _pin in n["endpoints"])
+
+
+@pytest.mark.parametrize("mode", ["generated", "blank", "check"])
+def test_pinned_real_netlist_refuses_pasted_die_and_pad_in_every_reader(tmp_path, mode):
+    got = _pinned_pasted_form(tmp_path, mode)
+    assert _codes(got) == [("duplicate_reference", "J_NC", None, None),
+                           ("duplicate_reference", "U1", None, None)]
+    if mode != "check":
+        assert len([s for s in got["symbols"] if s["ref"] == "U1"]) == 1
+        assert len([s for s in got["symbols"] if s["ref"] == "J_NC"]) == 1
+
+
+@pytest.mark.parametrize("mode", ["generated", "blank", "check"])
+@pytest.mark.parametrize("case", ["repeated_unit", "mixed_parts"])
+def test_repeated_units_and_mixed_parts_are_shared_references(tmp_path, mode, case):
+    sheet = tmp_path / "sys.draft.kicad_sch"
+    shutil.copyfile(PASTED / sheet.name, sheet)
+    def edit(tree):
+        cache = sx.find(tree, "lib_symbols")
+        part = next(s for s in sx.find_all(cache, "symbol") if s[1] == "chiplet:DIE_A")
+        if case == "mixed_parts":
+            part = copy.deepcopy(part)
+            part[1] = sx.Quoted("designer:MULTI")
+            cache.append(part)
+            sx.find(_placed(tree, "U1"), "lib_id")[1] = part[1]
+        part.append(["symbol", sx.Quoted("DIE_A_2_1")])
+    _edit(sheet, edit)
+    got = _pinned_pasted_form(tmp_path, mode, sheet=sheet)
+    assert _codes(got) == [("duplicate_reference", "J_NC", None, None),
+                           ("duplicate_reference", "U1", None, None)]
+
+
+@pytest.mark.parametrize("mode", ["generated", "blank", "check"])
+def test_unresolved_placement_uuid_is_an_input_error_in_every_reader(tmp_path, mode):
+    sheet = tmp_path / "sys.draft.kicad_sch"
+    shutil.copyfile(PASTED / sheet.name, sheet)
+    def edit(tree):
+        tree.remove(_placed(tree, "U1"))
+    _edit(sheet, edit)
+    with pytest.raises(k.InputError, match="U1 has a UUID absent from the root schematic"):
+        _pinned_pasted_form(tmp_path, mode, sheet=sheet)
+
+
+def test_a_merged_component_has_one_pin_mismatch_refusal(tmp_path):
+    net = tmp_path / "sys.draft.net"
+    tree = sx.parse((PASTED / net.name).read_text(encoding="utf-8"))
+    part = next(p for p in sx.find_all(sx.find(tree, "libparts"), "libpart")
+                if k._value(p, "part") == "DIE_A")
+    pins = sx.find(part, "pins")
+    pins.append(copy.deepcopy(sx.find_all(pins, "pin")[0]))
+    net.write_text(sx.dumps(tree), encoding="utf-8")
+    got = _pinned_pasted_form(tmp_path, net=net)
+    assert len([r for r in got["refusals"] if r["code"] == "symbol_pin_mismatch"]) == 1
+    assert len([s for s in got["symbols"] if s["ref"] == "U1"]) == 1
 
 
 # ------------------------------------------------------------- bad inputs
@@ -548,6 +771,209 @@ def test_kicad_cli_form_equals_the_description(tmp_path):
     assert {tuple(eps[0]) for eps in auto} == gt.CARRIER_FREE
 
 
+def _placed(tree, reference):
+    return next(s for s in sx.find_all(tree, "symbol")
+                if any(p[1:3] == ["Reference", reference]
+                       for p in sx.find_all(s, "property")))
+
+
+def _paste(tree, symbol, key):
+    duplicate = copy.deepcopy(symbol)
+    sx.find(duplicate, "uuid")[1] = sx.Quoted(g.uid("pasted", key))
+    for pin in sx.find_all(duplicate, "pin"):
+        sx.find(pin, "uuid")[1] = sx.Quoted(g.uid("pasted-pin", key, str(pin[1])))
+    tree.append(duplicate)
+    return duplicate
+
+
+def _two_sheet_layout(tmp_path):
+    """A generated root and a real child file with one placed die."""
+    sch, report, _ = _drawn(tmp_path)
+    root = sx.parse(sch.read_text(encoding="utf-8"))
+    root_uuid = sx.find(root, "uuid")[1]
+    sheet_uuid = g.uid("nested-sheet", "child")
+    project = sch.stem
+    child = [copy.deepcopy(c) for c in root if sx.head(c) not in (
+        "symbol", "wire", "global_label", "no_connect", "sheet_instances")]
+    sx.find(child, "uuid")[1] = sx.Quoted(g.uid("child-file", "child"))
+    die = copy.deepcopy(_placed(root, "U1"))
+    sx.find(die, "uuid")[1] = sx.Quoted(g.uid("child-symbol", "U_CHILD"))
+    _rename_reference(die, "U_CHILD")
+    instances = sx.find(die, "instances")
+    instances[1:] = [["project", sx.Quoted(project),
+                      ["path", sx.Quoted(f"/{root_uuid}/{sheet_uuid}"),
+                       ["reference", sx.Quoted("U_CHILD")], ["unit", "1"]]]]
+    child.append(die)
+    sch.with_name("child.kicad_sch").write_text(sx.dumps(child) + "\n", encoding="utf-8")
+    root.append(["sheet", ["at", "25.4", "254"], ["size", "25.4", "25.4"],
+                 ["stroke", ["width", "0"], ["type", "solid"]],
+                 ["fill", ["color", "0", "0", "0", "0.0000"]],
+                 ["uuid", sx.Quoted(sheet_uuid)],
+                 g._prop("Sheetname", "child", (25.4, 252.73)),
+                 g._prop("Sheetfile", "child.kicad_sch", (25.4, 280.67)),
+                 ["instances", ["project", sx.Quoted(project),
+                                 ["path", sx.Quoted(f"/{root_uuid}"),
+                                  ["page", sx.Quoted("2")]]]]])
+    sch.write_text(sx.dumps(root) + "\n", encoding="utf-8")
+    return sch, report
+
+
+@pytest.mark.kicad_cli
+@pytest.mark.parametrize("mode", ["generated", "blank"])
+def test_kicad_cli_two_sheet_layout_keeps_the_hierarchy_refusal(tmp_path, mode):
+    _need_kicad_cli()
+    sch, report = _two_sheet_layout(tmp_path)
+    net, erc = _export(sch)
+    exported = sx.parse(net.read_text(encoding="utf-8"))
+    child = next(c for c in sx.find_all(sx.find(exported, "components"), "comp")
+                 if k._value(c, "ref") == "U_CHILD")
+    assert k._value(sx.find(child, "sheetpath"), "names") != "/"
+    library = None
+    if mode == "blank":
+        report = None
+        library = tmp_path / "chiplet.kicad_sym"
+        library.write_text("(kicad_symbol_lib)\n", encoding="utf-8")
+    form = k.read_form(net, sch, report, tmp_path / "form.json", erc=erc, library=library)
+    assert ("hierarchical_sheet", None, None, None) in _codes(form)
+    assert "U_CHILD" not in {s["ref"] for s in form["symbols"]}
+
+
+def _rename_reference(inst, reference):
+    next(p for p in sx.find_all(inst, "property") if p[1] == "Reference")[2] = sx.Quoted(reference)
+    for project in sx.find_all(sx.find(inst, "instances") or [], "project"):
+        for path in sx.find_all(project, "path"):
+            sx.find(path, "reference")[1] = sx.Quoted(reference)
+
+
+@pytest.mark.kicad_cli
+def test_kicad_cli_annotated_pads_keep_their_identity(tmp_path):
+    """Forms are exact after masking source paths/digests and auto net names.
+    Editing changes bound input bytes, and KiCad builds auto names from the
+    References; auto nets still compare by their endpoint sets and flag."""
+    _need_kicad_cli()
+    sch, report, _ = _drawn(tmp_path)
+    before = _kicad_form(sch, report)
+
+    def annotate(tree):
+        for inst in sx.find_all(tree, "symbol"):
+            if sx.find(inst, "lib_id")[1] == "chiplet_system:EXT_PAD":
+                props = {str(p[1]): str(p[2]) for p in sx.find_all(inst, "property")}
+                assert props[g.PAD_ID_PROPERTY] == props["Reference"]
+                _rename_reference(inst, props["Reference"] + "1")
+    _edit(sch, annotate)
+    after = _kicad_form(sch, report)
+    assert after["refusals"] == []
+
+    def masked(form):
+        form = copy.deepcopy(form)
+        for source in form["front_end"]["inputs"]:
+            source["path"] = source["sha256"] = None
+        for net in form["nets"]:
+            if net["auto_named"]:
+                net["name"] = None
+        form["nets"].sort(key=lambda n: (n["auto_named"], n["name"] or "", n["endpoints"]))
+        return json.dumps(form, sort_keys=True)
+    assert masked(after) == masked(before)
+    # The generator's --check reader shares the identity rule and still matches.
+    got = sc.read_kicad_netlist(sch.with_suffix(".net"), {
+        "interposer": {p["id"] for p in gt.CARRIER_CHIPLET["components"][0]["io_pads"]}})
+    assert sc.compare(gt.CARRIER_NETS, frozenset(gt.CARRIER_FREE),
+                      before["base_sha256"], got) == []
+
+
+def _pasted_pad_form(tmp_path, reference):
+    _need_kicad_cli()
+    sch, report, _ = _drawn(tmp_path)
+    def paste(tree):
+        duplicate = _paste(tree, _placed(tree, "J_NC"), "pad-copy")
+        _rename_reference(duplicate, reference)
+    _edit(sch, paste)
+    return _kicad_form(sch, report), sch
+
+
+def _assert_pad_unfolded(form):
+    carrier = next(s for s in form["symbols"] if s["ref"] == "interposer")
+    assert "J_NC" not in carrier["pins"]
+    assert len([s for s in form["symbols"] if s["ref"] == "J_NC"]) == 1
+
+
+@pytest.mark.kicad_cli
+def test_kicad_cli_pasted_pad_with_shared_reference_is_refused_once(tmp_path):
+    form, sch = _pasted_pad_form(tmp_path, "J_NC")
+    assert _codes(form) == [("duplicate_reference", "J_NC", None, None)]
+    _assert_pad_unfolded(form)
+    assert [r["code"] for r in sc.read_kicad_netlist(sch.with_suffix(".net"))["refusals"]] == [
+        "duplicate_reference"]
+
+
+@pytest.mark.kicad_cli
+def test_kicad_cli_pasted_pad_with_new_reference_keeps_duplicate_identity(tmp_path):
+    form, sch = _pasted_pad_form(tmp_path, "J_NC1")
+    assert _codes(form) == [("duplicate_pad", "interposer", "J_NC", None)]
+    _assert_pad_unfolded(form)
+    assert "J_NC1" in {s["ref"] for s in form["symbols"]}
+    assert [r["code"] for r in sc.read_kicad_netlist(sch.with_suffix(".net"))["refusals"]] == [
+        "duplicate_pad"]
+
+
+@pytest.mark.kicad_cli
+def test_kicad_cli_pasted_duplicate_die_is_refused(tmp_path):
+    _need_kicad_cli()
+    sch, report, _ = _drawn(tmp_path)
+
+    def paste(tree):
+        _paste(tree, _placed(tree, "U1"), "die-copy")
+    _edit(sch, paste)
+    form = _kicad_form(sch, report)
+    assert _codes(form) == [("duplicate_reference", "U1", None, None)]
+    assert form["refusals"][0]["message"] == (
+        "2 symbols are named U1; annotate the sheet so every symbol has its own")
+
+
+@pytest.mark.kicad_cli
+def test_kicad_cli_all_units_of_one_symbol_are_not_duplicate_references(tmp_path):
+    _need_kicad_cli()
+    sch, report, _ = _drawn(tmp_path)
+
+    def place_second_unit(tree):
+        cache = sx.find(tree, "lib_symbols")
+        die = next(s for s in sx.find_all(cache, "symbol") if s[1] == "chiplet:DIE_A")
+        die.append(["symbol", sx.Quoted("DIE_A_2_1"),
+                    ["pin", "passive", "line", ["at", "-2.54", "0", "0"],
+                     ["length", "2.54"], ["name", sx.Quoted("EXTRA"), ["effects", ["font", ["size", "1.27", "1.27"]]]],
+                     ["number", sx.Quoted("EXTRA"), ["effects", ["font", ["size", "1.27", "1.27"]]]]]])
+        second = _paste(tree, _placed(tree, "U1"), "unit2")
+        sx.find(second, "at")[2] = "254"
+        sx.find(second, "unit")[1] = "2"
+        path = sx.find(sx.find(sx.find(second, "instances"), "project"), "path")
+        sx.find(path, "unit")[1] = "2"
+        second[:] = [c for c in second if sx.head(c) != "pin"]
+        second.append(["pin", sx.Quoted("EXTRA"),
+                       ["uuid", sx.Quoted(g.uid("unit-pin", "EXTRA"))]])
+    _edit(sch, place_second_unit)
+    form = _kicad_form(sch, report)
+    exported = sx.parse(sch.with_suffix(".net").read_text(encoding="utf-8"))
+    comp = next(c for c in sx.find_all(sx.find(exported, "components"), "comp")
+                if k._value(c, "ref") == "U1")
+    assert len(sx.find(comp, "tstamps")[1:]) == 2
+    assert form["refusals"] == []
+    assert len([s for s in form["symbols"] if s["ref"] == "U1"]) == 1
+
+
+@pytest.mark.kicad_cli
+def test_kicad_cli_die_with_removed_identity_is_refused(tmp_path):
+    _need_kicad_cli()
+    sch, report, _ = _drawn(tmp_path)
+
+    def remove_identity(tree):
+        die = _placed(tree, "U1")
+        die[:] = [c for c in die if not (sx.head(c) == "property"
+                                         and c[1] == g.IDENTITY_PROPERTY)]
+    _edit(sch, remove_identity)
+    form = _kicad_form(sch, report)
+    assert _codes(form) == [("missing_identity", "U1", None, None)]
+
+
 @pytest.mark.kicad_cli
 def test_kicad_cli_power_symbols_add_no_nodes(tmp_path):
     """Every VDD label becomes a power symbol: the nets stay the same and no
@@ -566,8 +992,8 @@ def test_kicad_cli_power_symbols_add_no_nodes(tmp_path):
                     g._prop("Description", "", hide=True),
                     ["symbol", sx.Quoted("VDD_1_1"),
                      ["pin", "power_in", "line", ["at", "0", "0", "90"], ["length", "0"],
-                      ["name", sx.Quoted("VDD"), g._FONT],
-                      ["number", sx.Quoted("1"), g._FONT]]],
+                      ["name", sx.Quoted("VDD"), ["effects", ["font", ["size", "1.27", "1.27"]]]],
+                      ["number", sx.Quoted("1"), ["effects", ["font", ["size", "1.27", "1.27"]]]]]],
                     ["embedded_fonts", "no"]])
         sheet = str(sx.find(node, "uuid")[1])
         project = str(sx.find(sx.find(sx.find(node, "symbol"), "instances"), "project")[1])

@@ -32,6 +32,7 @@ components:
         position: {x: 5800.0, y: 3000.0}
         size: {x: 80.0, y: 80.0}
         layer: TopMetal2
+    attachment_surface_z: 10.8103
   - id: D_UP
     type: die
     technology: sg13g2
@@ -40,7 +41,7 @@ components:
     connection: cupillar_opt1
     top_cell: CELL_D_UP
     layout: D_UP.gds
-    position: {x: 2000.0, y: 1500.0, z: 57.83}
+    position: {x: 2000.0, y: 1500.0, z: 54.8103}
     dimensions: {width: 1000.0, height: 1000.0, thickness: 750.0}
     rotation: {z: 0.0}
   - id: D_FLIP
@@ -51,7 +52,7 @@ components:
     connection: cupillar_opt1
     top_cell: CELL_D_FLIP
     layout: D_FLIP.gds
-    position: {x: 4000.0, y: 1000.0, z: 57.83}
+    position: {x: 4000.0, y: 1000.0, z: 54.8103}
     dimensions: {width: 1000.0, height: 1000.0, thickness: 750.0}
     rotation: {z: 0.0}
   - id: D_ROT
@@ -62,7 +63,7 @@ components:
     connection: cupillar_opt1
     top_cell: CELL_D_ROT
     layout: D_ROT.gds
-    position: {x: 2000.0, y: 3500.0, z: 57.83}
+    position: {x: 2000.0, y: 3500.0, z: 54.8103}
     dimensions: {width: 1000.0, height: 1000.0}
     rotation: {z: 90.0}
   - id: D_FR
@@ -73,6 +74,6 @@ components:
     connection: cupillar_opt1
     top_cell: CELL_D_FR
     layout: D_FR.gds
-    position: {x: 4000.0, y: 3500.0, z: 57.83}
+    position: {x: 4000.0, y: 3500.0, z: 54.8103}
     dimensions: {width: 1000.0, height: 1000.0, thickness: 750.0}
     rotation: {z: 90.0}

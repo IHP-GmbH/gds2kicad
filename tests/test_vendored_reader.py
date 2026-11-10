@@ -20,7 +20,7 @@ VENDORED = ROOT / "_vendor" / "chiplet_format_io"
 def test_vendor_imports_from_the_clone():
     import _vendor.chiplet_format_io as reader
     from _vendor.chiplet_format_io.footprint_ids import die_footprint, ext_pad_footprint
-    assert reader.__version__ == "1.21.0"
+    assert reader.__version__ == "1.22.0"
     assert die_footprint("DRIVER") == "chiplet_dies:DRIVER"
     assert ext_pad_footprint(80) == "chiplet_carrier:EXT_PAD_80um"
 

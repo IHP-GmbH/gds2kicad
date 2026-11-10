@@ -1,0 +1,891 @@
+(export
+	(version "E")
+	(design
+		(source "/tmp/g2k-hierarchy-fixture/pnr/sys.draft.kicad_sch")
+		(date "2026-11-03T15:45:47+0000")
+		(tool "Eeschema 9.99.0-unknown")
+		(sheet
+			(number "1")
+			(name "/")
+			(tstamps "/")
+			(title_block
+				(title "sys")
+				(company)
+				(rev)
+				(date)
+				(source "sys.draft.kicad_sch")
+				(comment
+					(number "1")
+					(value "chiplet sha256 ed07c71f8411669087262e2845a9a295c43c885fe40e642f5e74dd98493797a1")
+				)
+				(comment
+					(number "2")
+					(value "generated from design.chiplet; nets are global labels, read back by the flow's edit")
+				)
+				(comment
+					(number "3")
+					(value "")
+				)
+				(comment
+					(number "4")
+					(value "")
+				)
+				(comment
+					(number "5")
+					(value "")
+				)
+				(comment
+					(number "6")
+					(value "")
+				)
+				(comment
+					(number "7")
+					(value "")
+				)
+				(comment
+					(number "8")
+					(value "")
+				)
+				(comment
+					(number "9")
+					(value "")
+				)
+			)
+		)
+		(sheet
+			(number "2")
+			(name "/child/")
+			(tstamps "/c78f8b41-a250-5db2-a22b-744729fe200f/")
+			(title_block
+				(title "sys")
+				(company)
+				(rev)
+				(date)
+				(source "child.kicad_sch")
+				(comment
+					(number "1")
+					(value "chiplet sha256 ed07c71f8411669087262e2845a9a295c43c885fe40e642f5e74dd98493797a1")
+				)
+				(comment
+					(number "2")
+					(value "generated from design.chiplet; nets are global labels, read back by the flow's edit")
+				)
+				(comment
+					(number "3")
+					(value "")
+				)
+				(comment
+					(number "4")
+					(value "")
+				)
+				(comment
+					(number "5")
+					(value "")
+				)
+				(comment
+					(number "6")
+					(value "")
+				)
+				(comment
+					(number "7")
+					(value "")
+				)
+				(comment
+					(number "8")
+					(value "")
+				)
+				(comment
+					(number "9")
+					(value "")
+				)
+			)
+		)
+	)
+	(components
+		(comp
+			(ref "J_EXT")
+			(value "EXT_PAD")
+			(footprint "chiplet_carrier:EXT_PAD_80um")
+			(fields
+				(field
+					(name "Edge")
+				)
+				(field
+					(name "CHIPLET_COMPONENT") "interposer")
+				(field
+					(name "IO_PAD_ID") "J_EXT")
+				(field
+					(name "Footprint") "chiplet_carrier:EXT_PAD_80um")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "chiplet_system")
+				(part "EXT_PAD")
+				(description "")
+			)
+			(property
+				(name "Edge")
+				(value "")
+			)
+			(property
+				(name "CHIPLET_COMPONENT")
+				(value "interposer")
+			)
+			(property
+				(name "IO_PAD_ID")
+				(value "J_EXT")
+			)
+			(property
+				(name "Sheetname")
+				(value "")
+			)
+			(property
+				(name "Sheetfile")
+				(value "../../../tmp/g2k-hierarchy-fixture/pnr/sys.draft.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "726d4e30-411b-5af5-8223-8abc5b465c95")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "J_NC")
+			(value "EXT_PAD")
+			(footprint "chiplet_carrier:EXT_PAD_80um")
+			(fields
+				(field
+					(name "Edge")
+				)
+				(field
+					(name "CHIPLET_COMPONENT") "interposer")
+				(field
+					(name "IO_PAD_ID") "J_NC")
+				(field
+					(name "Footprint") "chiplet_carrier:EXT_PAD_80um")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "chiplet_system")
+				(part "EXT_PAD")
+				(description "")
+			)
+			(property
+				(name "Edge")
+				(value "")
+			)
+			(property
+				(name "CHIPLET_COMPONENT")
+				(value "interposer")
+			)
+			(property
+				(name "IO_PAD_ID")
+				(value "J_NC")
+			)
+			(property
+				(name "Sheetname")
+				(value "")
+			)
+			(property
+				(name "Sheetfile")
+				(value "../../../tmp/g2k-hierarchy-fixture/pnr/sys.draft.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "fd75e032-1ed0-5e0c-88bf-56c77ea49c14")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "J_P")
+			(value "EXT_PAD")
+			(footprint "chiplet_carrier:EXT_PAD_80um")
+			(fields
+				(field
+					(name "Edge")
+				)
+				(field
+					(name "CHIPLET_COMPONENT") "interposer")
+				(field
+					(name "IO_PAD_ID") "J_P")
+				(field
+					(name "Footprint") "chiplet_carrier:EXT_PAD_80um")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "chiplet_system")
+				(part "EXT_PAD")
+				(description "")
+			)
+			(property
+				(name "Edge")
+				(value "")
+			)
+			(property
+				(name "CHIPLET_COMPONENT")
+				(value "interposer")
+			)
+			(property
+				(name "IO_PAD_ID")
+				(value "J_P")
+			)
+			(property
+				(name "Sheetname")
+				(value "")
+			)
+			(property
+				(name "Sheetfile")
+				(value "../../../tmp/g2k-hierarchy-fixture/pnr/sys.draft.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "24ea8c0f-94e0-50e2-abaa-c05826a5ba3a")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "J_S0")
+			(value "EXT_PAD")
+			(footprint "chiplet_carrier:EXT_PAD_80um")
+			(fields
+				(field
+					(name "Edge")
+				)
+				(field
+					(name "CHIPLET_COMPONENT") "interposer")
+				(field
+					(name "IO_PAD_ID") "J_S0")
+				(field
+					(name "Footprint") "chiplet_carrier:EXT_PAD_80um")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "chiplet_system")
+				(part "EXT_PAD")
+				(description "")
+			)
+			(property
+				(name "Edge")
+				(value "")
+			)
+			(property
+				(name "CHIPLET_COMPONENT")
+				(value "interposer")
+			)
+			(property
+				(name "IO_PAD_ID")
+				(value "J_S0")
+			)
+			(property
+				(name "Sheetname")
+				(value "")
+			)
+			(property
+				(name "Sheetfile")
+				(value "../../../tmp/g2k-hierarchy-fixture/pnr/sys.draft.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "9e657ad4-f55b-5cd1-aa60-65a2f70b2a29")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "J_VDD")
+			(value "EXT_PAD")
+			(footprint "chiplet_carrier:EXT_PAD_80um")
+			(fields
+				(field
+					(name "Edge")
+				)
+				(field
+					(name "CHIPLET_COMPONENT") "interposer")
+				(field
+					(name "IO_PAD_ID") "J_VDD")
+				(field
+					(name "Footprint") "chiplet_carrier:EXT_PAD_80um")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "chiplet_system")
+				(part "EXT_PAD")
+				(description "")
+			)
+			(property
+				(name "Edge")
+				(value "")
+			)
+			(property
+				(name "CHIPLET_COMPONENT")
+				(value "interposer")
+			)
+			(property
+				(name "IO_PAD_ID")
+				(value "J_VDD")
+			)
+			(property
+				(name "Sheetname")
+				(value "")
+			)
+			(property
+				(name "Sheetfile")
+				(value "../../../tmp/g2k-hierarchy-fixture/pnr/sys.draft.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "988c3adf-7196-591e-a9bb-c5c6f2c7e4bd")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U1")
+			(value "DIE_A")
+			(footprint "chiplet_dies:DIE_A")
+			(description "chiplet die")
+			(fields
+				(field
+					(name "CHIPLET_COMPONENT") "U1")
+				(field
+					(name "Footprint") "chiplet_dies:DIE_A")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "chiplet die")
+			)
+			(libsource
+				(lib "chiplet")
+				(part "DIE_A")
+				(description "chiplet die")
+			)
+			(property
+				(name "CHIPLET_COMPONENT")
+				(value "U1")
+			)
+			(property
+				(name "Sheetname")
+				(value "")
+			)
+			(property
+				(name "Sheetfile")
+				(value "../../../tmp/g2k-hierarchy-fixture/pnr/sys.draft.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "05d415b7-ceae-5bce-84a1-d8b2d63655dd")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "A0")
+						)
+						(pin
+							(num "NC1")
+						)
+						(pin
+							(num "VDD1")
+						)
+						(pin
+							(num "VDD2")
+						)
+						(pin
+							(num "A1")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U2")
+			(value "DIE_B")
+			(footprint "chiplet_dies:DIE_B")
+			(description "chiplet die")
+			(fields
+				(field
+					(name "CHIPLET_COMPONENT") "U2")
+				(field
+					(name "Footprint") "chiplet_dies:DIE_B")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "chiplet die")
+			)
+			(libsource
+				(lib "chiplet")
+				(part "DIE_B")
+				(description "chiplet die")
+			)
+			(property
+				(name "CHIPLET_COMPONENT")
+				(value "U2")
+			)
+			(property
+				(name "Sheetname")
+				(value "")
+			)
+			(property
+				(name "Sheetfile")
+				(value "../../../tmp/g2k-hierarchy-fixture/pnr/sys.draft.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "c36c6eae-6100-5be2-bb7c-acbf1cff0b2f")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "B1")
+						)
+						(pin
+							(num "SPARE")
+						)
+						(pin
+							(num "B0")
+						)
+						(pin
+							(num "VDD")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U_CHILD")
+			(value "DIE_A")
+			(footprint "chiplet_dies:DIE_A")
+			(description "chiplet die")
+			(fields
+				(field
+					(name "CHIPLET_COMPONENT") "U1")
+				(field
+					(name "Footprint") "chiplet_dies:DIE_A")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "chiplet die")
+			)
+			(libsource
+				(lib "chiplet")
+				(part "DIE_A")
+				(description "chiplet die")
+			)
+			(property
+				(name "CHIPLET_COMPONENT")
+				(value "U1")
+			)
+			(property
+				(name "Sheetname")
+				(value "child")
+			)
+			(property
+				(name "Sheetfile")
+				(value "child.kicad_sch")
+			)
+			(sheetpath
+				(names "/child/")
+				(tstamps "/c78f8b41-a250-5db2-a22b-744729fe200f/")
+			)
+			(tstamps "576124a3-13cd-55ef-b7c6-4d910288b260")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "A0")
+						)
+						(pin
+							(num "NC1")
+						)
+						(pin
+							(num "VDD1")
+						)
+						(pin
+							(num "VDD2")
+						)
+						(pin
+							(num "A1")
+						)
+					)
+				)
+			)
+		)
+	)
+	(groups)
+	(libparts
+		(libpart
+			(lib "chiplet")
+			(part "DIE_A")
+			(description "chiplet die")
+			(fields
+				(field
+					(name "Reference") "U")
+				(field
+					(name "Value") "DIE_A")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "chiplet die")
+			)
+			(pins
+				(pin
+					(num "A0")
+					(name "a0")
+					(type "input")
+				)
+				(pin
+					(num "A1")
+					(name "a1")
+					(type "output")
+				)
+				(pin
+					(num "NC1")
+					(name "NC1")
+					(type "passive")
+				)
+				(pin
+					(num "VDD1")
+					(name "VDD")
+					(type "power_in")
+				)
+				(pin
+					(num "VDD2")
+					(name "VDD")
+					(type "power_in")
+				)
+			)
+		)
+		(libpart
+			(lib "chiplet")
+			(part "DIE_B")
+			(description "chiplet die")
+			(fields
+				(field
+					(name "Reference") "U")
+				(field
+					(name "Value") "DIE_B")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "chiplet die")
+			)
+			(pins
+				(pin
+					(num "B0")
+					(name "b0")
+					(type "input")
+				)
+				(pin
+					(num "B1")
+					(name "b1")
+					(type "output")
+				)
+				(pin
+					(num "SPARE")
+					(name "SPARE")
+					(type "passive")
+				)
+				(pin
+					(num "VDD")
+					(name "VDD")
+					(type "power_in")
+				)
+			)
+		)
+		(libpart
+			(lib "chiplet_system")
+			(part "EXT_PAD")
+			(fields
+				(field
+					(name "Reference") "J")
+				(field
+					(name "Value") "EXT_PAD")
+				(field
+					(name "Footprint") "chiplet_carrier:EXT_PAD_80um")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+				(field
+					(name "Edge")
+				)
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "1")
+					(type "passive")
+				)
+			)
+		)
+	)
+	(libraries)
+	(nets
+		(net
+			(code "1")
+			(name "VDD")
+			(class "Default")
+			(node
+				(ref "J_VDD")
+				(pin "1")
+				(pinfunction "1_1")
+				(pintype "passive")
+			)
+			(node
+				(ref "U1")
+				(pin "VDD1")
+				(pinfunction "VDD_VDD1")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U1")
+				(pin "VDD2")
+				(pinfunction "VDD_VDD2")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U2")
+				(pin "VDD")
+				(pinfunction "VDD_VDD")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "2")
+			(name "ext")
+			(class "Default")
+			(node
+				(ref "J_EXT")
+				(pin "1")
+				(pinfunction "1_1")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "3")
+			(name "probe")
+			(class "Default")
+			(node
+				(ref "J_P")
+				(pin "1")
+				(pinfunction "1_1")
+				(pintype "passive")
+			)
+			(node
+				(ref "U1")
+				(pin "NC1")
+				(pinfunction "NC1_NC1")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "4")
+			(name "sig0")
+			(class "Default")
+			(node
+				(ref "J_S0")
+				(pin "1")
+				(pinfunction "1_1")
+				(pintype "passive")
+			)
+			(node
+				(ref "U1")
+				(pin "A0")
+				(pinfunction "a0_A0")
+				(pintype "input")
+			)
+			(node
+				(ref "U2")
+				(pin "B0")
+				(pinfunction "b0_B0")
+				(pintype "input")
+			)
+		)
+		(net
+			(code "5")
+			(name "sig1")
+			(class "Default")
+			(node
+				(ref "U1")
+				(pin "A1")
+				(pinfunction "a1_A1")
+				(pintype "output")
+			)
+			(node
+				(ref "U2")
+				(pin "B1")
+				(pinfunction "b1_B1")
+				(pintype "output")
+			)
+		)
+		(net
+			(code "6")
+			(name "unconnected-(J_NC-Pad1)")
+			(class "Default")
+			(node
+				(ref "J_NC")
+				(pin "1")
+				(pinfunction "1_1")
+				(pintype "passive+no_connect")
+			)
+		)
+		(net
+			(code "7")
+			(name "unconnected-(U2-PadSPARE)")
+			(class "Default")
+			(node
+				(ref "U2")
+				(pin "SPARE")
+				(pinfunction "SPARE_SPARE")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "8")
+			(name "unconnected-(U_CHILD-PadNC1)")
+			(class "Default")
+			(node
+				(ref "U_CHILD")
+				(pin "NC1")
+				(pinfunction "NC1_NC1")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "9")
+			(name "unconnected-(U_CHILD-VDD-PadVDD1)")
+			(class "Default")
+			(node
+				(ref "U_CHILD")
+				(pin "VDD1")
+				(pinfunction "VDD_VDD1")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "10")
+			(name "unconnected-(U_CHILD-VDD-PadVDD2)")
+			(class "Default")
+			(node
+				(ref "U_CHILD")
+				(pin "VDD2")
+				(pinfunction "VDD_VDD2")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "11")
+			(name "unconnected-(U_CHILD-a0-PadA0)")
+			(class "Default")
+			(node
+				(ref "U_CHILD")
+				(pin "A0")
+				(pinfunction "a0_A0")
+				(pintype "input")
+			)
+		)
+		(net
+			(code "12")
+			(name "unconnected-(U_CHILD-a1-PadA1)")
+			(class "Default")
+			(node
+				(ref "U_CHILD")
+				(pin "A1")
+				(pinfunction "a1_A1")
+				(pintype "output")
+			)
+		)
+	)
+)

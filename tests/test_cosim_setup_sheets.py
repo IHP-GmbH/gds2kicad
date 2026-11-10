@@ -422,6 +422,7 @@ def test_check_leaves_setup_symbols_out(tmp_path):
                         '(name "bench_only") (class "Default") (node (ref "BENCH1") (pin "OUT"))')
     path = tmp_path / "sys.net"
     path.write_text(text, encoding="utf-8")
+    gt._check_sheet(path)
     got = sc.read_kicad_netlist(path)
     assert "BENCH1" not in got["identity"] and "bench_only" not in got["nets"]
     assert sc.compare(nets, free, "ab" * 32, got) == []

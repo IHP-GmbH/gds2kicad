@@ -19,25 +19,96 @@ _vendor/round_trip_names.SOURCE states still reads. They are its tests/test_shee
 carrier case with a lone sheet net (the inputs its tests/test_round_trip_names.py
 reads): export_with_form(out, data, pads=CARRIER_PADS) with
 data = with_carriers(form_data()) plus net(LONE, ("D_ROT", "A1")), run with
-HCDP_ROOT set. draft.kicad_pcb and io_pads.chiplet (the assembly it exported, whose
-io_pads are the planner's) are as written, with the output folder taken out of the
-GDS_FILE paths. export.json keeps only format, version and round_trip of the report,
-with the same paths shortened.
+HCDP_ROOT set. The last drawing ran 07a36d2's code with tests/test_cli.py
+footprint_design as interposer-pnr 3e85398 states it: the interposer declares
+attachment_surface_z 10.8103 and its dies sit at z 54.8103 (the plane plus the
+44 um copper pillar).
+Place and route never read a die's z, so neither line moves the board or the
+report; io_pads.chiplet carries both. 3e85398 is an unmerged commit, so the digests
+below, not that commit, are what binds the files. draft.kicad_pcb and
+io_pads.chiplet (the assembly it exported, whose io_pads are the planner's) are as
+written, with the output folder taken out of the GDS_FILE paths. export.json keeps
+only format, version and round_trip of the report, with the same paths shortened.
   draft.kicad_pcb sha256 de1c21d953f522520d75b40f9ed19ce6391c38c08f2ff70d297aeb30c5d488ba
-  io_pads.chiplet sha256 f6079e9169d18c8455286fc38cf22c4fb6f067046f21a9ebe034a3e725fccca8
+  io_pads.chiplet sha256 f9c0ba1287c0a9725deae1b74abf0dd59dbd47ec222cc752404b2b134c47915a
   export.json sha256 2b33386c10d6abb358ce3a1de11bc9162272f9dd830b9b2280353a8c51b11015
 
 draft_pair/: a draft-path pair from packaging-flow examples/padring_die_cmos5l,
-cut with interposer-pnr 6dca40f and gds_to_kicad 0eac5d5 in the ADK-Tools runtime
-image: bumps, pdn, route and export ran fresh on the .chiplet and supply mesh the
-flow elaborated (packaging-flow 8f9939a). 6dca40f is the branch commit the run
-used; the same change landed on interposer-pnr dev as 2e6d0e6, on a later base,
-so the digests below, not that commit, are what binds the files. board.kicad_pcb is the export's board
-as written; design.chiplet is that .chiplet; U1, U2 and U3.pins.json are the pin
-lists of PICORV32A_CMOS5L, PAD_FRAME_A and PAD_FRAME_B the export read.
-tests/test_draft_pair_kicad.py draws the sheet from them.
+cut with interposer-pnr 6dca40f and gds_to_kicad 0eac5d5 in the ADK-Tools verify image
+sha256:88c4e476f6a5b5b7fe823781265c2af7f74e8c9663b382f15489ee78cf296f04: bumps, pdn,
+route and export ran fresh on the .chiplet and supply mesh the flow elaborated
+(packaging-flow 8f9939a, in the ADK-Tools runtime image
+sha256:c182926bb54b603de22e0077a45b3b3189ec0d6ccd2c61e3fa2c96dfbea3d5cb). The
+interposer declares its mount plane, attachment_surface_z 10.8103: the elaborate
+step was re-run in that runtime image with chiplet-spec 5ca6448, the writer that
+emits the plane, cherry-picked onto the chiplet-spec 112bb6f the flow used.
+6dca40f and 5ca6448 are unmerged commits (6dca40f landed on interposer-pnr dev as
+2e6d0e6, on a later base), so the digests below, not those commits, are what binds
+the files. board.kicad_pcb is the export's board as written; design.chiplet is that
+.chiplet; U1, U2 and U3.pins.json are the pin lists of PICORV32A_CMOS5L,
+PAD_FRAME_A and PAD_FRAME_B the export read. tests/test_draft_pair_kicad.py draws
+the sheet from them.
   board.kicad_pcb sha256 9eca915a4bbdaace4148dacd2968bab7d51490bd6b63304e09e3800e974fcc59
-  design.chiplet sha256 9e43a3d003ddd2e77f694aaadac7365e5225e40b85f3b2083b4b4e33112dc17d
+  design.chiplet sha256 cf50975931eb7fcfacc2c02137fccb76654ed70593667bf99f85767685872774
   U1.pins.json sha256 e24ccbfbbe253d07e16476c84e606869e149283c7d8cee79957aa3bc19f5d021
   U2.pins.json sha256 62b9c16a28ebc6e28c49ecf5bdb37e21ebf4e1a40a4c3dedbb997f319003b75f
   U3.pins.json sha256 ef2483dd0e862181c7800307c1eff1ff45ab8fe9d891e8915eabe0661042c56b
+
+draft_pair/, the plane check, so that a later re-cut can tell it from any other
+change. Without 5ca6448 the elaborate gives the earlier design.chiplet byte
+for byte (digest 9e43a3d003ddd2e77f694aaadac7365e5225e40b85f3b2083b4b4e33112dc17d);
+with it, the file gains only the plane line. bumps, pdn, route and export, run
+again at 6dca40f and 0eac5d5 in the verify image, give every output of the
+original cut (not tracked here) byte for byte on the earlier file, except
+openroad.log, which differs from run to run. On the new file these stay
+byte-equal: board.kicad_pcb, its .kicad_dru and
+.kicad_pro, export.json, traces.json, reserved.json, pdn.log, pdn_mesh.json and
+rails.json. The others, openroad.log apart, move only in recorded digests, where the
+design.chiplet digest goes from 9e43a3d0 to cf509759 as above:
+  bumps.json: inputs.chiplet.sha256.
+  pdn.json and route.json: inputs.chiplet.sha256, and inputs.bumps.sha256
+    e22e2265d8d715a6b407dc98368f22f295fd22b142cdcbcbd4998355443cc3da ->
+    d330d1432f26f40d504d8cdb0899c5a30cd76120c8da293de4a9e0ba85969206.
+  interposer.carrier_pins.json: chiplet_sha256.
+  cf_padring_die_cmos5l.draft.kicad_sch: title-block comment 1, the .chiplet digest.
+  schematic.json: chiplet_sha256; pins.interposer.sha256
+    0acc45461150404c7a1f78f6c2f7dacbfa02b00e25689762cdea5eae9d799f7a ->
+    3224ab6608fe277d39a7a97614694ea761567e10e066f18fccbb61df1d26b914;
+    schematic_sha256
+    0bbf948c7161b148b46a9ad07959d492071d2ef00eebd769e3398ec668fddf8f ->
+    2efaf66addcb3d1bddca71400c0883a6f3bd8773f3401dbd368eb5a93abec613.
+
+pasted_symbols/: a generated carrier sheet with one die (U1) and one pad
+(J_NC) pasted without changing their References. The sheet and kicadsexpr
+netlist are unmodified outputs; the generator report and carrier pin list
+bind the carrier pad ids for host-level read-back. The host tests read this
+pair in generated, blank and --check mode without starting KiCad.
+Produced with the writer at 9095482 in the ADK-Tools runtime image
+sha256:2708f43ae86473a084afe11251976e52803819387d4464f5de5611d5f61441fa,
+KiCad 9.99.0, in /tmp/g2k-pasted-fixture/pnr:
+kicad-cli sch export netlist --format kicadsexpr --output sys.draft.net sys.draft.kicad_sch
+To draw the sheet, tests.test_kicad_sch_to_connectivity._drawn writes its
+carrier example. _paste(tree, _placed(tree, "U1"), "fixture-die") and
+_paste(tree, _placed(tree, "J_NC"), "fixture-pad") add the two copies with
+new placed and pin UUIDs; _edit saves it before the netlist export.
+  sys.draft.kicad_sch sha256 b8bf9a75eb511fbbecc48728b39eb659c67719be8c9490d9a28fe2bfe578fa29
+  sys.draft.net sha256 67b712f7a5d4e9434b1f6636914a92fbd4fc8e179a1828b266839096597100ba
+  schematic.json sha256 65c6932b5ac953f463d9751232c979329b77272848b43d8ebdbcdbf50c1bf2c4
+  interposer.carrier_pins.json sha256 005ffeb8c631348ee760447079799c68d045a0a189bdb8fd0c32a8f7514542ed
+
+hierarchical_symbols/: a real root sheet and one child file with a placed die
+U_CHILD. Its netlist includes that die on /child/, with a UUID that resolves
+in child.kicad_sch rather than in the root. Generated and blank readers must
+write hierarchical_sheet refusals instead of rejecting that UUID as absent.
+The two source sheets and netlist are unmodified outputs, made from this
+repository's carrier example by tests.test_kicad_sch_to_connectivity._two_sheet_layout.
+The generator report and carrier pin list bind the original carrier pad ids.
+ADK-Tools runtime image
+sha256:2708f43ae86473a084afe11251976e52803819387d4464f5de5611d5f61441fa,
+KiCad 9.99.0, in /tmp/g2k-hierarchy-fixture/pnr:
+kicad-cli sch export netlist --format kicadsexpr --output sys.draft.net sys.draft.kicad_sch
+  sys.draft.kicad_sch sha256 e7d5519d3d18139fab0728bc0702f43b6e4506bdc1080498d26085c200cbb395
+  sys.draft.net sha256 57fa488266c8101ae4af9b548dd7b68dbe71cb9afc1f65cbbeac082b6765d7a9
+  child.kicad_sch sha256 43e8af5f0345b73651498e7883fc49a12742c07661783595e5972bb20b526359
+  schematic.json sha256 65c6932b5ac953f463d9751232c979329b77272848b43d8ebdbcdbf50c1bf2c4
+  interposer.carrier_pins.json sha256 005ffeb8c631348ee760447079799c68d045a0a189bdb8fd0c32a8f7514542ed

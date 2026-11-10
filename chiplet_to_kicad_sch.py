@@ -128,6 +128,7 @@ REPORT_FORMAT = "gds2kicad.system-schematic"
 REPORT_VERSION = "1.3"
 
 IDENTITY_PROPERTY = "CHIPLET_COMPONENT"
+PAD_ID_PROPERTY = "IO_PAD_ID"
 # A co-simulation setup symbol carries this field, its kind as the value. It
 # is no component: connectivity reads leave it and its pins out.
 SETUP_MARKER = "chiplet_cosim_setup"
@@ -1107,6 +1108,7 @@ def _pad_instance(cid: str, pad: str, footprint: str, at: Tuple[float, float],
             _prop("Datasheet", "", (x, y), hide=True),
             _prop("Edge", "", (x, y + half + 3.81), hide=True),
             _prop(IDENTITY_PROPERTY, cid, (x, y), hide=True),
+            _prop(PAD_ID_PROPERTY, pad, (x, y), hide=True),
             ["pin", _q("1"), ["uuid", _q(uid("pin", cid, pad))]],
             ["instances", ["project", _q(project),
                            ["path", _q(f"/{sheet}"),

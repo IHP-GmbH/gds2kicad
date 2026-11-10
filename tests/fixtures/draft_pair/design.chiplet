@@ -29,6 +29,7 @@ components:
     width: 4300.0
     height: 3100.0
     thickness: 10.8103
+  attachment_surface_z: 10.8103
   io_pads:
   - id: J_U1_IO_BOND_outputs[0].output_pad
     io_class: wire_bond

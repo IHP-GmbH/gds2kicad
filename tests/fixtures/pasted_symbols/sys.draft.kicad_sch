@@ -1,0 +1,1551 @@
+(kicad_sch
+	(version 20250114)
+	(generator "chiplet_to_kicad_sch")
+	(generator_version "9.0")
+	(uuid "187f0264-7d16-5f5f-9db8-869c9c4a1c4a")
+	(paper "A4")
+	(title_block
+		(title "sys")
+		(comment 1 "chiplet sha256 ed07c71f8411669087262e2845a9a295c43c885fe40e642f5e74dd98493797a1")
+		(comment 2 "generated from design.chiplet; nets are global labels, read back by the flow's edit")
+	)
+	(lib_symbols
+		(symbol "chiplet:DIE_A"
+			(pin_names
+				(offset 1.016)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "U"
+				(at 0 1.27 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "DIE_A"
+				(at 0 -1.27 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "chiplet die"
+				(at 0 0 0)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "DIE_A_0_1"
+				(rectangle
+					(start -10.16 7.62)
+					(end 10.16 -7.62)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "DIE_A_1_1"
+				(pin input line
+					(at -17.78 5.08 0)
+					(length 7.62)
+					(name "a0"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "A0"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at -17.78 0 0)
+					(length 7.62)
+					(name "VDD"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "VDD1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 17.78 5.08 180)
+					(length 7.62)
+					(name "a1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "A1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at -17.78 -2.54 0)
+					(length 7.62)
+					(name "VDD"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "VDD2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -17.78 2.54 0)
+					(length 7.62)
+					(name "NC1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "NC1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "chiplet:DIE_B"
+			(pin_names
+				(offset 1.016)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "U"
+				(at 0 1.27 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "DIE_B"
+				(at 0 -1.27 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "chiplet die"
+				(at 0 0 0)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "DIE_B_0_1"
+				(rectangle
+					(start -12.7 7.62)
+					(end 12.7 -7.62)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "DIE_B_1_1"
+				(pin input line
+					(at 20.32 5.08 180)
+					(length 7.62)
+					(name "b0"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "B0"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at 20.32 2.54 180)
+					(length 7.62)
+					(name "VDD"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "VDD"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -20.32 2.54 0)
+					(length 7.62)
+					(name "SPARE"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "SPARE"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -20.32 5.08 0)
+					(length 7.62)
+					(name "b1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "B1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "chiplet_system:EXT_PAD"
+			(pin_names
+				(offset 1.016)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "J"
+				(at 0 3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "EXT_PAD"
+				(at 0 -3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" "chiplet_carrier:EXT_PAD_80um"
+				(at 0 0 0)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Edge" ""
+				(at 0 -6.35 0)
+				(show_name yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "EXT_PAD_0_1"
+				(rectangle
+					(start -2.54 2.54)
+					(end 2.54 -2.54)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "EXT_PAD_1_1"
+				(pin passive line
+					(at -5.08 0 0)
+					(length 2.54)
+					(name "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+	)
+	(symbol
+		(lib_id "chiplet:DIE_A")
+		(at 55.88 33.02 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "05d415b7-ceae-5bce-84a1-d8b2d63655dd")
+		(property "Reference" "U1"
+			(at 55.88 31.75 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "DIE_A"
+			(at 55.88 34.29 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "chiplet_dies:DIE_A"
+			(at 55.88 33.02 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 55.88 33.02 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "chiplet die"
+			(at 55.88 33.02 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "CHIPLET_COMPONENT" "U1"
+			(at 55.88 33.02 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "A0"
+			(uuid "c10ded47-16a6-5310-8e5f-9714393eab37")
+		)
+		(pin "VDD1"
+			(uuid "c9d92ce7-c2f4-5891-afde-5aa85f840672")
+		)
+		(pin "A1"
+			(uuid "373f4076-fd21-50d4-a94e-a44b7208bc5c")
+		)
+		(pin "VDD2"
+			(uuid "4bd14fa5-f877-5555-ad8f-b55a6aa1fe9a")
+		)
+		(pin "NC1"
+			(uuid "48e206a0-e637-57c4-b622-3e769bbc3b3f")
+		)
+		(instances
+			(project "sys.draft"
+				(path "/187f0264-7d16-5f5f-9db8-869c9c4a1c4a"
+					(reference "U1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 38.1 27.94)
+			(xy 35.56 27.94)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b4392cc2-aa8e-5783-80bc-d7b7a22c3033")
+	)
+	(global_label "sig0"
+		(shape passive)
+		(at 35.56 27.94 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "b71dc767-8d5f-50a4-8a20-92de13d6defb")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 35.56 27.94 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 38.1 30.48)
+			(xy 35.56 30.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "bcab5ffb-036f-5335-9a84-ba8cb43cecf8")
+	)
+	(global_label "probe"
+		(shape passive)
+		(at 35.56 30.48 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "3c46fb46-867e-538d-9bc2-821401557095")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 35.56 30.48 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 38.1 33.02)
+			(xy 35.56 33.02)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1b62170d-59ea-51dd-a32e-732c809ee5e3")
+	)
+	(global_label "VDD"
+		(shape passive)
+		(at 35.56 33.02 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "7f4690f4-57f4-5145-879f-b9a0f938af9d")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 35.56 33.02 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 38.1 35.56)
+			(xy 35.56 35.56)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "19fea9c6-1b8c-508a-9c14-599d4666431f")
+	)
+	(global_label "VDD"
+		(shape passive)
+		(at 35.56 35.56 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "80c73d19-2d67-578d-ad30-b73683ea8032")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 35.56 35.56 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 73.66 27.94)
+			(xy 76.2 27.94)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "17e7dcbd-438b-533a-8bba-15c08cf2177c")
+	)
+	(global_label "sig1"
+		(shape passive)
+		(at 76.2 27.94 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "c36b68d1-9522-5c36-ae6f-8d6ab4f65375")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 76.2 27.94 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+	)
+	(symbol
+		(lib_id "chiplet:DIE_B")
+		(at 139.7 33.02 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "c36c6eae-6100-5be2-bb7c-acbf1cff0b2f")
+		(property "Reference" "U2"
+			(at 139.7 31.75 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "DIE_B"
+			(at 139.7 34.29 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "chiplet_dies:DIE_B"
+			(at 139.7 33.02 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 139.7 33.02 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "chiplet die"
+			(at 139.7 33.02 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "CHIPLET_COMPONENT" "U2"
+			(at 139.7 33.02 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "B0"
+			(uuid "5e07dc36-0559-5a43-956f-1d16af53d817")
+		)
+		(pin "VDD"
+			(uuid "5eb4936a-7c6c-546c-81a8-57a98e52d614")
+		)
+		(pin "SPARE"
+			(uuid "385ac403-446e-5796-8fe0-d863466e2351")
+		)
+		(pin "B1"
+			(uuid "5e5c69a1-5f28-515f-8503-70fed006f552")
+		)
+		(instances
+			(project "sys.draft"
+				(path "/187f0264-7d16-5f5f-9db8-869c9c4a1c4a"
+					(reference "U2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 119.38 27.94)
+			(xy 116.84 27.94)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "40ad5157-5daf-5642-aeff-8a50c641b283")
+	)
+	(global_label "sig1"
+		(shape passive)
+		(at 116.84 27.94 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "1143c115-698b-500b-b395-8da9e214fa0f")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 116.84 27.94 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 160.02 27.94)
+			(xy 162.56 27.94)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "35d26639-a1f9-5a83-bb6c-ea0ae22237f5")
+	)
+	(global_label "sig0"
+		(shape passive)
+		(at 162.56 27.94 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "bdcca3fb-0e19-5ca5-93ad-4b0454ca2054")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 162.56 27.94 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 160.02 30.48)
+			(xy 162.56 30.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5f2d9be1-7edc-5f19-b4f4-f980b6bc009a")
+	)
+	(global_label "VDD"
+		(shape passive)
+		(at 162.56 30.48 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "f7d63502-e435-5e67-a9ad-db91c3e921d2")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 162.56 30.48 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+	)
+	(symbol
+		(lib_id "chiplet_system:EXT_PAD")
+		(at 43.18 57.15 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "726d4e30-411b-5af5-8223-8abc5b465c95")
+		(property "Reference" "J_EXT"
+			(at 43.18 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "EXT_PAD"
+			(at 43.18 60.96 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "chiplet_carrier:EXT_PAD_80um"
+			(at 43.18 57.15 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 43.18 57.15 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Edge" ""
+			(at 43.18 63.5 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "CHIPLET_COMPONENT" "interposer"
+			(at 43.18 57.15 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "IO_PAD_ID" "J_EXT"
+			(at 43.18 57.15 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "2deb0a0d-a9d1-5983-b492-b59f9ed08f37")
+		)
+		(instances
+			(project "sys.draft"
+				(path "/187f0264-7d16-5f5f-9db8-869c9c4a1c4a"
+					(reference "J_EXT")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 38.1 57.15)
+			(xy 35.56 57.15)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e13b9eca-621c-572e-97fb-7ec8352b3853")
+	)
+	(global_label "ext"
+		(shape passive)
+		(at 35.56 57.15 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "9fb5ef74-da87-54a1-ab22-873f6c0ac1a6")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 35.56 57.15 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+	)
+	(symbol
+		(lib_id "chiplet_system:EXT_PAD")
+		(at 43.18 64.77 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "fd75e032-1ed0-5e0c-88bf-56c77ea49c14")
+		(property "Reference" "J_NC"
+			(at 43.18 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "EXT_PAD"
+			(at 43.18 68.58 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "chiplet_carrier:EXT_PAD_80um"
+			(at 43.18 64.77 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 43.18 64.77 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Edge" ""
+			(at 43.18 71.12 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "CHIPLET_COMPONENT" "interposer"
+			(at 43.18 64.77 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "IO_PAD_ID" "J_NC"
+			(at 43.18 64.77 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "bf40708f-2aed-51bb-bb40-3815701dc6ac")
+		)
+		(instances
+			(project "sys.draft"
+				(path "/187f0264-7d16-5f5f-9db8-869c9c4a1c4a"
+					(reference "J_NC")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(no_connect
+		(at 38.1 64.77)
+		(uuid "e7231fe1-1454-53f0-8b88-b6ba2f4665ae")
+	)
+	(symbol
+		(lib_id "chiplet_system:EXT_PAD")
+		(at 43.18 72.39 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "24ea8c0f-94e0-50e2-abaa-c05826a5ba3a")
+		(property "Reference" "J_P"
+			(at 43.18 68.58 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "EXT_PAD"
+			(at 43.18 76.2 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "chiplet_carrier:EXT_PAD_80um"
+			(at 43.18 72.39 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 43.18 72.39 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Edge" ""
+			(at 43.18 78.74 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "CHIPLET_COMPONENT" "interposer"
+			(at 43.18 72.39 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "IO_PAD_ID" "J_P"
+			(at 43.18 72.39 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "5cac006d-14f0-5e45-b36c-d3dba94c9d32")
+		)
+		(instances
+			(project "sys.draft"
+				(path "/187f0264-7d16-5f5f-9db8-869c9c4a1c4a"
+					(reference "J_P")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 38.1 72.39)
+			(xy 35.56 72.39)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e60e35e9-6bc3-547f-a53e-08bcb4d92410")
+	)
+	(global_label "probe"
+		(shape passive)
+		(at 35.56 72.39 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "6152651a-6270-5ec1-b11c-a72532295f6f")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 35.56 72.39 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+	)
+	(symbol
+		(lib_id "chiplet_system:EXT_PAD")
+		(at 43.18 80.01 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "9e657ad4-f55b-5cd1-aa60-65a2f70b2a29")
+		(property "Reference" "J_S0"
+			(at 43.18 76.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "EXT_PAD"
+			(at 43.18 83.82 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "chiplet_carrier:EXT_PAD_80um"
+			(at 43.18 80.01 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 43.18 80.01 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Edge" ""
+			(at 43.18 86.36 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "CHIPLET_COMPONENT" "interposer"
+			(at 43.18 80.01 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "IO_PAD_ID" "J_S0"
+			(at 43.18 80.01 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "8ad1070d-e375-5a59-b4d3-b71d09785b10")
+		)
+		(instances
+			(project "sys.draft"
+				(path "/187f0264-7d16-5f5f-9db8-869c9c4a1c4a"
+					(reference "J_S0")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 38.1 80.01)
+			(xy 35.56 80.01)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "287f6132-503e-5354-b839-3e3a6ca451e9")
+	)
+	(global_label "sig0"
+		(shape passive)
+		(at 35.56 80.01 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "2dc0a03f-6a3c-5542-b321-2ef65a91411a")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 35.56 80.01 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+	)
+	(symbol
+		(lib_id "chiplet_system:EXT_PAD")
+		(at 43.18 87.63 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "988c3adf-7196-591e-a9bb-c5c6f2c7e4bd")
+		(property "Reference" "J_VDD"
+			(at 43.18 83.82 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "EXT_PAD"
+			(at 43.18 91.44 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "chiplet_carrier:EXT_PAD_80um"
+			(at 43.18 87.63 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 43.18 87.63 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Edge" ""
+			(at 43.18 93.98 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "CHIPLET_COMPONENT" "interposer"
+			(at 43.18 87.63 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "IO_PAD_ID" "J_VDD"
+			(at 43.18 87.63 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "e2ae94c4-4545-5657-860f-6e44cadcdee2")
+		)
+		(instances
+			(project "sys.draft"
+				(path "/187f0264-7d16-5f5f-9db8-869c9c4a1c4a"
+					(reference "J_VDD")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 38.1 87.63)
+			(xy 35.56 87.63)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f2eff15f-80e7-5ccd-a993-55d6d645d97d")
+	)
+	(global_label "VDD"
+		(shape passive)
+		(at 35.56 87.63 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "af92c87f-7ce6-5e6d-a921-c2fc592518d7")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 35.56 87.63 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+	(embedded_fonts no)
+	(symbol
+		(lib_id "chiplet:DIE_A")
+		(at 55.88 33.02 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "4a3e8820-d353-5f07-b245-8413ddb33841")
+		(property "Reference" "U1"
+			(at 55.88 31.75 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "DIE_A"
+			(at 55.88 34.29 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "chiplet_dies:DIE_A"
+			(at 55.88 33.02 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 55.88 33.02 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "chiplet die"
+			(at 55.88 33.02 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "CHIPLET_COMPONENT" "U1"
+			(at 55.88 33.02 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "A0"
+			(uuid "f68a56e7-9c7a-574a-bae1-020fabc0eaa7")
+		)
+		(pin "VDD1"
+			(uuid "d57d9dbc-97c3-5cd7-abd2-ce97d1be19ad")
+		)
+		(pin "A1"
+			(uuid "bd717c0e-d8a6-5273-9398-073e0ccfa862")
+		)
+		(pin "VDD2"
+			(uuid "967eedbb-808f-5d66-a8ed-d64d21db3d84")
+		)
+		(pin "NC1"
+			(uuid "5eb58b02-8c82-5630-8fea-7c2c6b62c026")
+		)
+		(instances
+			(project "sys.draft"
+				(path "/187f0264-7d16-5f5f-9db8-869c9c4a1c4a"
+					(reference "U1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "chiplet_system:EXT_PAD")
+		(at 43.18 64.77 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "79a34a8f-14d7-5776-adf8-72840cbd66a5")
+		(property "Reference" "J_NC"
+			(at 43.18 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "EXT_PAD"
+			(at 43.18 68.58 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "chiplet_carrier:EXT_PAD_80um"
+			(at 43.18 64.77 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 43.18 64.77 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Edge" ""
+			(at 43.18 71.12 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "CHIPLET_COMPONENT" "interposer"
+			(at 43.18 64.77 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "IO_PAD_ID" "J_NC"
+			(at 43.18 64.77 0)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "27eea4f4-e4d4-5d68-8594-f1a9ca23d293")
+		)
+		(instances
+			(project "sys.draft"
+				(path "/187f0264-7d16-5f5f-9db8-869c9c4a1c4a"
+					(reference "J_NC")
+					(unit 1)
+				)
+			)
+		)
+	)
+)

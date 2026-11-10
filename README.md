@@ -302,7 +302,8 @@ on every pin, so a sheet with its links open and the wired one share a layout.
 A carrier (a component that is not a die but lists `io_pads`, such as a
 wire-bond interposer) is drawn as its pads, in a column below the dies in name
 order: one `chiplet_system:EXT_PAD` symbol per pad, the symbol designer sheets
-use, with Reference the pad id, `CHIPLET_COMPONENT` the carrier id and
+use, with Reference initially the pad id, hidden `IO_PAD_ID` the stable pad id,
+`CHIPLET_COMPONENT` the carrier id and
 Footprint `chiplet_carrier:EXT_PAD_<n>um` from the pad's `.chiplet` size. The
 pad's net is the one the netlist connects it to, else its `io_pads` net, else
 none. A die symbol's Footprint is `chiplet_dies:<top cell>`, so a board the
@@ -311,6 +312,17 @@ each pad sits on; it is derived from the `.chiplet` and written next to the
 sheet as `<id>.carrier_pins.json`, and the report records it like a die's.
 Reading the sheet back (`--check`, `kicad_sch_to_connectivity.py`) folds a
 carrier's pads into one carrier symbol whose pins are the pad ids.
+Read-back takes the pad id from `IO_PAD_ID`, so Annotate can change a pad's
+Reference without changing its terminal. Older sheets where every pad has an
+absent or empty field use Reference as before. If any carrier pad has the
+field, all must; a missing field is refused as `missing_identity`, naming its
+carrier and Reference. Two pads of one carrier with the same pad id are refused
+as `duplicate_pad`, naming both References, and neither folds.
+Shared References are refused as `duplicate_reference` in every sheet mode
+and by `--check`. The placed UUIDs distinguish pasted copies from distinct
+units of one library symbol; an unresolved UUID is an input error.
+A generated die-library symbol missing `CHIPLET_COMPONENT` is refused as
+`missing_identity`; parts from other libraries keep a null identity.
 
 Each symbol carries a hidden `CHIPLET_COMPONENT` property with its component
 id, and title-block comment 1 holds the sha256 of the `.chiplet` it was drawn

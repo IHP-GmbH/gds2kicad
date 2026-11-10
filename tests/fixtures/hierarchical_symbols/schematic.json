@@ -1,0 +1,49 @@
+{
+  "check": {
+    "word": "not_run"
+  },
+  "chiplet": "../design.chiplet",
+  "chiplet_sha256": "ed07c71f8411669087262e2845a9a295c43c885fe40e642f5e74dd98493797a1",
+  "components": [
+    {
+      "id": "interposer",
+      "terminals": 5,
+      "top_cell": "CARRIER",
+      "type": "interposer"
+    },
+    {
+      "id": "U1",
+      "terminals": 5,
+      "top_cell": "DIE_A",
+      "type": "die"
+    },
+    {
+      "id": "U2",
+      "terminals": 4,
+      "top_cell": "DIE_B",
+      "type": "die"
+    }
+  ],
+  "format": "gds2kicad.system-schematic",
+  "nets": 5,
+  "pins": {
+    "U1": {
+      "path": "../U1.pins.json",
+      "sha256": "42d031af6b7fa8004bf051b9ac81da4921f449c554d159ba74fdccaf25582e3f"
+    },
+    "U2": {
+      "path": "../U2.pins.json",
+      "sha256": "8312e1a8608756bbf9965df80ff5b2198a915a43d143afe2ee7ac9fdcc61a1b8"
+    },
+    "interposer": {
+      "path": "interposer.carrier_pins.json",
+      "sha256": "005ffeb8c631348ee760447079799c68d045a0a189bdb8fd0c32a8f7514542ed"
+    }
+  },
+  "refusals": [],
+  "schematic": "sys.draft.kicad_sch",
+  "schematic_sha256": "5b48b7252b76d53e3dd35e49bad32e3440505ac31b759654763fc09c8d0c3cc7",
+  "unconnected_terminals": 2,
+  "version": "1.3",
+  "word": "written"
+}

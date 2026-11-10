@@ -20,8 +20,10 @@ its die or a name is legal is the import's call, made once for every tool.
   * a carrier's external pads, one chiplet_system:EXT_PAD symbol per io pad
     whose CHIPLET_COMPONENT is the carrier, fold back into the carrier: one
     symbol, reference and identity the carrier id, pins the pad ids, and each
-    node (pad, "1") as (carrier, pad). The carriers and their pads are the
-    generator report's components that are not dies and their pin lists;
+    node (Reference, "1") as (carrier, IO_PAD_ID), falling back to Reference
+    when every carrier pad has IO_PAD_ID absent or empty. The carriers and
+    their pads are the generator report's components that are not dies and
+    their pin lists;
   * base_sha256: the base digest the generator wrote in title-block comment 1;
   * refusals, by code, for what the form cannot carry:
       hierarchical_sheet   the netlist spans more than the root sheet
@@ -30,10 +32,13 @@ its die or a name is legal is the import's call, made once for every tool.
       symbol_pin_mismatch  a node on a pin its symbol does not have, or a
                            symbol listing a pin number twice
       unknown_pad          an EXT_PAD naming a carrier the generator did not
-                           draw, or a reference that is not one of its pads;
+                           draw, or an id that is not one of its pads;
                            the symbol is listed as it is, unfolded
-      duplicate_reference  a carrier's EXT_PAD shares its reference with another
-                           symbol
+      duplicate_pad        two EXT_PADs of one carrier name the same pad id;
+                           both stay unfolded
+      missing_identity     a die-library symbol has no CHIPLET_COMPONENT, or
+                           a carrier pad lacks IO_PAD_ID on a sheet using it
+      duplicate_reference  two symbols share a reference
 
 The form names the generator report, the netlist, the schematic and the ERC
 report by path and sha256, each path relative to the form's directory when the
@@ -44,10 +49,9 @@ chiplet_to_kicad_sch's ``--handout``, from its library LIB, and takes no
 generator report. It writes form 1.1 with ``sheet`` "blank": ``base_sha256``
 and ``generator_report`` null, the library by path and sha256, each symbol's
 ``identity`` null and its ``part`` (library nickname and symbol name, from the
-netlist's libsource) instead. One more refusal applies there, since the
-designator is the only identity a blank sheet has:
-      duplicate_reference  two symbols share a reference (two left
-                           unannotated, both U?)
+netlist's libsource) instead. Shared References (including two symbols left
+unannotated, both U?) are refused using the same placed-symbol check as
+generated sheets.
 ``--classic --library LIB --system-library SYSTEM_LIB`` writes form 1.3,
 ``sheet`` "classic". The form adds each component's UUID ``key``, verbatim
 ``value``, ``footprint`` and ``fields``, and explicitly flagged no-connect
@@ -101,14 +105,18 @@ import math
 import os
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import List, NamedTuple, Optional
 
 import sexpr_io as sx
 from _paths import atomic_write
-from chiplet_to_kicad_sch import (BASE_DIGEST_PREFIX, IDENTITY_PROPERTY, SETUP_MARKER,
-                                  _report_ref, _sha256)
-from sheet_check import fold_pads, pad_carriers
+from chiplet_to_kicad_sch import (BASE_DIGEST_PREFIX, IDENTITY_PROPERTY, LIB,
+                                  SETUP_MARKER, _report_ref, _sha256)
+from sheet_check import (InputError, UNIT_SUFFIX as _UNIT_SUFFIX, cache_key as _cache_key,
+                         component_placements, duplicate_references, fold_pads, netlist_property,
+                         netlist_symbols, pad_carriers, read_schematic as _sheet_data,
+                         reference_counts, root_components)
 
 FORM_FORMAT = "chiplet_system.connectivity"
 FORM_VERSION = "1.0"
@@ -121,8 +129,6 @@ _LEGACY_READER_VERSION = "1.1"
 
 AUTO_PREFIXES = ("Net-(", "unconnected-(")
 ERC_CHECK = "multiple_net_names"
-_UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
-_UNIT_SUFFIX = re.compile(r"_(\d+)_\d+$")
 _VOLTS = re.compile(r"[0-9]+(?:\.[0-9]+)?")
 _RAILS = {"chiplet_system:GND": "ground", "chiplet_system:SUPPLY": "power"}
 _IU_PER_MM = 10000          # schIUScale.IU_PER_MM
@@ -130,10 +136,6 @@ _JUMPERS = "duplicate_pin_numbers_are_jumpers"
 
 EXIT_WRITTEN = 0
 EXIT_INPUT = 2
-
-
-class InputError(Exception):
-    """An input is missing or is not what it claims to be; no form is written."""
 
 
 def _refusal(code: str, message: str, **where) -> dict:
@@ -146,10 +148,7 @@ def _value(node, tag) -> Optional[str]:
 
 
 def _property(comp, name) -> Optional[str]:
-    for prop in sx.find_all(comp, "property"):
-        if _value(prop, "name") == name:
-            return _value(prop, "value")
-    return None
+    return netlist_property(comp, name)
 
 
 def _identity(comp) -> Optional[str]:
@@ -248,17 +247,6 @@ def _netlist_fields(comp):
             for f in sx.find_all(sx.find(comp, "fields") or [], "field")}
 
 
-def _cache_key(symbol):
-    return _value(symbol, "lib_name") or _value(symbol, "lib_id")
-
-
-class _Sheet(NamedTuple):
-    placed: list
-    by_uuid: dict
-    cache: dict
-    multi_unit: set
-
-
 def _iu(text) -> int:
     """A coordinate in schematic internal units, rounded as KiROUND rounds."""
     value = float(text) * _IU_PER_MM
@@ -353,28 +341,13 @@ def _jumpers(cached) -> bool:
     return flag == "yes"
 
 
-def _sheet_data(path):
-    tree = _parse(path, "kicad_sch", "KiCad schematic")
-    cache, multi = {}, set()
-    for symbol in sx.find_all(sx.find(tree, "lib_symbols") or [], "symbol"):
-        name = str(symbol[1])
-        cache[name] = symbol
-        for unit in sx.find_all(symbol, "symbol"):
-            match = _UNIT_SUFFIX.search(str(unit[1]))
-            if match and int(match[1]) > 1:
-                multi.add(name)
-    placed = sx.find_all(tree, "symbol")
-    return _Sheet(placed, {_value(s, "uuid"): s for s in placed
-                          if _value(s, "uuid") is not None}, cache, multi)
-
-
 def _libpins(tree):
     return {(_value(part, "lib"), _value(part, "part")):
             [_value(p, "num") for p in sx.find_all(sx.find(part, "pins") or [], "pin")]
             for part in sx.find_all(sx.find(tree, "libparts") or [], "libpart")}
 
 
-def _checked_symbols(records, drawn, multi=()):
+def _checked_symbols(records, multi=(), counts=None):
     symbols, refusals = [], []
     for record in records:
         ref, nums = record["ref"], record["pins"]
@@ -386,13 +359,9 @@ def _checked_symbols(records, drawn, multi=()):
     for ref in sorted(set(multi)):
         refusals.append(_refusal("multi_unit", f"symbol {ref} has multiple units; "
                                  "use a single-unit symbol", component=ref))
-    if drawn:
-        refs = [s["ref"] for s in symbols]
-        for ref in sorted({r for r in refs if refs.count(r) > 1}):
-            refusals.append(_refusal("duplicate_reference",
-                                     f"{refs.count(ref)} symbols are named {ref}; "
-                                     "annotate the sheet so every symbol has its own",
-                                     component=ref))
+    if counts is None:
+        counts = Counter(s["ref"] for s in symbols)
+    refusals.extend(duplicate_references(counts))
     return symbols, refusals
 
 
@@ -435,23 +404,17 @@ def _json(path, what):
         raise InputError(f"{what} {path} is unreadable: {exc}") from exc
 
 
-def _fold(components, carriers):
-    """``(pads, refusals)`` of ``pad_carriers`` over the sheet's symbols other
-    than setup symbols."""
-    symbols = []
-    for comp in components:
-        if not _property(comp, SETUP_MARKER):
-            src = sx.find(comp, "libsource") or []
-            symbols.append((_value(comp, "ref"), _value(src, "lib"), _value(src, "part"),
-                            _identity(comp)))
+def _fold(symbols, carriers):
+    """Fold named netlist symbols with their shared placement counts; the
+    symbol-level check owns duplicate References, including KiCad's merged copies."""
     return pad_carriers(symbols, carriers)
 
 
-def _symbols(components, libpins, drawn, pads):
+def _symbols(components, libpins, drawn, pads, counts):
     """Each component's record, a carrier's folded pads (``pads``, reference to
-    carrier) read as the one carrier symbol."""
-    records = []
-    for comp in components:
+    (carrier, pad id)) read as the one carrier symbol."""
+    records, refused = [], []
+    for comp in root_components(components):
         ref = _value(comp, "ref")
         if _property(comp, SETUP_MARKER) or ref in pads:
             continue
@@ -461,11 +424,20 @@ def _symbols(components, libpins, drawn, pads):
                   "pins": libpins.get((lib, part), [])}
         if drawn:
             record["part"] = {"lib": lib, "name": part}
+        elif lib == LIB and not record["identity"]:
+            refused.append(_refusal(
+                "missing_identity", f"die symbol {ref} has no {IDENTITY_PROPERTY}; "
+                "restore its component identity", component=ref))
         records.append(record)
-    for carrier in sorted(set(pads.values())):
+    counts = counts.copy()
+    for ref in pads:
+        counts.pop(ref, None)
+    for carrier in sorted({cid for cid, _pad in pads.values()}):
+        counts[carrier] += 1
         records.append({"ref": carrier, "identity": carrier,
-                        "pins": sorted(r for r, c in pads.items() if c == carrier)})
-    return _checked_symbols(records, drawn)
+                        "pins": sorted(p for c, p in pads.values() if c == carrier)})
+    symbols, refusals = _checked_symbols(records, counts=counts)
+    return symbols, [*refusals, *refused]
 
 
 def _lib_id(placed):
@@ -518,22 +490,8 @@ def _split_record(comp, uuid, placed, sheet, libpins):
 
 def _placed_records(comp, sheet, libpins):
     ref = _value(comp, "ref")
-    stamps = sx.find(comp, "tstamps") or []
-    uuids = [str(stamp) for stamp in stamps[1:]]
-    if not uuids or any(_UUID.fullmatch(stamp) is None for stamp in uuids):
-        raise InputError(f"symbol {ref} has no valid component UUID in tstamps; "
-                         "export the schematic again with kicad-cli")
-    if any(uuid not in sheet.by_uuid for uuid in uuids):
-        raise InputError(f"symbol {ref} has a UUID absent from the root schematic; "
-                         "export the schematic again with kicad-cli")
-    placed = [sheet.by_uuid[u] for u in uuids]
-    multi = any(_cache_key(s) in sheet.multi_unit for s in placed)
-    parts = {_cache_key(s) for s in placed}
-    units = [_value(s, "unit") or "1" for s in placed]
-    shared = len(uuids) > 1 and (not multi or len(parts) > 1 or len(set(units)) < len(units))
-    # The units of one multi-unit symbol: KiCad 9 writes the primary UUID last
-    # (netlist_exporter_xml.cpp:441-456 at 9.0.2).
-    pairs = list(zip(uuids, placed)) if shared else [(uuids[-1], placed[-1])]
+    group = component_placements(comp, sheet)
+    pairs, multi, shared = group
     records, refusals = [], []
     for uuid, symbol in pairs:
         row = (_split_record(comp, uuid, symbol, sheet, libpins) if shared
@@ -634,7 +592,7 @@ def _classic_pass(components, libpins, schematic, nets, opened, setup):
         refused.extend(unit_refusals)
         if is_multi:
             multi.append(_value(comp, "ref"))
-    symbols, refusals = _checked_symbols(records, drawn=True, multi=multi)
+    symbols, refusals = _checked_symbols(records, multi=multi)
     rails, rail_refusals = _classic_rails(sheet, {n["name"] for n in nets})
     return symbols, {"rails": rails, "open": [list(ep) for ep in sorted(opened)]}, [
         *refusals, *refused, *rail_refusals]
@@ -712,8 +670,12 @@ def read_form(netlist, schematic, generator_report, out_form, erc=None,
     libpins = _libpins(tree)
     setup = _setup_refs(components)
     pads = {}
+    counts = None
+    if mode.sheet != "classic":
+        placed = netlist_symbols(components, _sheet_data(schematic))
+        counts = reference_counts(placed)
     if mode.sheet is None:
-        pads, pad_refusals = _fold(components, _carrier_pads(generator_report))
+        pads, pad_refusals = _fold(placed, _carrier_pads(generator_report))
         refusals.extend(pad_refusals)
     nets, opened = _nets(tree, setup, pads)
     extra = {}
@@ -721,7 +683,7 @@ def read_form(netlist, schematic, generator_report, out_form, erc=None,
         symbols, extra, symbol_refusals = _classic_pass(
             components, libpins, schematic, nets, opened, setup)
     else:
-        symbols, symbol_refusals = _symbols(components, libpins, mode.drawn, pads)
+        symbols, symbol_refusals = _symbols(components, libpins, mode.drawn, pads, counts)
     refusals.extend(symbol_refusals)
     refusals.extend(_net_refusals(nets, symbols, mode.drawn, pads))
 

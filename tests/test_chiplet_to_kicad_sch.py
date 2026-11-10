@@ -123,7 +123,8 @@ def _sheet_connectivity(sch_path):
         props = {str(p[1]): str(p[2]) for p in sx.find_all(inst, "property")}
         ref, ident = props["Reference"], props.get(g.IDENTITY_PROPERTY)
         if sc.is_pad(*lib_id.split(":", 1)) and ident is not None:
-            pads[ref] = ident
+            symbol = sc.PadSymbol(ref, *lib_id.split(":", 1), ident, props.get(g.PAD_ID_PROPERTY))
+            pads[ref] = (ident, sc.pad_id(symbol))
             identity[ident] = ident
         else:
             identity[ref] = ident
@@ -472,6 +473,7 @@ def test_carrier_pads_and_their_pin_list(tmp_path):
     for inst in insts:
         if str(sx.find(inst, "lib_id")[1]) == "chiplet_system:EXT_PAD":
             props = {str(p[1]): str(p[2]) for p in sx.find_all(inst, "property")}
+            assert props[g.PAD_ID_PROPERTY] == props["Reference"]
             pads[props["Reference"]] = (props[g.IDENTITY_PROPERTY], props["Footprint"],
                                         props["Value"], props["Edge"],
                                         [str(p[1]) for p in sx.find_all(inst, "pin")])
@@ -815,7 +817,7 @@ def _netlist_text(nets, free, identity, digest):
         f' (libsource (lib "chiplet") (part "X") (description ""))'
         f' (property (name "{g.IDENTITY_PROPERTY}") (value "{cid}"))'
         f' (property (name "Sheetname") (value "Root"))'
-        f' (sheetpath (names "/") (tstamps "/")) (tstamps "00"))\n'
+        f' (sheetpath (names "/") (tstamps "/")) (tstamps "{g.uid("check", ref)}"))\n'
         for ref, cid in identity.items())
     body, code = "", 1
     for name, eps in nets.items():
@@ -833,10 +835,16 @@ def _netlist_text(nets, free, identity, digest):
             f'(components {comps}) (nets {body}))\n')
 
 
+def _check_sheet(net):
+    from tests.test_kicad_sch_to_connectivity import _stub_sheet
+    _stub_sheet(net, net.with_suffix(".kicad_sch"))
+
+
 def test_read_kicad_netlist_matches(tmp_path):
     nets, free = _expected()
     path = tmp_path / "sys.net"
     path.write_text(_netlist_text(nets, free, {"U1": "U1", "U2": "U2"}, "ab" * 32))
+    _check_sheet(path)
     got = sc.read_kicad_netlist(path)
     assert got["identity"] == {"U1": "U1", "U2": "U2"}
     assert got["base_sha256"] == "ab" * 32
@@ -847,10 +855,11 @@ def test_the_check_names_every_pad_that_does_not_fold():
     """The check folds pads as the connectivity reader does, and says why a
     pad stayed a symbol of its own."""
     pad = (g.SYSTEM_LIB, g.EXT_PAD)
-    pads, refusals = sc.pad_carriers(
-        [("J_A", *pad, "ip"), ("J_A", "chiplet", "DIE_A", "U1"), ("J_B", *pad, "ip"),
-         ("J_C", *pad, "ip")], {"ip": {"J_A", "J_C"}})
-    assert pads == {"J_C": "ip"}
+    symbols = [sc.PadSymbol("J_A", *pad, "ip"), sc.PadSymbol("J_A", "chiplet", "DIE_A", "U1"),
+               sc.PadSymbol("J_B", *pad, "ip"), sc.PadSymbol("J_C", *pad, "ip")]
+    pads, pad_refusals = sc.pad_carriers(symbols, {"ip": {"J_A", "J_C"}})
+    refusals = [*sc.duplicate_references(sc.reference_counts(symbols)), *pad_refusals]
+    assert pads == {"J_C": ("ip", "J_C")}
     assert [(r["code"], r["component"], r.get("terminal")) for r in refusals] == [
         ("duplicate_reference", "J_A", None), ("unknown_pad", "ip", "J_B")]
     got = {"nets": {}, "unconnected": frozenset(), "identity": {}, "base_sha256": "ab" * 32,
@@ -867,6 +876,7 @@ def test_compare_names_every_difference(tmp_path):
     path = tmp_path / "sys.net"
     path.write_text(_netlist_text(edited, free | {("U1", "NC1")},
                                   {"U1": "U1", "U2": "U7"}, "cd" * 32))
+    _check_sheet(path)
     diffs = sc.compare(nets, free, "ab" * 32, sc.read_kicad_netlist(path))
     assert diffs == [
         "symbol U2 carries CHIPLET_COMPONENT=U7",
