@@ -1,4 +1,4 @@
-# chiplet-spec 7c90577fb6f1c78b2f76be7bb3031526ab3adbb5 reference/python/chiplet_format_io
+# chiplet-spec 48a30522451b3bcc45754fe01633196188cab2f0 reference/python/chiplet_format_io
 256191bb3b7a9538cc5c7ace9a48b8f9c967bb66be0e9ed47a389d8a1af879da  __init__.py
 8515affceac21debafab6086d329e3f2f19b90e0d22626cfb3f992b2e6f80261  die_contract.py
 b725962ef4153d8c0e5749ed411c6eaefd848a589d811bcd88a4fc9e20443863  footprint_ids.py
