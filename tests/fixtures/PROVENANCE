@@ -19,12 +19,12 @@ _vendor/round_trip_names.SOURCE states still reads. They are its tests/test_shee
 carrier case with a lone sheet net (the inputs its tests/test_round_trip_names.py
 reads): export_with_form(out, data, pads=CARRIER_PADS) with
 data = with_carriers(form_data()) plus net(LONE, ("D_ROT", "A1")), run with
-HCDP_ROOT set. The last drawing ran adf9dbf's code with tests/test_cli.py
-footprint_design as interposer-pnr 06ff4af states it: the interposer declares
+HCDP_ROOT set. The last drawing ran 07a36d2's code with tests/test_cli.py
+footprint_design as interposer-pnr 3e85398 states it: the interposer declares
 attachment_surface_z 10.8103 and its dies sit at z 54.8103 (the plane plus the
 44 um copper pillar).
 Place and route never read a die's z, so neither line moves the board or the
-report; io_pads.chiplet carries both. 06ff4af is an unmerged commit, so the digests
+report; io_pads.chiplet carries both. 3e85398 is an unmerged commit, so the digests
 below, not that commit, are what binds the files. draft.kicad_pcb and
 io_pads.chiplet (the assembly it exported, whose io_pads are the planner's) are as
 written, with the output folder taken out of the GDS_FILE paths. export.json keeps
