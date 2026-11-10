@@ -85,7 +85,8 @@ bind the carrier pad ids for host-level read-back. The host tests read this
 pair in generated, blank and --check mode without starting KiCad.
 Produced with the writer at 9095482 in the ADK-Tools runtime image
 sha256:2708f43ae86473a084afe11251976e52803819387d4464f5de5611d5f61441fa,
-KiCad 9.99.0, in /tmp/g2k-pasted-fixture/pnr:
+KiCad 9.99.0, in a temporary folder holding the sheet, which the netlist's source and
+the root sheet's Sheetfile fields record:
 kicad-cli sch export netlist --format kicadsexpr --output sys.draft.net sys.draft.kicad_sch
 To draw the sheet, tests.test_kicad_sch_to_connectivity._drawn writes its
 carrier example. _paste(tree, _placed(tree, "U1"), "fixture-die") and
@@ -105,7 +106,8 @@ repository's carrier example by tests.test_kicad_sch_to_connectivity._two_sheet_
 The generator report and carrier pin list bind the original carrier pad ids.
 ADK-Tools runtime image
 sha256:2708f43ae86473a084afe11251976e52803819387d4464f5de5611d5f61441fa,
-KiCad 9.99.0, in /tmp/g2k-hierarchy-fixture/pnr:
+KiCad 9.99.0, in a temporary folder holding the sheet, which the netlist's source and
+the root sheet's Sheetfile fields record:
 kicad-cli sch export netlist --format kicadsexpr --output sys.draft.net sys.draft.kicad_sch
   sys.draft.kicad_sch sha256 e7d5519d3d18139fab0728bc0702f43b6e4506bdc1080498d26085c200cbb395
   sys.draft.net sha256 57fa488266c8101ae4af9b548dd7b68dbe71cb9afc1f65cbbeac082b6765d7a9

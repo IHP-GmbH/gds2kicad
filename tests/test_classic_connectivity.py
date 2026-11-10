@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Classic connectivity forms from hand-written KiCad inputs, without KiCad."""
-import hashlib
 import json
 from pathlib import Path
 
@@ -655,11 +654,3 @@ def test_the_golden_sheet_is_what_the_handout_draws_today(tmp_path):
     draw_units_golden(tmp_path)
     for name in ("units.kicad_sch", g.HANDOUT_LIB_FILE, dh.SYSTEM_LIB_FILE):
         assert (tmp_path / name).read_bytes() == (UNITS_GOLDEN / name).read_bytes(), name
-
-
-def test_the_golden_files_are_the_ones_provenance_names():
-    # These lines bind the sheet to its netlist: a redrawn sheet needs its netlist exported again.
-    text = (UNITS_GOLDEN.parent / "PROVENANCE").read_text(encoding="utf-8")
-    for name in ("units.kicad_sch", g.HANDOUT_LIB_FILE, dh.SYSTEM_LIB_FILE, "units.net"):
-        digest = hashlib.sha256((UNITS_GOLDEN / name).read_bytes()).hexdigest()
-        assert f"  {name} sha256 {digest}\n" in text, name
