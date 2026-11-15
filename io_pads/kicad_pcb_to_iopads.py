@@ -1,19 +1,35 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Extract I/O pad locations from a KiCad PCB file into a sidecar JSON.
+"""Extract I/O pad locations from a KiCad PCB file into an io pad manifest.
 
 Walks all footprints in a .kicad_pcb file, filters those whose
-property IO_CLASS is set, and emits a JSON list:
+property IO_CLASS is set, and emits the io pad manifest of chiplet-spec's
+io_pads.schema.json, in the board frame:
 
   {
+    "schema": "chiplet-io-pad-manifest",
+    "version": "1.0.0",
+    "frame": "board_absolute_ynegated_um",
+    "generator": "gds_to_kicad kicad_pcb_to_iopads.py",
+    "board": "design.kicad_pcb",
     "io_pads": [
       {"ref": "J1", "io_class": "wire_bond",
        "x_um": 5000.0, "y_um": 3500.0,
        "size_x_um": 100.0, "size_y_um": 100.0,
-       "net": "VDD_EXT", "layer": "F.Cu"},
+       "net": "VDD_EXT", "layer": "TopMetal2",
+       "source_layer": "F.Cu"},
       ...
     ]
   }
+
+hyp_to_gds.py --io-pads reads only this frame and refuses a file without
+the envelope. Every entry is what the chiplet_kicad_plugin's io_pads writer
+writes for the same carrier: ``layer`` is the PDK layer the pads are drawn
+on, the KiCad layer goes in ``source_layer``, and positions and sizes are
+rounded to the nanometer. An IO_CLASS outside the schema's three, or a
+carrier whose size neither IO_PAD_SIZE_UM nor its first pad gives above zero
+on both axes, is refused rather than written or dropped; the file is not
+written then.
 
 Carrier ids
 -----------
@@ -24,7 +40,12 @@ sheet's designator instead. So a board with a carrier from that library or
 carrying ``IO_PAD_ID`` names every carrier by it, and one without it, or two
 carrying one id, is refused by reference rather than read back under its
 Reference. On any other (hand-drawn) board the Reference is the id. The
-chiplet_kicad_plugin's io_pads writer reads it the same way.
+chiplet_kicad_plugin's io_pads writer reads it the same way. On such a
+board a carrier with an empty Reference, and two carriers sharing one, are
+refused too, by their KiCad positions: the schema takes no empty ref and
+its consumers key pads by ref (the plugin's writer does not refuse them
+yet). A carrier without a Reference is named by its position in every
+refusal.
 
 Net names
 ---------
@@ -56,12 +77,15 @@ walk in-memory.
 """
 import argparse
 import json
+import math
 import sys
+from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from _paths import atomic_write  # noqa: E402
 from _vendor.round_trip_names import (  # noqa: E402
     BoardCarrier,
     CarrierIdError,
@@ -75,9 +99,29 @@ from _vendor.round_trip_names import (  # noqa: E402
 #: The property export writes a carrier's io_pad id in.
 IO_PAD_ID = "IO_PAD_ID"
 
+#: The manifest's discriminator, the version written, and the board frame:
+#: the one frame hyp_to_gds.py --io-pads reads.
+IO_PADS_SCHEMA = "chiplet-io-pad-manifest"
+IO_PADS_VERSION = "1.0.0"
+IO_PADS_FRAME = "board_absolute_ynegated_um"
+IO_PADS_GENERATOR = "gds_to_kicad kicad_pcb_to_iopads.py"
+
+#: The io_pad usage classes, the schema's closed vocabulary (the keys of
+#: chiplet_format_io's IO_CLASS_INTERFACE_TYPES, held equal by a test; not
+#: imported, since the reference reader needs yaml).
+IO_CLASSES = ("wire_bond", "flipped_bump", "tsv_bump")
+
+#: The PDK layer the worker draws every io_pad on, as the plugin's writer
+#: names it.
+IO_PAD_LAYER = "TopMetal2"
+
 
 class CarrierNetError(ValueError):
     """A carrier whose pads do not all carry one net."""
+
+
+class CarrierPadError(ValueError):
+    """A carrier with an IO_CLASS outside IO_CLASSES or no pad size."""
 
 
 def tokenize(text: str) -> List[str]:
@@ -145,14 +189,6 @@ def find_all(node: Any, key: str) -> Iterable[List[Any]]:
             yield from find_all(child, key)
 
 
-def parse_size(size_str: str) -> Tuple[float, float]:
-    if 'x' in size_str.lower():
-        a, b = size_str.lower().split('x', 1)
-        return float(a), float(b)
-    v = float(size_str)
-    return v, v
-
-
 def _direct_children(fp: List[Any]) -> Iterable[List[Any]]:
     for sub in fp[2:]:
         if isinstance(sub, list) and sub:
@@ -171,6 +207,28 @@ def _pad_size_um(pad: List[Any]) -> Tuple[float, float]:
         if isinstance(psub, list) and psub and psub[0] == 'size' and len(psub) >= 3:
             return float(psub[1]) * 1000.0, float(psub[2]) * 1000.0
     return 0.0, 0.0
+
+
+def _size_um(x: float, y: float) -> Optional[Tuple[float, float]]:
+    """(x, y) to the nanometer, or None unless both are finite and above zero."""
+    size = (round(x, 3), round(y, 3))
+    return size if all(math.isfinite(v) and v > 0.0 for v in size) else None
+
+
+def carrier_size_um(fp: List[Any], io_size_str: Optional[str]) -> Optional[Tuple[float, float]]:
+    """A carrier's pad size in micrometers: IO_PAD_SIZE_UM as "<x>x<y>",
+    else its first pad's; None when neither gives one _size_um takes. The
+    plugin's io_pad_size_um rule, so both writers size a carrier alike."""
+    parts = (io_size_str or '').split('x')
+    if len(parts) == 2:
+        try:
+            size = _size_um(float(parts[0]), float(parts[1]))
+        except ValueError:
+            size = None
+        if size is not None:
+            return size
+    pad = _first_pad(fp)
+    return _size_um(*_pad_size_um(pad)) if pad else None
 
 
 def _pad_net(pad: List[Any]) -> str:
@@ -195,6 +253,35 @@ def carrier_net(label: str, nets: Set[str]) -> str:
     return next(iter(nets), '')
 
 
+def _carrier_label(ref: str, place: str) -> str:
+    """How a refusal names a carrier: its Reference, else its position."""
+    return ref or f"at ({place}) mm"
+
+
+def check_carrier_ids(ids: Sequence[str], places: Sequence[str]) -> None:
+    """Refuse (CarrierIdError) an empty id and an id carriers share, naming
+    the carriers by ``places``, their KiCad positions in mm, in the order of
+    ``ids``. Empty ids are refused first, so two are not read as sharing ''.
+
+    Only a hand-drawn board's ids (its References) can fail here:
+    read_board_carriers already refuses an empty or shared IO_PAD_ID on a
+    board drawn by export, the rule this applies to the other branch.
+    """
+    assert len(ids) == len(places)
+    for ident, place in zip(ids, places):
+        if not ident:
+            raise CarrierIdError(
+                f"the carrier at ({place}) mm has no Reference; give each "
+                f"carrier its own reference")
+    counts = Counter(ids)
+    shared = [f"the carriers at "
+              f"{' and '.join(f'({p}) mm' for i, p in zip(ids, places) if i == ident)} "
+              f"share the reference {ident!r}"
+              for ident in sorted(i for i, n in counts.items() if n > 1)]
+    if shared:
+        raise CarrierIdError("; ".join(shared) + "; give each carrier its own reference")
+
+
 def extract_io_pads(pcb_path: Path,
                     report: Optional[ExportReport] = None) -> List[Dict[str, Any]]:
     """The io_pads of the board at ``pcb_path``, named through ``report``
@@ -205,14 +292,16 @@ def extract_io_pads(pcb_path: Path,
 
     out: List[Dict[str, Any]] = []
     carriers: List[BoardCarrier] = []
-    # The carrier row of each entry of out, and its pads' nets.
-    rows: List[Tuple[int, Set[str]]] = []
+    # The nets of each carrier's pads and its KiCad position, one per entry of out.
+    pad_nets: List[Set[str]] = []
+    places: List[str] = []
     for fp in find_all(root, 'footprint'):
         ref = ''
         io_class = None
         io_pad_id = ''
         io_size_str = None
         x_mm, y_mm = 0.0, 0.0
+        place = '0, 0'
         layer = ''
         linked = False
 
@@ -221,6 +310,7 @@ def extract_io_pads(pcb_path: Path,
             if head == 'at' and len(sub) >= 3:
                 x_mm = float(sub[1])
                 y_mm = float(sub[2])
+                place = f"{sub[1]}, {sub[2]}"
             elif head == 'layer' and len(sub) >= 2:
                 layer = str(sub[1])
             elif head == 'path' and len(sub) >= 2:
@@ -239,49 +329,52 @@ def extract_io_pads(pcb_path: Path,
                 if not ref:
                     ref = str(sub[2])
 
-        if io_class is None:
+        if not io_class:
             continue
+        label = _carrier_label(ref, place)
+        if io_class not in IO_CLASSES:
+            raise CarrierPadError(
+                f"carrier {label}: IO_CLASS {io_class!r} is not one of "
+                f"{', '.join(IO_CLASSES)}")
+        size = carrier_size_um(fp, io_size_str)
+        if size is None:
+            raise CarrierPadError(
+                f"carrier {label}: no pad size; give IO_PAD_SIZE_UM as <x>x<y> in "
+                f"micrometers, or a pad, with both sides above zero")
         lib_id = str(fp[1]) if len(fp) > 1 else ''
         lib = lib_id.partition(':')[0] if ':' in lib_id else ''
         carriers.append(BoardCarrier(ref, io_pad_id, lib, linked))
 
-        if io_size_str:
-            size_x_um, size_y_um = parse_size(io_size_str)
-        else:
-            pad = _first_pad(fp)
-            if not pad:
-                continue
-            size_x_um, size_y_um = _pad_size_um(pad)
-            if size_x_um == 0.0 or size_y_um == 0.0:
-                continue
-
-        rows.append((len(carriers) - 1, _pad_nets(fp)))
+        pad_nets.append(_pad_nets(fp))
+        places.append(place)
         out.append({
             'ref': ref,
             'io_class': io_class,
             # + 0.0 normalizes -0.0 (from negating a zero) to 0.0 in the JSON.
-            'x_um': x_mm * 1000.0 + 0.0,
-            'y_um': -y_mm * 1000.0 + 0.0,
-            'size_x_um': size_x_um,
-            'size_y_um': size_y_um,
+            'x_um': round(x_mm * 1000.0, 3) + 0.0,
+            'y_um': round(-y_mm * 1000.0, 3) + 0.0,
+            'size_x_um': size[0],
+            'size_y_um': size[1],
             'net': '',
-            'layer': layer,
+            'layer': IO_PAD_LAYER,
+            'source_layer': layer,
         })
     ids, names = read_board_carriers(carriers, report)
+    check_carrier_ids(ids, places)
     # Ids and the report are refused before a carrier's nets, as in the plugin.
-    for entry, (row, pad_nets) in zip(out, rows):
-        ref = carriers[row].reference
-        label = ref if ids[row] == ref else f"{ref} (io_pad {ids[row]})"
-        entry['net'] = carrier_net(label, pad_nets)
+    for entry, carrier, ident, nets in zip(out, carriers, ids, pad_nets):
+        ref = carrier.reference
+        label = ref if ident == ref else f"{ref} (io_pad {ident})"
+        entry['net'] = carrier_net(label, nets)
         if names is not None:
             entry['net'] = planner_net(label, entry['net'], names)
-        entry['ref'] = ids[row]
+        entry['ref'] = ident
     return out
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
-        description="Extract I/O pad locations from a KiCad PCB into a sidecar JSON.",
+        description="Extract I/O pad locations from a KiCad PCB into an io pad manifest.",
     )
     ap.add_argument('pcb', help='Input .kicad_pcb file')
     ap.add_argument('-o', '--output', default='io_pads.json',
@@ -308,7 +401,7 @@ def main(argv=None) -> int:
             return 1
     try:
         pads = extract_io_pads(pcb_path, report)
-    except (CarrierIdError, CarrierNetError) as exc:
+    except (CarrierIdError, CarrierNetError, CarrierPadError) as exc:
         print(f'Error: {pcb_path}: {exc}', file=sys.stderr)
         return 1
     except RoundTripNamesError as exc:
@@ -320,9 +413,16 @@ def main(argv=None) -> int:
     except (ValueError, OSError, UnicodeDecodeError) as exc:
         print(f'Error: could not parse {pcb_path}: {exc}', file=sys.stderr)
         return 1
-    payload = {'io_pads': pads}
-    Path(args.output).write_text(json.dumps(payload, indent=2) + '\n',
-                                 encoding="utf-8")
+    payload = {
+        'schema': IO_PADS_SCHEMA,
+        'version': IO_PADS_VERSION,
+        'frame': IO_PADS_FRAME,
+        'generator': IO_PADS_GENERATOR,
+        'board': pcb_path.name,
+        'io_pads': pads,
+    }
+    with atomic_write(args.output) as out:
+        out.write(json.dumps(payload, indent=2) + '\n')
     print(f'Wrote {len(pads)} io_pads to {args.output}')
     return 0
 

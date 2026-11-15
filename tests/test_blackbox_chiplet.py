@@ -4,6 +4,7 @@ footprint converter.
 """
 
 import json
+import struct
 import subprocess
 import sys
 from pathlib import Path
@@ -103,6 +104,43 @@ def test_no_manifest_flag_suppresses_sidecar(tmp_path):
                           write_manifest=False)
     assert not (tmp_path / "acme.boundaries.json").exists()
     assert _count_on(gds, 190, 0) == 0
+
+
+_BGNLIB, _BGNSTR, _ENDLIB = 0x01, 0x05, 0x04
+
+
+def _header_dates(gds):
+    """The twelve date fields of every library and cell header record."""
+    data = Path(gds).read_bytes()
+    dates, at = [], 0
+    while at < len(data):
+        length, rtype = struct.unpack_from(">HB", data, at)
+        if rtype in (_BGNLIB, _BGNSTR):
+            dates.append(struct.unpack_from(">12h", data, at + 4))
+        if rtype == _ENDLIB or length == 0:
+            break
+        at += length
+    return dates
+
+
+def test_generate_writes_no_timestamps(tmp_path):
+    """KLayout stamps the write time into the library and cell headers unless
+    told not to. Two writes of one spec must be byte-equal; the dates are
+    checked as well, because two writes in the same second would agree even
+    with dates in them."""
+    a, b = tmp_path / "a" / "acme.gds", tmp_path / "b" / "acme.gds"
+    for gds in (a, b):
+        gds.parent.mkdir()
+        generate_blackbox_gds(SPEC, str(gds), load_canonical_layers())
+    assert a.read_bytes() == b.read_bytes()
+    assert _header_dates(a) == [(0,) * 12] * 2  # the library and its one cell
+
+
+def test_generate_format_follows_the_file_name(tmp_path):
+    oas = tmp_path / "acme.oas"
+    generate_blackbox_gds(SPEC, str(oas), load_canonical_layers(),
+                          write_manifest=False)
+    assert oas.read_bytes().startswith(b"%SEMI-OASIS")
 
 
 # --- ADK discovery (ecosystem convention: env -> sibling walk) ---------------
