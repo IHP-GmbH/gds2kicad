@@ -211,6 +211,9 @@ def generate_blackbox_gds(spec: Dict, out_gds: str,
 
     Returns the number of pads stamped.
 
+    The GDS carries no write date, so the same spec written twice with the
+    same KLayout gives byte-equal files.
+
     Raises ValueError on an empty pad list or a pad missing a required key or
     carrying a non-numeric coordinate, so the validation does not live only in
     the CLI argparse layer (importers get the same guarantee).
@@ -254,7 +257,13 @@ def generate_blackbox_gds(spec: Dict, out_gds: str,
     outline = db.Box(_um(x0), _um(y0), _um(x1), _um(y1))
     top.shapes(out_l).insert(outline)
 
-    ly.write(out_gds)
+    # No write date in the library and cell headers, so writing one spec twice
+    # gives the same bytes (for a given KLayout) and a digest can be pinned.
+    # The format still follows the file name, as a plain write does.
+    opts = db.SaveLayoutOptions()
+    opts.set_format_from_filename(out_gds)
+    opts.gds2_write_timestamps = False
+    ly.write(out_gds, opts)
     if write_manifest:
         _write_blackbox_manifest(out_gds, top.name, ly.dbu, outline)
     return len(spec["pads"])
