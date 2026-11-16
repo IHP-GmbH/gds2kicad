@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 from _vendor.round_trip_names import (FEATURES, FEATURES_VERSION, REQUIRED_FEATURES,
@@ -111,6 +112,13 @@ def test_extract_io_pads_from_pcb_fixture(tmp_path):
     assert res.returncode == 0, res.stderr
 
     data = json.loads(out.read_text())
+    assert {k: v for k, v in data.items() if k != "io_pads"} == {
+        "schema": "chiplet-io-pad-manifest",
+        "version": "1.0.0",
+        "frame": "board_absolute_ynegated_um",
+        "generator": "gds_to_kicad kicad_pcb_to_iopads.py",
+        "board": "mini.kicad_pcb",
+    }
     pads = data["io_pads"]
     assert len(pads) == 2
 
@@ -122,7 +130,8 @@ def test_extract_io_pads_from_pcb_fixture(tmp_path):
     assert j1["size_x_um"] == 100.0
     assert j1["size_y_um"] == 100.0
     assert j1["net"] == "VDD_EXT"
-    assert j1["layer"] == "F.Cu"
+    assert j1["layer"] == "TopMetal2"
+    assert j1["source_layer"] == "F.Cu"
 
     j2 = by_ref["J2"]
     assert j2["x_um"] == -2000.0
@@ -139,6 +148,127 @@ def test_extract_skips_pcb_without_io_pads(tmp_path):
     assert res.returncode == 0
     data = json.loads(out.read_text())
     assert data["io_pads"] == []
+    assert (data["schema"], data["frame"]) == ("chiplet-io-pad-manifest",
+                                              "board_absolute_ynegated_um")
+
+
+def _pad_footprint(io_class="wire_bond", size="80x80", pad=True, at="1.0 0"):
+    """One carrier J1 with the given IO_CLASS, IO_PAD_SIZE_UM (None for none)
+    and, when ``pad``, one 50 x 60 um pad."""
+    size_prop = f'(property "IO_PAD_SIZE_UM" "{size}")' if size is not None else ""
+    pad_line = '(pad "1" smd rect (at 0 0) (size 0.05 0.06) (layers "F.Cu"))' if pad else ""
+    return f"""
+  (footprint "io_pads:Pad"
+    (layer "F.Cu")
+    (at {at} 0)
+    (property "Reference" "J1")
+    (property "IO_CLASS" "{io_class}")
+    {size_prop}
+    {pad_line}
+  )"""
+
+
+def test_an_unknown_io_class_is_refused_and_nothing_written(tmp_path):
+    res, pads = _extract(tmp_path, _pad_footprint(io_class="wirebond"))
+    assert res.returncode == 1
+    assert "carrier J1: IO_CLASS 'wirebond' is not one of wire_bond" in res.stderr
+    assert not (tmp_path / "io_pads.json").exists()
+
+
+@pytest.mark.parametrize("size", [None, "0x80", "nanx80", "abc"])
+def test_a_carrier_with_no_size_is_refused_not_dropped(tmp_path, size):
+    res, pads = _extract(tmp_path, _pad_footprint(size=size, pad=False))
+    assert res.returncode == 1
+    assert "carrier J1: no pad size" in res.stderr
+    assert not (tmp_path / "io_pads.json").exists()
+
+
+@pytest.mark.parametrize("size", ["0x80", "80", "80X80", "80x80x80", "abc"])
+def test_a_size_property_the_plugin_ignores_falls_back_to_the_pad(tmp_path, size):
+    """Only "<x>x<y>" with both sides above zero is read, as the plugin's
+    io_pad_size_um reads it; anything else takes the first pad's size."""
+    res, pads = _extract(tmp_path, _pad_footprint(size=size))
+    assert res.returncode == 0, res.stderr
+    assert (pads[0]["size_x_um"], pads[0]["size_y_um"]) == (50.0, 60.0)
+
+
+@pytest.mark.parametrize("io_class", ["wire_bond", "flipped_bump", "tsv_bump"])
+def test_each_schema_io_class_is_written(tmp_path, io_class):
+    res, pads = _extract(tmp_path, _pad_footprint(io_class=io_class))
+    assert res.returncode == 0, res.stderr
+    assert pads[0]["io_class"] == io_class
+
+
+def _unreferenced(footprint):
+    return footprint.replace('(property "Reference" "J1")', '(property "Reference" "")')
+
+
+def test_a_carrier_with_no_reference_is_refused_by_its_kicad_position(tmp_path):
+    res, _ = _extract(tmp_path, _unreferenced(_pad_footprint(at="1.0 2.5")))
+    assert res.returncode == 1
+    assert "the carrier at (1.0, 2.5) mm has no Reference" in res.stderr
+    assert not (tmp_path / "io_pads.json").exists()
+
+
+def test_a_carrier_with_no_reference_is_named_by_position_in_any_refusal(tmp_path):
+    res, _ = _extract(tmp_path, _unreferenced(_pad_footprint(io_class="wirebond", at="1.0 2.5")))
+    assert res.returncode == 1
+    assert "carrier at (1.0, 2.5) mm: IO_CLASS 'wirebond'" in res.stderr
+
+
+def test_two_carriers_sharing_a_reference_are_refused_by_position(tmp_path):
+    res, _ = _extract(tmp_path, _pad_footprint(), _pad_footprint(at="2.0 0"),
+                      _carrier("J2", 3.0, lib="io_pads:Pad"))
+    assert res.returncode == 1
+    assert ("the carriers at (1.0, 0) mm and (2.0, 0) mm share the reference 'J1'"
+            in res.stderr)
+    assert "'J2'" not in res.stderr
+    assert not (tmp_path / "io_pads.json").exists()
+
+
+def test_a_shared_reference_is_refused_before_a_carrier_net(tmp_path):
+    res, _ = _extract(tmp_path, _carrier("J1", 1.0, lib="io_pads:Pad", nets=["VDD", "VSS"]),
+                      _carrier("J1", 2.0, lib="io_pads:Pad"))
+    assert res.returncode == 1
+    assert "share the reference 'J1'" in res.stderr
+    assert "different nets" not in res.stderr
+
+
+def test_export_carriers_sharing_a_reference_keep_their_io_pad_ids(tmp_path):
+    """A board drawn by export names carriers by IO_PAD_ID, so a Reference two
+    of them share (an unannotated draft) is not refused here."""
+    res, pads = _extract(tmp_path, _carrier("J1", 1.0, io_pad_id="A", linked=False),
+                         _carrier("J1", 2.0, io_pad_id="B", linked=False))
+    assert res.returncode == 0, res.stderr
+    assert [p["ref"] for p in pads] == ["A", "B"]
+
+
+def test_the_io_classes_are_the_reference_reader_s():
+    """The extractor keeps its own copy, to stay standard-library only."""
+    sys.path.insert(0, str(IOPADS_DIR))
+    try:
+        import generate_io_pad
+        import kicad_pcb_to_iopads
+    finally:
+        sys.path.remove(str(IOPADS_DIR))
+    from _vendor import chiplet_format_io as cfio
+    assert kicad_pcb_to_iopads.IO_CLASSES == tuple(cfio.IO_CLASS_INTERFACE_TYPES)
+    assert (generate_io_pad.SUPPORTED_IO_CLASSES | generate_io_pad.RESERVED_IO_CLASSES
+            == set(cfio.IO_CLASS_INTERFACE_TYPES))
+
+
+def test_an_empty_io_class_is_not_a_carrier(tmp_path):
+    res, pads = _extract(tmp_path, _pad_footprint(io_class=""))
+    assert res.returncode == 0, res.stderr
+    assert pads == []
+
+
+def test_positions_and_sizes_are_written_to_the_nanometer(tmp_path):
+    res, pads = _extract(tmp_path, _pad_footprint(size="80.00004x79.9996", at="1.005 -0.0000001"))
+    assert res.returncode == 0, res.stderr
+    pad = pads[0]
+    assert (pad["x_um"], pad["y_um"]) == (1005.0, 0.0)
+    assert (pad["size_x_um"], pad["size_y_um"]) == (80.0, 80.0)
 
 
 def _carrier(ref, x, lib="chiplet_carrier:EXT_PAD_80um", io_pad_id=None, nets=None,

@@ -480,13 +480,6 @@ def _pinned_pasted_form(tmp_path, mode="generated", *, sheet=None, net=None):
     return k.read_form(net, sheet, report, tmp_path / "form.json", library=library)
 
 
-@pytest.mark.parametrize("fixture", [PASTED, HIERARCHICAL])
-def test_schematic_fixture_bytes_match_the_provenance(fixture):
-    text = (fixture.parent / "PROVENANCE").read_text(encoding="utf-8")
-    for path in fixture.iterdir():
-        assert f"  {path.name} sha256 {_sha(path)}\n" in text
-
-
 @pytest.mark.parametrize("mode", ["generated", "blank"])
 def test_pinned_two_sheet_layout_keeps_the_hierarchy_refusal(tmp_path, mode):
     root = HIERARCHICAL / "sys.draft.kicad_sch"

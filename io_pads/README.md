@@ -64,7 +64,18 @@ python kicad_pcb_to_iopads.py path/to/design.kicad_pcb -o io_pads.json
 ```
 
 Walks all footprints in the PCB, filters those whose property `IO_CLASS`
-is set, and emits a sidecar JSON consumed by `hyp_to_gds.py --io-pads`.
+is set, and emits the io pad manifest consumed by `hyp_to_gds.py --io-pads`:
+chiplet-spec's `io_pads.schema.json`, with `schema`
+(`chiplet-io-pad-manifest`), `version` (`1.0.0`) and `frame`
+(`board_absolute_ynegated_um`) beside the `io_pads` list. `hyp_to_gds.py`
+refuses a file without them. Each entry is what the KiCad plugin's export
+writes for the same carrier: `layer` is the PDK layer (`TopMetal2`), the KiCad
+layer goes in `source_layer`, and positions and sizes are rounded to the
+nanometer. An `IO_CLASS` other than `wire_bond`, `flipped_bump` or `tsv_bump`,
+or a carrier whose size neither `IO_PAD_SIZE_UM` (`<x>x<y>`) nor its first pad gives, is
+refused and nothing is written. On a hand-drawn board, where the Reference is
+the pad's `ref`, so are a carrier with an empty Reference and two carriers
+sharing one, named by their KiCad positions.
 
 Each pad's `net` is the planner's net name. A board interposer-pnr
 `export --form` drew against a sheet carries the sheet's names, so pass the

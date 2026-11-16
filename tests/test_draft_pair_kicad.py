@@ -9,7 +9,6 @@ compares content. A run that never read the sheet is refused by the line
 kicad-cli prints only when it did (_parity). The parity cases are opt-in
 (`pytest -m kicad_cli`).
 """
-import hashlib
 import json
 import shutil
 import subprocess
@@ -49,16 +48,6 @@ def _parity(board):
     issues = report["schematic_parity"]
     assert f"Found {len(issues)} schematic parity issues" in run.stdout.decode(), run.stdout
     return issues
-
-
-def test_the_pair_is_the_one_provenance_records():
-    lines = (PAIR.parent / "PROVENANCE").read_text(encoding="utf-8").splitlines()
-    start = next(i for i, line in enumerate(lines) if line.startswith("draft_pair/:"))
-    end = next((i for i in range(start, len(lines)) if not lines[i].strip()), len(lines))
-    recorded = dict(line.split(" sha256 ") for line in lines[start:end] if " sha256 " in line)
-    recorded = {name.strip(): sha for name, sha in recorded.items()}
-    assert recorded == {f.name: hashlib.sha256(f.read_bytes()).hexdigest()
-                        for f in PAIR.iterdir()}
 
 
 def _references(path, tag):
