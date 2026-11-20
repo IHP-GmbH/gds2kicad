@@ -37,6 +37,8 @@ import json
 import sys
 from pathlib import Path
 
+from _vendor.chiplet_format_io.pins import KICAD_TYPE
+
 # Counter-clockwise from the east side. Each entry is (constant axis, how the
 # running coordinate advances along that side).
 _SIDES = ("E", "N", "W", "S")
@@ -171,7 +173,13 @@ def cmd_plan(args):
     _report(spec, pitch)
 
 
-_POWER_PREFIXES = ("VDD", "VSS", "IOVDD", "IOVSS")
+# The naming convention for supply pads: each name prefix and the role it gives.
+_SUPPLY_ROLES = (("VDD", "POWER"), ("IOVDD", "POWER"), ("VSS", "GROUND"), ("IOVSS", "GROUND"))
+
+
+def _supply_role(name):
+    """POWER or GROUND for a supply pad by its name prefix, else None."""
+    return next((role for prefix, role in _SUPPLY_ROLES if name.startswith(prefix)), None)
 
 # Die side to schematic-symbol side. The symbol side is a readability choice,
 # not geometry, so it simply mirrors the physical side the pad sits on.
@@ -179,14 +187,15 @@ _SIDE_TO_SYMBOL = {"E": "right", "W": "left", "N": "top", "S": "bottom"}
 
 
 def cmd_annotate(args):
-    """Set side and type on a pin list, from the plan that placed the pads.
+    """Set side, type, role and direction on a pin list, from the plan that
+    placed the pads.
 
     footprint_to_pinlist.py can only recover name and geometry, because a
     footprint carries no such semantics; it defaults every pin to left/passive.
-    Those two fields are the one human decision in the pin list, and the plan
-    already encodes it: the ring walk knows which side each pad landed on, and
-    the naming convention says which pads are supplies. Deriving them here keeps
-    the pin list reproducible instead of hand-edited.
+    Side, type and role are the one human decision in the pin list, and the
+    plan already encodes it: the ring walk knows which side each pad landed on,
+    and the naming convention says which pads are supplies, and so their role.
+    Deriving them here keeps the pin list reproducible instead of hand-edited.
     """
     plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
     ring = plan["ring"]
@@ -209,8 +218,23 @@ def cmd_annotate(args):
     counts = {}
     for pin in doc["pins"]:
         pin["side"] = _SIDE_TO_SYMBOL[side_of[pin["name"]]]
-        pin["type"] = ("power_in"
-                       if pin["name"].startswith(_POWER_PREFIXES) else "passive")
+        # The prefix rule gives a supply its role, and the type is the one the
+        # reader derives from that role; the rest keep no role and stay passive.
+        role = _supply_role(pin["name"])
+        # A role written by hand is not dropped or replaced without a word.
+        if role is None and "role" in pin:
+            print(f"annotate: pin {pin['name']}: the role {pin['role']} was removed. "
+                  f"annotate gives a role to supply pads only (names that start with "
+                  f"VDD, IOVDD, VSS or IOVSS).", file=sys.stderr)
+        elif role is not None and pin.get("role", role) != role:
+            print(f"annotate: pin {pin['name']}: the role {pin['role']} was replaced by "
+                  f"{role}. annotate takes a supply pad's role from its name (names that "
+                  f"start with VDD, IOVDD, VSS or IOVSS).", file=sys.stderr)
+        for key in ("role", "direction"):
+            pin.pop(key, None)
+        pin["type"] = KICAD_TYPE[(role, "INOUT")] if role else "passive"
+        if role:
+            pin.update(role=role, direction="INOUT")
         counts[(pin["side"], pin["type"])] = counts.get((pin["side"], pin["type"]), 0) + 1
 
     pins_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
@@ -288,8 +312,7 @@ def cmd_extract(args):
     # unique VSS_0-style names are unrecoverable by extraction. Supplies bind
     # downstream by (rail net, pad_index), so a repeated rail name is expected here
     # and is not an error.
-    _check_unique([p["name"] for p in pads
-                   if not p["name"].startswith(_POWER_PREFIXES)])
+    _check_unique([p["name"] for p in pads if _supply_role(p["name"]) is None])
 
     bb = top.dbbox()
     # The die top-cell GDS bbox in native database units (die-local frame), same
@@ -383,7 +406,7 @@ def main():
     p.set_defaults(func=cmd_plan)
 
     a = sub.add_parser("annotate",
-                       help="set side and type on a pin list, from its plan")
+                       help="set side, type and supply role on a pin list, from its plan")
     a.add_argument("plan")
     a.add_argument("pins")
     a.set_defaults(func=cmd_annotate)
