@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The connection sheet: the system sheet drawn as an SVG a web browser opens,
-form ``connection-sheet/1``.
+"""The connection sheet: the system sheet drawn as an SVG, form
+``connection-sheet/1``.
 
 It draws the model chiplet_to_kicad_sch builds for the .kicad_sch
 (``sheet_layout``): the same die symbols, pins, labels, no-connect marks and
@@ -91,8 +91,8 @@ def refusals(system: "g.System") -> list:
         if bad:
             out.append(g._refusal(
                 "undrawable_text",
-                f"{what} {value!r} holds {bad.group(0)!r}, a character an SVG cannot "
-                f"hold, so the connection sheet cannot draw it", value=value, **where))
+                f"{what} {value!r} holds {bad.group(0)!r}, a character an SVG file "
+                f"cannot hold, so the connection sheet cannot be drawn. Rename it.", value=value, **where))
     return out
 
 

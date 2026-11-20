@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """chiplet_to_kicad_sch --svg: the connection sheet, the system sheet drawn as
-an SVG a browser opens, form connection-sheet/1.
+an SVG, form connection-sheet/1.
 
 The assembly review signs these bytes raw, so they depend only on the design
 and this code. Two goldens (tests/data/connection_sheet) are compared byte for

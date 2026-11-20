@@ -58,8 +58,8 @@ their own (``<stem>.system.kicad_sch``, beside the others), and the .chiplet
 only names the system. It takes no ``--pins`` and no ``--check``, and the
 report's ``schematic`` is null.
 
-``--svg PATH`` also draws the system sheet as an SVG, the connection sheet a
-web browser opens (connection_sheet_svg.py, form ``connection-sheet/1``): the
+``--svg PATH`` also draws the system sheet as an SVG, the connection sheet
+(connection_sheet_svg.py, form ``connection-sheet/1``): the
 same symbols, pins, labels, no-connect marks and carrier pads at the same
 places, without the setup band. Its bytes depend only on the design. Without
 ``--out`` it is the only file written, and it takes no ``--setup`` or
@@ -1585,9 +1585,8 @@ def main(argv=None) -> int:
                     help="pin list of one die, once per die (the export's --pins)")
     ap.add_argument("--out", help="schematic to write (.kicad_sch); optional with --svg")
     ap.add_argument("--svg", metavar="PATH",
-                    help="also draw the system sheet as an SVG at PATH, the connection "
-                         "sheet a web browser opens; without --out it is the only file "
-                         "written")
+                    help="also draw the system sheet as an SVG at PATH (the connection "
+                         "sheet); without --out it is the only file written")
     ap.add_argument("--report", help="JSON report to write")
     ap.add_argument("--setup", metavar="PROJECTION",
                     help="co-simulation setup projection (chiplet_cosim.cosim_setup "
