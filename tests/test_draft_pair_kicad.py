@@ -8,6 +8,10 @@ footprint extra against the same sheet with its symbols taken out, so the check
 compares content. A run that never read the sheet is refused by the line
 kicad-cli prints only when it did (_parity). The parity cases are opt-in
 (`pytest -m kicad_cli`).
+
+Every pin of the pair states both a type and a role, so the die symbols, the
+sheet, its connection sheet and the handout are the same bytes, with no pin
+type warning, when the type is taken out of every pin.
 """
 import json
 import shutil
@@ -18,6 +22,9 @@ import pytest
 
 import chiplet_to_kicad_sch as g
 import sexpr_io as sx
+from kicad_sym_writer import KiCadSymWriter
+from pin_list import PinList
+from symbol_layout import create_layout_from_pin_list
 from tests import test_kicad_sch_to_connectivity as bt
 
 PAIR = Path(__file__).resolve().parent / "fixtures" / "draft_pair"
@@ -79,3 +86,40 @@ def test_kicad_cli_parity_against_a_sheet_without_symbols_finds_every_footprint(
     issues = _parity(board)
     assert {i["type"] for i in issues} == {"extra_footprint"}
     assert len(issues) == len(footprints) == 35
+
+
+def _outputs(run, untyped):
+    """({file: bytes} of the die symbols, the sheet with its connection sheet
+    and the handout; the pin type warnings said) for the pair's pin lists,
+    each pin's type taken out when ``untyped``. Every path is the same both
+    ways, so only the pin lists can make the bytes differ."""
+    shutil.rmtree(run, ignore_errors=True)
+    run.mkdir()
+    pins, said = {}, []
+    for die in DIES:
+        doc = json.loads((PAIR / f"{die}.pins.json").read_text(encoding="utf-8"))
+        assert all("type" in p and "role" in p for p in doc["pins"])
+        if untyped:
+            for pin in doc["pins"]:
+                del pin["type"]
+        pins[die] = str(run / f"{die}.pins.json")
+        Path(pins[die]).write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        pl = PinList.load(pins[die])
+        said += pl.validate()
+        KiCadSymWriter().write_symbol_library(
+            [create_layout_from_pin_list(pl, die)], str(run / "sym" / f"{die}.kicad_sym"))
+    sheet = run / "sheet"
+    g.generate(PAIR / "design.chiplet", pins, sheet / "board.kicad_sch",
+               svg_path=sheet / "board.svg", on_warn=said.append)
+    g.handout(PAIR / "design.chiplet", pins, run / "handout", on_warn=said.append)
+    files = {str(p.relative_to(run)): p.read_bytes() for p in sorted(run.rglob("*"))
+             if p.is_file() and not p.name.endswith(".pins.json")}
+    return files, said
+
+
+def test_the_pair_draws_the_same_bytes_with_the_type_taken_out(tmp_path):
+    typed, said_typed = _outputs(tmp_path / "run", untyped=False)
+    untyped, said_untyped = _outputs(tmp_path / "run", untyped=True)
+    assert {Path(f).parent.name for f in typed} >= {"sym", "sheet", "handout"}
+    assert said_typed == said_untyped == []
+    assert typed == untyped

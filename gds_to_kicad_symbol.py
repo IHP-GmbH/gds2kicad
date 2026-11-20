@@ -401,7 +401,7 @@ Examples:
 
 Pin list workflow (human-in-the-loop):
   %(prog)s input.gds --lyp-file pdk.lyp --pad-layer TopMetal2.drawing --extract-pins pins.json
-  # Edit pins.json (rename, retype, reside)
+  # Edit pins.json (rename a pin, change its side; a pin with a role takes its type from role and direction)
   %(prog)s --from-pin-list pins.json -o output.kicad_sym
         """
     )

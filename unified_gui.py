@@ -14,6 +14,7 @@ Single application with 5 tabs:
 import sys
 import json
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, List
@@ -41,11 +42,22 @@ from symbol_layout import (
 )
 from preview_widgets import SymbolPreviewWidget, LayoutPreviewWidget
 from _paths import resolve_data_dir, atomic_write
+from _vendor.chiplet_format_io import ChipletFormatError
+from _vendor.chiplet_format_io.pins import kicad_type
 
 
 
 # Style override for QComboBox embedded in QTableWidget cells
 TABLE_COMBO_STYLE = "QComboBox { min-width: 0px; padding: 2px 4px; }"
+
+# Tooltip of the pin editor's type combo on a pin with a role, which is
+# disabled: the type comes from role and direction (pin_list.PinEntry).
+ROLE_TYPE_TIP = ("The type comes from role {role} and direction {direction}. To change "
+                 "it, save the pin list, edit the role and direction in that file and "
+                 "load it again.")
+ROLE_TYPE_TIP_NO_DIRECTION = ("The type comes from role {role}. To change it, save the "
+                              "pin list, edit the role and direction in that file and "
+                              "load it again.")
 
 
 # =============================================================================
@@ -622,24 +634,16 @@ class UnifiedMainWindow(QMainWindow):
         if idx >= 0:
             combo.setCurrentIndex(idx)
 
-    def _save_project(self):
-        """Save the current session to a .g2kproj file.
-
-        Stores the GDS / LYP / stripped-GDS *paths* (the files are expected to
-        stay where they are), the layer selections and extraction source, and
-        embeds the edited pin list so the work survives across sessions.
-        """
+    def _project_document(self) -> dict:
+        """The .g2kproj document of the current session, the editor synced
+        into the pin list first. Each pin is written by PinEntry.to_dict, so
+        every key it was read with (role, direction, ...) is kept."""
         self._sync_editor_to_pin_list()
-
-        gds_path = self.gds_path_edit.text().strip()
-        if not gds_path:
-            self._log("Nothing to save yet -- select a GDS first", is_error=True)
-            return
 
         project = {
             "format": self.PROJECT_FORMAT,
             "version": self.PROJECT_VERSION,
-            "gds_path": gds_path,
+            "gds_path": self.gds_path_edit.text().strip(),
             "lyp_path": self.lyp_path_edit.text().strip(),
             "stripped_gds_path": self.stripped_gds_path or "",
             "pad_layer": self.pad_layer_combo.currentText(),
@@ -651,6 +655,21 @@ class UnifiedMainWindow(QMainWindow):
             pl = self.current_pin_list
             project["pin_list"] = {**pl.metadata,
                                    "pins": [p.to_dict() for p in pl.pins]}
+        return project
+
+    def _save_project(self):
+        """Save the current session to a .g2kproj file.
+
+        Stores the GDS / LYP / stripped-GDS *paths* (the files are expected to
+        stay where they are), the layer selections and extraction source, and
+        embeds the edited pin list so the work survives across sessions.
+        """
+        project = self._project_document()
+
+        gds_path = project["gds_path"]
+        if not gds_path:
+            self._log("Nothing to save yet -- select a GDS first", is_error=True)
+            return
 
         stem = ""
         if self.current_pin_list is not None:
@@ -696,6 +715,18 @@ class UnifiedMainWindow(QMainWindow):
         self._load_project(project, source=path)
 
     def _load_project(self, project: dict, source: str = ""):
+        # Read the embedded pin list before anything is reset: a pin list the
+        # pin type rule refuses leaves the open project as it was.
+        pl_data = project.get("pin_list")
+        pin_list = None
+        if isinstance(pl_data, dict):
+            try:
+                pin_list = PinList.from_dict(pl_data)
+            except ChipletFormatError as e:
+                self._log(f"Error reading project: pin list in the project file: {e}",
+                          is_error=True)
+                return
+
         # Reset per-session state (mirrors _select_gds_file's resets).
         self.current_pin_list = None
         self.current_symbol = None
@@ -754,11 +785,9 @@ class UnifiedMainWindow(QMainWindow):
 
         # Restore the embedded pin list (this repopulates the previews and
         # cross-references via _build_pad_dicts_from_pin_list).
-        pl_data = project.get("pin_list")
-        if isinstance(pl_data, dict):
-            metadata = {k: v for k, v in pl_data.items() if k != "pins"}
-            pins = [PinEntry.from_dict(p) for p in pl_data.get("pins", [])]
-            self.current_pin_list = PinList(pins=pins, metadata=metadata)
+        if pin_list is not None:
+            self.current_pin_list = pin_list
+            self._log_read_warnings()
             self._load_pin_list_into_editor()
             self._build_pad_dicts_from_pin_list()
 
@@ -974,15 +1003,26 @@ class UnifiedMainWindow(QMainWindow):
         self.pin_editor_table.setRowCount(len(pl.pins))
 
         for row, pin in enumerate(pl.pins):
-            # Name (editable)
+            # Name (editable). It carries the row's PinEntry, so a sync keeps
+            # what the table does not show (role, direction, geometry, ...).
             name_item = QTableWidgetItem(pin.name)
+            name_item.setData(Qt.ItemDataRole.UserRole, pin)
             self.pin_editor_table.setItem(row, 0, name_item)
 
-            # Type combo
+            # Type combo; a pin with a role takes its type from role and
+            # direction, so its combo shows that word and cannot change it.
             type_combo = QComboBox()
             type_combo.setStyleSheet(TABLE_COMBO_STYLE)
             type_combo.addItems(VALID_PIN_TYPES)
             type_combo.setCurrentText(pin.type)
+            if "role" in pin.extra:
+                type_combo.setEnabled(False)
+                if "direction" in pin.extra:
+                    tip = ROLE_TYPE_TIP.format(role=pin.extra["role"],
+                                               direction=pin.extra["direction"])
+                else:
+                    tip = ROLE_TYPE_TIP_NO_DIRECTION.format(role=pin.extra["role"])
+                type_combo.setToolTip(tip)
             self.pin_editor_table.setCellWidget(row, 1, type_combo)
 
             # Side combo
@@ -1017,7 +1057,11 @@ class UnifiedMainWindow(QMainWindow):
         self._update_pin_editor_summary()
 
     def _sync_editor_to_pin_list(self):
-        """Read pin list data from editor table back into self.current_pin_list."""
+        """Read pin list data from editor table back into self.current_pin_list.
+
+        A row loaded from a pin list starts from its PinEntry and takes only
+        name, type and side from the table; a row added in the editor is
+        built from its cells."""
         if not self.current_pin_list:
             self.current_pin_list = PinList()
 
@@ -1031,6 +1075,20 @@ class UnifiedMainWindow(QMainWindow):
 
             side_w = self.pin_editor_table.cellWidget(row, 2)
             side = side_w.currentText() if side_w else "left"
+
+            entry = name_item.data(Qt.ItemDataRole.UserRole) if name_item else None
+            if isinstance(entry, PinEntry):
+                # A type changed in the editor is a stored type from now on.
+                stores_type = entry.stores_type or pin_type != entry.type
+                pin = replace(entry, name=name, type=pin_type, side=side,
+                              stores_type=stores_type)
+                # A pin that warned when it was read is read again once
+                # renamed or retyped, so its warnings name what it now is.
+                # An extracted pin was never read and never warns.
+                if entry.read_warnings and (name, pin_type) != (entry.name, entry.type):
+                    pin = replace(pin, read_warnings=kicad_type(pin.to_dict())[1])
+                pins.append(pin)
+                continue
 
             idx_item = self.pin_editor_table.item(row, 3)
             pad_index = int(idx_item.text()) if idx_item and idx_item.text().isdigit() else row
@@ -1104,11 +1162,19 @@ class UnifiedMainWindow(QMainWindow):
         if path:
             try:
                 self.current_pin_list = PinList.load(path)
+                self._log_read_warnings()
                 self._load_pin_list_into_editor()
                 self._build_pad_dicts_from_pin_list()
                 self._log(f"Loaded pin list: {path} ({len(self.current_pin_list)} pins)")
             except Exception as e:
                 self._log(f"Error loading pin list: {e}", is_error=True)
+
+    def _log_read_warnings(self):
+        """Log what reading the current pin list said of its pin types, one
+        line per pin row."""
+        for pin in self.current_pin_list.pins:
+            for w in pin.read_warnings:
+                self._log(f"Warning: {w}", is_error=True)
 
     def _write_pin_list_dialog(self, title: str = "Save Pin List") -> Optional[str]:
         """Prompt for a destination folder and file name, then save the current

@@ -16,6 +16,12 @@ flow already binds (the ``--pins`` lists the board export is given), so a
 schematic net, a .chiplet net and a board net name the same (component,
 terminal) pairs.
 
+A die pin's KiCad pin type comes from its role and direction
+(chiplet_format_io.pins.kicad_type). A die pin with no role keeps its stored
+type, which is deprecated, or passive when it has none; each such pin is a
+warning line on stderr, never part of the report. Carrier pins keep the type
+their I/O class gives.
+
 A carrier, a component that is not a die but lists ``io_pads``, gets no symbol
 of its own: each of its pads is a ``chiplet_system:EXT_PAD`` symbol, the one
 designer sheets use, with Reference the pad id, Footprint the pad's
@@ -115,13 +121,15 @@ import sys
 import uuid
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 import sexpr_io as sx
 from _paths import atomic_write
 from sexpr import sanitize_sexpr_token
+from _vendor.chiplet_format_io import ChipletFormatError
 from _vendor.chiplet_format_io.footprint_ids import (
     FootprintIdError, die_footprint, ext_pad_footprint)
+from _vendor.chiplet_format_io.pins import KICAD_PIN_TYPES, PIN_ROLES, kicad_type
 from _vendor.chiplet_format_io.sheet_names import SHEET_NAME_WORDS, is_sheet_name
 
 NS = uuid.UUID("5e0c9a41-7b2d-5f3e-8a61-c4d2b9e07f13")   # fixed: stable output
@@ -172,10 +180,9 @@ EXIT_CHECK = 4
 #: How a refusal states the rule of _is_ident.
 IDENT_RULE = "plain [A-Za-z0-9_.+-] name"
 
-# KiCad pin electrical types; the pin list's "type" must be one of them.
-PIN_TYPES = ("input", "output", "bidirectional", "tri_state", "passive", "free",
-             "unspecified", "power_in", "power_out", "open_collector",
-             "open_emitter", "no_connect")
+# KiCad pin electrical types, the shared table's; a carrier pin's type must be
+# one of them (a die pin's comes from kicad_type, which gives only these).
+PIN_TYPES = KICAD_PIN_TYPES
 PIN_SIDES = ("left", "right", "top", "bottom")
 
 # A carrier pad's pin type, from its io_class (a closed vocabulary of the
@@ -226,6 +233,21 @@ class SchematicRefused(Exception):
 
 def _refusal(code: str, message: str, **where) -> dict:
     return {"code": code, "message": message, **where}
+
+
+def _warn(line: str) -> None:
+    """The default warning channel: one line on stderr, as it happens."""
+    print(line, file=sys.stderr)
+
+
+def _refused_word(pin: dict):
+    """The word of the field kicad_type refused, in the order it checks them:
+    the role, else (a valid role) the direction, else the stored type."""
+    if "role" not in pin:
+        return pin.get("type")
+    if pin["role"] not in PIN_ROLES:
+        return pin["role"]
+    return pin.get("direction")
 
 
 # ------------------------------------------------------------------- model
@@ -299,16 +321,34 @@ def load_pin_list(path) -> list:
     return pins
 
 
+def _stored_type(pin: dict) -> Tuple[str, Tuple[str, ...]]:
+    """A carrier pin's type as stored: its I/O class gave it, never a word
+    outside KICAD_PIN_TYPES, and it never warns."""
+    return pin.get("type", "passive"), ()
+
+
+def _drop(out: list, refused: set, name: str) -> list:
+    """Refuse ``name``: it joins ``refused`` and its terminal leaves ``out``."""
+    refused.add(name)
+    return [(t, k) for t, k in out if t.name != name]
+
+
 def _terminals(inst: str, pins: list, refusals: List[dict],
                at: Tuple[str, str] = ("center_x_dbu", "center_y_dbu"),
-               repeats: bool = True):
+               repeats: bool = True, type_of: Callable = kicad_type,
+               on_warn: Optional[Callable[[str], None]] = None):
     """(terminals, terminal -> order key, names refused); bad pins become
     refusals, and a net reaching a refused pin is not refused a second time.
     ``at`` names the keys holding a pin's position.
 
     A name the list repeats is one pad of a rail: it is one terminal, drawn
     once, and the pin list keeps how many pads it has. Its entries must agree
-    on the pin type, or it is refused. ``repeats`` False refuses any repeat."""
+    on the pin type, or it is refused. ``repeats`` False refuses any repeat.
+
+    ``type_of`` gives a pin's (type, warnings): kicad_type for a die's pins,
+    the stored type for a carrier's (``_stored_type``), which never warn. Each
+    warning goes to ``on_warn`` as one line (default: stderr)."""
+    on_warn = _warn if on_warn is None else on_warn
     out, seen, refused = [], {}, set()
     for i, pin in enumerate(pins):
         name = pin.get("name") if isinstance(pin, dict) else None
@@ -328,7 +368,16 @@ def _terminals(inst: str, pins: list, refusals: List[dict],
                 "duplicate_terminal", f"pin list of {inst} lists {name} twice",
                 component=inst, terminal=name))
             continue
-        ptype = pin.get("type", "passive")
+        try:
+            ptype, said = type_of(pin)
+        except ChipletFormatError as exc:
+            refusals.append(_refusal(
+                "unknown_pin_type", f"pin list of {inst}: {exc}",
+                component=inst, terminal=name, value=_refused_word(pin)))
+            out = _drop(out, refused, name)
+            continue
+        for k in said:
+            on_warn(f"warning (pin_type): pin list of {inst}: {k}")
         if name in seen:
             if ptype != seen[name]:
                 refusals.append(_refusal(
@@ -336,18 +385,9 @@ def _terminals(inst: str, pins: list, refusals: List[dict],
                     f"pin list of {inst} lists {name} as {seen[name]!r} and as "
                     f"{ptype!r}; the pads of one terminal take one pin type",
                     component=inst, terminal=name, value=ptype))
-                refused.add(name)
-                out = [(t, k) for t, k in out if t.name != name]
+                out = _drop(out, refused, name)
             continue
         seen[name] = ptype
-        if ptype not in PIN_TYPES:
-            refusals.append(_refusal(
-                "unknown_pin_type",
-                f"pin list of {inst}: {name} has type {ptype!r}, not a KiCad "
-                f"pin type ({', '.join(PIN_TYPES)})",
-                component=inst, terminal=name, value=ptype))
-            refused.add(name)
-            continue
         side = pin.get("side", "left")
         if side not in PIN_SIDES:
             refusals.append(_refusal(
@@ -464,11 +504,13 @@ def _pad_footprints(cid: str, pads: list, refusals: List[dict]) -> Dict[str, str
     return out
 
 
-def build_system(chiplet: dict, pin_lists: Dict[str, list], draw_pads: bool = True) -> System:
+def build_system(chiplet: dict, pin_lists: Dict[str, list], draw_pads: bool = True,
+                 on_warn: Optional[Callable[[str], None]] = None) -> System:
     """Resolve the .chiplet dies and nets against the pin lists, or raise
     SchematicRefused with every reason the result could not be drawn verbatim.
     ``draw_pads`` False is for a caller that draws no carrier pad (the handout): a
-    pad then needs no footprint and no Reference of its own."""
+    pad then needs no footprint and no Reference of its own. ``on_warn`` takes
+    each die pin type warning as one line (default: stderr)."""
     refusals: List[dict] = []
     components = chiplet.get("components") or []
     if not isinstance(components, list):
@@ -510,7 +552,7 @@ def build_system(chiplet: dict, pin_lists: Dict[str, list], draw_pads: bool = Tr
                 continue
             plist, bad = _carrier_pins(cid, comp, io_pads, refusals)
             terminals, order, refused_terms[cid] = _terminals(
-                cid, plist, refusals, at=("x_um", "y_um"), repeats=False)
+                cid, plist, refusals, at=("x_um", "y_um"), repeats=False, type_of=_stored_type)
             refused_terms[cid] |= bad
             terminals.sort(key=lambda t: order[t.name])
             if draw_pads:
@@ -538,7 +580,8 @@ def build_system(chiplet: dict, pin_lists: Dict[str, list], draw_pads: bool = Tr
                 f"terminals are unknown and it cannot be drawn",
                 component=cid))
             continue
-        terminals, order, refused_terms[cid] = _terminals(cid, pin_lists[cid], refusals)
+        terminals, order, refused_terms[cid] = _terminals(cid, pin_lists[cid], refusals,
+                                                          on_warn=on_warn)
         terminals.sort(key=lambda t: order[t.name])
         cell = comp.get("top_cell")
         if not isinstance(cell, str) or not cell:
@@ -1234,7 +1277,8 @@ def _load_pin_lists(pins: Dict[str, str]) -> Tuple[List[dict], Dict[str, Optiona
 
 
 def generate(chiplet_path, pins: Dict[str, str], out_path, setup_path=None,
-             spec_path=None, setup_only=False, svg_path=None) -> dict:
+             spec_path=None, setup_only=False, svg_path=None,
+             on_warn: Optional[Callable[[str], None]] = None) -> dict:
     """Write the schematic for ``chiplet_path``; returns a summary. Raises
     SchematicRefused (nothing written) when it cannot be drawn verbatim. With
     ``setup_path``, a co-simulation setup projection, and ``spec_path``, the
@@ -1245,7 +1289,10 @@ def generate(chiplet_path, pins: Dict[str, str], out_path, setup_path=None,
 
     ``svg_path`` also writes the connection sheet there, the system sheet as
     an SVG without the setup band (connection_sheet_svg.py). ``out_path`` may
-    then be None: the SVG is the only file written, and no setup is drawn."""
+    then be None: the SVG is the only file written, and no setup is drawn.
+
+    ``on_warn`` takes each die pin type warning as one line, as it happens,
+    so it also comes before a refusal (default: stderr, see build_system)."""
     if setup_only and (setup_path is None or pins):
         raise ValueError("setup_only takes a setup projection and no pin lists")
     if svg_path is not None and setup_only:
@@ -1258,7 +1305,7 @@ def generate(chiplet_path, pins: Dict[str, str], out_path, setup_path=None,
     system = None
     try:
         system = (System(system_name(chiplet), [], []) if setup_only
-                  else build_system(chiplet, pin_lists))
+                  else build_system(chiplet, pin_lists, on_warn=on_warn))
     except SchematicRefused as exc:
         refusals += exc.refusals
     plan = None
@@ -1511,7 +1558,8 @@ def write_handout(out_dir, files: Dict[str, str], refusals: List[dict],
             for fname, text in files.items()}
 
 
-def handout(chiplet_path, pins: Dict[str, str], out_dir, name: Optional[str] = None) -> dict:
+def handout(chiplet_path, pins: Dict[str, str], out_dir, name: Optional[str] = None,
+            on_warn: Optional[Callable[[str], None]] = None) -> dict:
     """Write the schematic-first handout into ``out_dir``: the die symbol
     library, a ``sym-lib-table`` naming it by ``${KIPRJMOD}``, a project and an
     empty sheet, both named ``name`` (the .chiplet's stem unless given).
@@ -1521,7 +1569,9 @@ def handout(chiplet_path, pins: Dict[str, str], out_dir, name: Optional[str] = N
     verbatim, or when ``out_dir`` holds a file of the handout that differs
     from what would be written (a sheet already drawn on, another
     ``sym-lib-table``), or is not a directory. A rerun on an untouched
-    handout rewrites the same bytes."""
+    handout rewrites the same bytes. The die pin types are the sheet's, and so
+    are their warnings (``on_warn``, see build_system): the type picks a pin's
+    column here too."""
     chiplet, _digest = load_chiplet(chiplet_path)
     refusals, pin_lists = _load_pin_lists(pins)
     name = Path(chiplet_path).stem if name is None else name
@@ -1531,7 +1581,7 @@ def handout(chiplet_path, pins: Dict[str, str], out_dir, name: Optional[str] = N
             field="project", value=name))
     system, symbols, drawable = None, [], False
     try:
-        system = build_system(chiplet, pin_lists, draw_pads=False)
+        system = build_system(chiplet, pin_lists, draw_pads=False, on_warn=on_warn)
     except SchematicRefused as exc:
         refusals += exc.refusals
     if system is not None:
