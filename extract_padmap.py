@@ -221,6 +221,15 @@ def cmd_annotate(args):
         # The prefix rule gives a supply its role, and the type is the one the
         # reader derives from that role; the rest keep no role and stay passive.
         role = _supply_role(pin["name"])
+        # A role written by hand is not dropped or replaced without a word.
+        if role is None and "role" in pin:
+            print(f"annotate: pin {pin['name']}: the role {pin['role']} was removed. "
+                  f"annotate gives a role to supply pads only (names that start with "
+                  f"VDD, IOVDD, VSS or IOVSS).", file=sys.stderr)
+        elif role is not None and pin.get("role", role) != role:
+            print(f"annotate: pin {pin['name']}: the role {pin['role']} was replaced by "
+                  f"{role}. annotate takes a supply pad's role from its name (names that "
+                  f"start with VDD, IOVDD, VSS or IOVSS).", file=sys.stderr)
         for key in ("role", "direction"):
             pin.pop(key, None)
         pin["type"] = KICAD_TYPE[(role, "INOUT")] if role else "passive"

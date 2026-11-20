@@ -54,3 +54,40 @@ def test_a_pin_keeps_its_keys_and_their_order(tmp_path):
                                 for i, n in enumerate(PADS)])
     assert list(pins["VSS"]) == ["name", "type", "side", "pad_index", "role", "direction"]
     assert list(pins["IN0"]) == ["name", "type", "side", "pad_index"]
+
+
+REMOVED = ("annotate: pin IN0: the role SIGNAL was removed. annotate gives a role to supply "
+           "pads only (names that start with VDD, IOVDD, VSS or IOVSS).")
+
+
+REPLACED = ("annotate: pin VDDX: the role SIGNAL was replaced by POWER. annotate takes a "
+            "supply pad's role from its name (names that start with VDD, IOVDD, VSS or IOVSS).")
+
+
+def _lines(capsys):
+    return [line for line in capsys.readouterr().err.splitlines() if line.startswith("annotate:")]
+
+
+def test_a_removed_role_is_named(tmp_path, capsys):
+    source = [{"name": n, "type": "passive", "side": "left"} for n in PADS]
+    source[PADS.index("IN0")].update(role="SIGNAL", direction="INPUT")
+    _annotate(tmp_path, source)
+    assert _lines(capsys) == [REMOVED]
+
+
+def test_a_replaced_role_is_named(tmp_path, capsys):
+    source = [{"name": n, "type": "passive", "side": "left"} for n in PADS]
+    source[PADS.index("VDDX")].update(role="SIGNAL", direction="INPUT")
+    pins = _annotate(tmp_path, source)
+    assert _lines(capsys) == [REPLACED]
+    assert (pins["VDDX"]["role"], pins["VDDX"]["direction"]) == ("POWER", "INOUT")
+
+
+def test_no_line_when_no_role_is_removed(tmp_path, capsys):
+    """A list whose only roles are the supplies' own prints the summary alone,
+    also when annotate changes a supply's direction."""
+    source = [{"name": n, "type": "passive", "side": "left"} for n in PADS]
+    source[PADS.index("VSS")].update(role="GROUND", direction="INOUT")
+    source[PADS.index("VDD")].update(role="POWER", direction="INPUT")
+    _annotate(tmp_path, source)
+    assert _lines(capsys) == []
