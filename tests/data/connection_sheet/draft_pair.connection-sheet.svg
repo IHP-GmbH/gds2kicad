@@ -1,0 +1,459 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" data-form="connection-sheet/1" width="3720" height="3200" viewBox="0 0 18600 16000" font-family="monospace" font-size="50">
+<style>
+.sheet{fill:#ffffff;stroke:#840000;stroke-width:6}
+.symbol,.pad{fill:#ffffc2;stroke:#840000;stroke-width:10}
+.pin-left,.pin-right{stroke:#840000;stroke-width:6}
+.wire{stroke:#008400;stroke-width:6}
+.no-connect{fill:none;stroke:#0000c8;stroke-width:6}
+.label-left rect,.label-right rect{fill:#ffffff;stroke:#840000;stroke-width:6}
+text{fill:#000000;dominant-baseline:central}
+.reference,.value,.pin-name{fill:#006464}
+.pin-number{fill:#a90000;dominant-baseline:auto}
+.reference,.value,.pin-number{text-anchor:middle}
+.label-left text,.label-right text{fill:#840000}
+.label-left text{text-anchor:end}
+</style>
+<rect class="sheet" x="0" y="0" width="18600" height="16000"/>
+<text class="title" x="1000" y="14600">cf_padring_die_cmos5l</text>
+<text class="title" x="1000" y="14700">chiplet sha256 cf50975931eb7fcfacc2c02137fccb76654ed70593667bf99f85767685872774</text>
+<rect class="symbol" x="4500" y="1000" width="2000" height="2400"/>
+<text class="reference" x="5500" y="2150">U1</text>
+<text class="value" x="5500" y="2250">chip_top</text>
+<line class="pin-left" x1="2900" y1="1100" x2="4500" y2="1100"/>
+<text class="pin-name" x="4540" y="1100" text-anchor="start">bidir_PAD[0]</text>
+<text class="pin-number" x="3700" y="1085">IO_BOND_bidirs[0].bidir_pad</text>
+<line class="wire" x1="2900" y1="1100" x2="2800" y2="1100"/>
+<g class="label-left"><rect x="1250" y="1050" width="1550" height="100"/><text x="2775" y="1100">U1_IO_BOND_bidirs[0].bidir_pad</text></g>
+<line class="pin-left" x1="2900" y1="1200" x2="4500" y2="1200"/>
+<text class="pin-name" x="4540" y="1200" text-anchor="start">bidir_PAD[1]</text>
+<text class="pin-number" x="3700" y="1185">IO_BOND_bidirs[1].bidir_pad</text>
+<line class="wire" x1="2900" y1="1200" x2="2800" y2="1200"/>
+<g class="label-left"><rect x="1250" y="1150" width="1550" height="100"/><text x="2775" y="1200">U1_IO_BOND_bidirs[1].bidir_pad</text></g>
+<line class="pin-left" x1="2900" y1="1300" x2="4500" y2="1300"/>
+<text class="pin-name" x="4540" y="1300" text-anchor="start">bidir_PAD[2]</text>
+<text class="pin-number" x="3700" y="1285">IO_BOND_bidirs[2].bidir_pad</text>
+<line class="wire" x1="2900" y1="1300" x2="2800" y2="1300"/>
+<g class="label-left"><rect x="1250" y="1250" width="1550" height="100"/><text x="2775" y="1300">U1_IO_BOND_bidirs[2].bidir_pad</text></g>
+<line class="pin-left" x1="2900" y1="1400" x2="4500" y2="1400"/>
+<text class="pin-name" x="4540" y="1400" text-anchor="start">bidir_PAD[3]</text>
+<text class="pin-number" x="3700" y="1385">IO_BOND_bidirs[3].bidir_pad</text>
+<line class="wire" x1="2900" y1="1400" x2="2800" y2="1400"/>
+<g class="label-left"><rect x="1250" y="1350" width="1550" height="100"/><text x="2775" y="1400">U1_IO_BOND_bidirs[3].bidir_pad</text></g>
+<line class="pin-left" x1="2900" y1="1500" x2="4500" y2="1500"/>
+<text class="pin-name" x="4540" y="1500" text-anchor="start">clk_PAD</text>
+<text class="pin-number" x="3700" y="1485">IO_BOND_clk_pad</text>
+<line class="wire" x1="2900" y1="1500" x2="2800" y2="1500"/>
+<g class="label-left"><rect x="1850" y="1450" width="950" height="100"/><text x="2775" y="1500">U1_IO_BOND_clk_pad</text></g>
+<line class="pin-left" x1="2900" y1="1600" x2="4500" y2="1600"/>
+<text class="pin-name" x="4540" y="1600" text-anchor="start">input_PAD[0]</text>
+<text class="pin-number" x="3700" y="1585">IO_BOND_inputs[0].input_pad</text>
+<line class="wire" x1="2900" y1="1600" x2="2800" y2="1600"/>
+<g class="label-left"><rect x="1250" y="1550" width="1550" height="100"/><text x="2775" y="1600">U1_IO_BOND_inputs[0].input_pad</text></g>
+<line class="pin-left" x1="2900" y1="1700" x2="4500" y2="1700"/>
+<text class="pin-name" x="4540" y="1700" text-anchor="start">input_PAD[1]</text>
+<text class="pin-number" x="3700" y="1685">IO_BOND_inputs[1].input_pad</text>
+<line class="wire" x1="2900" y1="1700" x2="2800" y2="1700"/>
+<g class="label-left"><rect x="1250" y="1650" width="1550" height="100"/><text x="2775" y="1700">U1_IO_BOND_inputs[1].input_pad</text></g>
+<line class="pin-left" x1="2900" y1="1800" x2="4500" y2="1800"/>
+<text class="pin-name" x="4540" y="1800" text-anchor="start">input_PAD[2]</text>
+<text class="pin-number" x="3700" y="1785">IO_BOND_inputs[2].input_pad</text>
+<line class="wire" x1="2900" y1="1800" x2="2800" y2="1800"/>
+<g class="label-left"><rect x="1250" y="1750" width="1550" height="100"/><text x="2775" y="1800">U1_IO_BOND_inputs[2].input_pad</text></g>
+<line class="pin-left" x1="2900" y1="1900" x2="4500" y2="1900"/>
+<text class="pin-name" x="4540" y="1900" text-anchor="start">input_PAD[3]</text>
+<text class="pin-number" x="3700" y="1885">IO_BOND_inputs[3].input_pad</text>
+<line class="wire" x1="2900" y1="1900" x2="2800" y2="1900"/>
+<g class="label-left"><rect x="1250" y="1850" width="1550" height="100"/><text x="2775" y="1900">U1_IO_BOND_inputs[3].input_pad</text></g>
+<line class="pin-left" x1="2900" y1="2000" x2="4500" y2="2000"/>
+<text class="pin-name" x="4540" y="2000" text-anchor="start">input_PAD[4]</text>
+<text class="pin-number" x="3700" y="1985">IO_BOND_inputs[4].input_pad</text>
+<line class="wire" x1="2900" y1="2000" x2="2800" y2="2000"/>
+<g class="label-left"><rect x="1250" y="1950" width="1550" height="100"/><text x="2775" y="2000">U1_IO_BOND_inputs[4].input_pad</text></g>
+<line class="pin-left" x1="2900" y1="2100" x2="4500" y2="2100"/>
+<text class="pin-name" x="4540" y="2100" text-anchor="start">input_PAD[5]</text>
+<text class="pin-number" x="3700" y="2085">IO_BOND_inputs[5].input_pad</text>
+<line class="wire" x1="2900" y1="2100" x2="2800" y2="2100"/>
+<g class="label-left"><rect x="1250" y="2050" width="1550" height="100"/><text x="2775" y="2100">U1_IO_BOND_inputs[5].input_pad</text></g>
+<line class="pin-left" x1="2900" y1="2200" x2="4500" y2="2200"/>
+<text class="pin-name" x="4540" y="2200" text-anchor="start">input_PAD[6]</text>
+<text class="pin-number" x="3700" y="2185">IO_BOND_inputs[6].input_pad</text>
+<line class="wire" x1="2900" y1="2200" x2="2800" y2="2200"/>
+<g class="label-left"><rect x="1250" y="2150" width="1550" height="100"/><text x="2775" y="2200">U1_IO_BOND_inputs[6].input_pad</text></g>
+<line class="pin-left" x1="2900" y1="2300" x2="4500" y2="2300"/>
+<text class="pin-name" x="4540" y="2300" text-anchor="start">input_PAD[7]</text>
+<text class="pin-number" x="3700" y="2285">IO_BOND_inputs[7].input_pad</text>
+<line class="wire" x1="2900" y1="2300" x2="2800" y2="2300"/>
+<g class="label-left"><rect x="1250" y="2250" width="1550" height="100"/><text x="2775" y="2300">U1_IO_BOND_inputs[7].input_pad</text></g>
+<line class="pin-left" x1="2900" y1="2400" x2="4500" y2="2400"/>
+<text class="pin-name" x="4540" y="2400" text-anchor="start">IOVDD</text>
+<text class="pin-number" x="3700" y="2385">IO_BOND_iovdd_pads[0].iovdd_pad</text>
+<line class="wire" x1="2900" y1="2400" x2="2800" y2="2400"/>
+<g class="label-left"><rect x="2500" y="2350" width="300" height="100"/><text x="2775" y="2400">IOVDD</text></g>
+<line class="pin-left" x1="2900" y1="2500" x2="4500" y2="2500"/>
+<text class="pin-name" x="4540" y="2500" text-anchor="start">IOVSS</text>
+<text class="pin-number" x="3700" y="2485">IO_BOND_iovss_pads[0].iovss_pad</text>
+<line class="wire" x1="2900" y1="2500" x2="2800" y2="2500"/>
+<g class="label-left"><rect x="2500" y="2450" width="300" height="100"/><text x="2775" y="2500">IOVSS</text></g>
+<line class="pin-left" x1="2900" y1="2600" x2="4500" y2="2600"/>
+<text class="pin-name" x="4540" y="2600" text-anchor="start">output_PAD[0]</text>
+<text class="pin-number" x="3700" y="2585">IO_BOND_outputs[0].output_pad</text>
+<line class="wire" x1="2900" y1="2600" x2="2800" y2="2600"/>
+<g class="label-left"><rect x="1150" y="2550" width="1650" height="100"/><text x="2775" y="2600">U1_IO_BOND_outputs[0].output_pad</text></g>
+<line class="pin-left" x1="2900" y1="2700" x2="4500" y2="2700"/>
+<text class="pin-name" x="4540" y="2700" text-anchor="start">output_PAD[1]</text>
+<text class="pin-number" x="3700" y="2685">IO_BOND_outputs[1].output_pad</text>
+<line class="wire" x1="2900" y1="2700" x2="2800" y2="2700"/>
+<g class="label-left"><rect x="1150" y="2650" width="1650" height="100"/><text x="2775" y="2700">U1_IO_BOND_outputs[1].output_pad</text></g>
+<line class="pin-left" x1="2900" y1="2800" x2="4500" y2="2800"/>
+<text class="pin-name" x="4540" y="2800" text-anchor="start">output_PAD[2]</text>
+<text class="pin-number" x="3700" y="2785">IO_BOND_outputs[2].output_pad</text>
+<line class="wire" x1="2900" y1="2800" x2="2800" y2="2800"/>
+<g class="label-left"><rect x="1150" y="2750" width="1650" height="100"/><text x="2775" y="2800">U1_IO_BOND_outputs[2].output_pad</text></g>
+<line class="pin-left" x1="2900" y1="2900" x2="4500" y2="2900"/>
+<text class="pin-name" x="4540" y="2900" text-anchor="start">output_PAD[3]</text>
+<text class="pin-number" x="3700" y="2885">IO_BOND_outputs[3].output_pad</text>
+<line class="wire" x1="2900" y1="2900" x2="2800" y2="2900"/>
+<g class="label-left"><rect x="1150" y="2850" width="1650" height="100"/><text x="2775" y="2900">U1_IO_BOND_outputs[3].output_pad</text></g>
+<line class="pin-left" x1="2900" y1="3000" x2="4500" y2="3000"/>
+<text class="pin-name" x="4540" y="3000" text-anchor="start">rst_n_PAD</text>
+<text class="pin-number" x="3700" y="2985">IO_BOND_rst_n_pad</text>
+<line class="wire" x1="2900" y1="3000" x2="2800" y2="3000"/>
+<g class="label-left"><rect x="1750" y="2950" width="1050" height="100"/><text x="2775" y="3000">U1_IO_BOND_rst_n_pad</text></g>
+<line class="pin-left" x1="2900" y1="3100" x2="4500" y2="3100"/>
+<text class="pin-name" x="4540" y="3100" text-anchor="start">VDD</text>
+<text class="pin-number" x="3700" y="3085">IO_BOND_vdd_pads[0].vdd_pad</text>
+<line class="wire" x1="2900" y1="3100" x2="2800" y2="3100"/>
+<g class="label-left"><rect x="2600" y="3050" width="200" height="100"/><text x="2775" y="3100">VDD</text></g>
+<line class="pin-left" x1="2900" y1="3200" x2="4500" y2="3200"/>
+<text class="pin-name" x="4540" y="3200" text-anchor="start">VSS</text>
+<text class="pin-number" x="3700" y="3185">IO_BOND_vss_pads[0].vss_pad</text>
+<line class="wire" x1="2900" y1="3200" x2="2800" y2="3200"/>
+<g class="label-left"><rect x="2600" y="3150" width="200" height="100"/><text x="2775" y="3200">VSS</text></g>
+<line class="pin-right" x1="8100" y1="1100" x2="6500" y2="1100"/>
+<text class="pin-name" x="6460" y="1100" text-anchor="end">bidir_PAD[4]</text>
+<text class="pin-number" x="7300" y="1085">IO_BOND_bidirs[4].bidir_pad</text>
+<line class="wire" x1="8100" y1="1100" x2="8200" y2="1100"/>
+<g class="label-right"><rect x="8200" y="1050" width="350" height="100"/><text x="8225" y="1100">d2d_b3</text></g>
+<line class="pin-right" x1="8100" y1="1200" x2="6500" y2="1200"/>
+<text class="pin-name" x="6460" y="1200" text-anchor="end">bidir_PAD[5]</text>
+<text class="pin-number" x="7300" y="1185">IO_BOND_bidirs[5].bidir_pad</text>
+<line class="wire" x1="8100" y1="1200" x2="8200" y2="1200"/>
+<g class="label-right"><rect x="8200" y="1150" width="350" height="100"/><text x="8225" y="1200">d2d_b2</text></g>
+<line class="pin-right" x1="8100" y1="1300" x2="6500" y2="1300"/>
+<text class="pin-name" x="6460" y="1300" text-anchor="end">bidir_PAD[6]</text>
+<text class="pin-number" x="7300" y="1285">IO_BOND_bidirs[6].bidir_pad</text>
+<line class="wire" x1="8100" y1="1300" x2="8200" y2="1300"/>
+<g class="label-right"><rect x="8200" y="1250" width="350" height="100"/><text x="8225" y="1300">d2d_b1</text></g>
+<line class="pin-right" x1="8100" y1="1400" x2="6500" y2="1400"/>
+<text class="pin-name" x="6460" y="1400" text-anchor="end">bidir_PAD[7]</text>
+<text class="pin-number" x="7300" y="1385">IO_BOND_bidirs[7].bidir_pad</text>
+<line class="wire" x1="8100" y1="1400" x2="8200" y2="1400"/>
+<g class="label-right"><rect x="8200" y="1350" width="350" height="100"/><text x="8225" y="1400">d2d_b0</text></g>
+<line class="pin-right" x1="8100" y1="1500" x2="6500" y2="1500"/>
+<text class="pin-name" x="6460" y="1500" text-anchor="end">output_PAD[4]</text>
+<text class="pin-number" x="7300" y="1485">IO_BOND_outputs[4].output_pad</text>
+<line class="wire" x1="8100" y1="1500" x2="8200" y2="1500"/>
+<g class="label-right"><rect x="8200" y="1450" width="350" height="100"/><text x="8225" y="1500">d2d_a3</text></g>
+<line class="pin-right" x1="8100" y1="1600" x2="6500" y2="1600"/>
+<text class="pin-name" x="6460" y="1600" text-anchor="end">output_PAD[5]</text>
+<text class="pin-number" x="7300" y="1585">IO_BOND_outputs[5].output_pad</text>
+<line class="wire" x1="8100" y1="1600" x2="8200" y2="1600"/>
+<g class="label-right"><rect x="8200" y="1550" width="350" height="100"/><text x="8225" y="1600">d2d_a2</text></g>
+<line class="pin-right" x1="8100" y1="1700" x2="6500" y2="1700"/>
+<text class="pin-name" x="6460" y="1700" text-anchor="end">output_PAD[6]</text>
+<text class="pin-number" x="7300" y="1685">IO_BOND_outputs[6].output_pad</text>
+<line class="wire" x1="8100" y1="1700" x2="8200" y2="1700"/>
+<g class="label-right"><rect x="8200" y="1650" width="350" height="100"/><text x="8225" y="1700">d2d_a1</text></g>
+<line class="pin-right" x1="8100" y1="1800" x2="6500" y2="1800"/>
+<text class="pin-name" x="6460" y="1800" text-anchor="end">output_PAD[7]</text>
+<text class="pin-number" x="7300" y="1785">IO_BOND_outputs[7].output_pad</text>
+<line class="wire" x1="8100" y1="1800" x2="8200" y2="1800"/>
+<g class="label-right"><rect x="8200" y="1750" width="350" height="100"/><text x="8225" y="1800">d2d_a0</text></g>
+<rect class="symbol" x="10900" y="1000" width="1400" height="2400"/>
+<text class="reference" x="11600" y="2150">U2</text>
+<text class="value" x="11600" y="2250">PAD_FRAME_A</text>
+<line class="pin-left" x1="10500" y1="1100" x2="10900" y2="1100"/>
+<text class="pin-name" x="10940" y="1100" text-anchor="start">d2d[0]</text>
+<text class="pin-number" x="10700" y="1085">d2d[0]</text>
+<line class="wire" x1="10500" y1="1100" x2="10400" y2="1100"/>
+<g class="label-left"><rect x="10050" y="1050" width="350" height="100"/><text x="10375" y="1100">d2d_a0</text></g>
+<line class="pin-left" x1="10500" y1="1200" x2="10900" y2="1200"/>
+<text class="pin-name" x="10940" y="1200" text-anchor="start">d2d[1]</text>
+<text class="pin-number" x="10700" y="1185">d2d[1]</text>
+<line class="wire" x1="10500" y1="1200" x2="10400" y2="1200"/>
+<g class="label-left"><rect x="10050" y="1150" width="350" height="100"/><text x="10375" y="1200">d2d_a1</text></g>
+<line class="pin-left" x1="10500" y1="1300" x2="10900" y2="1300"/>
+<text class="pin-name" x="10940" y="1300" text-anchor="start">d2d[2]</text>
+<text class="pin-number" x="10700" y="1285">d2d[2]</text>
+<line class="wire" x1="10500" y1="1300" x2="10400" y2="1300"/>
+<g class="label-left"><rect x="10050" y="1250" width="350" height="100"/><text x="10375" y="1300">d2d_a2</text></g>
+<line class="pin-left" x1="10500" y1="1400" x2="10900" y2="1400"/>
+<text class="pin-name" x="10940" y="1400" text-anchor="start">d2d[3]</text>
+<text class="pin-number" x="10700" y="1385">d2d[3]</text>
+<line class="wire" x1="10500" y1="1400" x2="10400" y2="1400"/>
+<g class="label-left"><rect x="10050" y="1350" width="350" height="100"/><text x="10375" y="1400">d2d_a3</text></g>
+<line class="pin-right" x1="12700" y1="1100" x2="12300" y2="1100"/>
+<text class="pin-name" x="12260" y="1100" text-anchor="end">ext[0]</text>
+<text class="pin-number" x="12500" y="1085">ext[0]</text>
+<line class="wire" x1="12700" y1="1100" x2="12800" y2="1100"/>
+<g class="label-right"><rect x="12800" y="1050" width="500" height="100"/><text x="12825" y="1100">U2_ext[0]</text></g>
+<line class="pin-right" x1="12700" y1="1200" x2="12300" y2="1200"/>
+<text class="pin-name" x="12260" y="1200" text-anchor="end">ext[1]</text>
+<text class="pin-number" x="12500" y="1185">ext[1]</text>
+<line class="wire" x1="12700" y1="1200" x2="12800" y2="1200"/>
+<g class="label-right"><rect x="12800" y="1150" width="500" height="100"/><text x="12825" y="1200">U2_ext[1]</text></g>
+<line class="pin-right" x1="12700" y1="1300" x2="12300" y2="1300"/>
+<text class="pin-name" x="12260" y="1300" text-anchor="end">ext[2]</text>
+<text class="pin-number" x="12500" y="1285">ext[2]</text>
+<line class="wire" x1="12700" y1="1300" x2="12800" y2="1300"/>
+<g class="label-right"><rect x="12800" y="1250" width="500" height="100"/><text x="12825" y="1300">U2_ext[2]</text></g>
+<line class="pin-right" x1="12700" y1="1400" x2="12300" y2="1400"/>
+<text class="pin-name" x="12260" y="1400" text-anchor="end">ext[3]</text>
+<text class="pin-number" x="12500" y="1385">ext[3]</text>
+<line class="wire" x1="12700" y1="1400" x2="12800" y2="1400"/>
+<g class="label-right"><rect x="12800" y="1350" width="500" height="100"/><text x="12825" y="1400">U2_ext[3]</text></g>
+<line class="pin-right" x1="12700" y1="1500" x2="12300" y2="1500"/>
+<text class="pin-name" x="12260" y="1500" text-anchor="end">VDDA_0</text>
+<text class="pin-number" x="12500" y="1485">VDDA_0</text>
+<line class="wire" x1="12700" y1="1500" x2="12800" y2="1500"/>
+<g class="label-right"><rect x="12800" y="1450" width="250" height="100"/><text x="12825" y="1500">VDDA</text></g>
+<line class="pin-right" x1="12700" y1="1600" x2="12300" y2="1600"/>
+<text class="pin-name" x="12260" y="1600" text-anchor="end">VDDA_1</text>
+<text class="pin-number" x="12500" y="1585">VDDA_1</text>
+<line class="wire" x1="12700" y1="1600" x2="12800" y2="1600"/>
+<g class="label-right"><rect x="12800" y="1550" width="250" height="100"/><text x="12825" y="1600">VDDA</text></g>
+<line class="pin-right" x1="12700" y1="1700" x2="12300" y2="1700"/>
+<text class="pin-name" x="12260" y="1700" text-anchor="end">VSSA_0</text>
+<text class="pin-number" x="12500" y="1685">VSSA_0</text>
+<line class="wire" x1="12700" y1="1700" x2="12800" y2="1700"/>
+<g class="label-right"><rect x="12800" y="1650" width="250" height="100"/><text x="12825" y="1700">VSSA</text></g>
+<line class="pin-right" x1="12700" y1="1800" x2="12300" y2="1800"/>
+<text class="pin-name" x="12260" y="1800" text-anchor="end">VSSA_1</text>
+<text class="pin-number" x="12500" y="1785">VSSA_1</text>
+<line class="wire" x1="12700" y1="1800" x2="12800" y2="1800"/>
+<g class="label-right"><rect x="12800" y="1750" width="250" height="100"/><text x="12825" y="1800">VSSA</text></g>
+<rect class="symbol" x="15100" y="1000" width="1400" height="2400"/>
+<text class="reference" x="15800" y="2150">U3</text>
+<text class="value" x="15800" y="2250">PAD_FRAME_B</text>
+<line class="pin-left" x1="14700" y1="1100" x2="15100" y2="1100"/>
+<text class="pin-name" x="15140" y="1100" text-anchor="start">d2d[0]</text>
+<text class="pin-number" x="14900" y="1085">d2d[0]</text>
+<line class="wire" x1="14700" y1="1100" x2="14600" y2="1100"/>
+<g class="label-left"><rect x="14250" y="1050" width="350" height="100"/><text x="14575" y="1100">d2d_b0</text></g>
+<line class="pin-left" x1="14700" y1="1200" x2="15100" y2="1200"/>
+<text class="pin-name" x="15140" y="1200" text-anchor="start">d2d[1]</text>
+<text class="pin-number" x="14900" y="1185">d2d[1]</text>
+<line class="wire" x1="14700" y1="1200" x2="14600" y2="1200"/>
+<g class="label-left"><rect x="14250" y="1150" width="350" height="100"/><text x="14575" y="1200">d2d_b1</text></g>
+<line class="pin-left" x1="14700" y1="1300" x2="15100" y2="1300"/>
+<text class="pin-name" x="15140" y="1300" text-anchor="start">d2d[2]</text>
+<text class="pin-number" x="14900" y="1285">d2d[2]</text>
+<line class="wire" x1="14700" y1="1300" x2="14600" y2="1300"/>
+<g class="label-left"><rect x="14250" y="1250" width="350" height="100"/><text x="14575" y="1300">d2d_b2</text></g>
+<line class="pin-left" x1="14700" y1="1400" x2="15100" y2="1400"/>
+<text class="pin-name" x="15140" y="1400" text-anchor="start">d2d[3]</text>
+<text class="pin-number" x="14900" y="1385">d2d[3]</text>
+<line class="wire" x1="14700" y1="1400" x2="14600" y2="1400"/>
+<g class="label-left"><rect x="14250" y="1350" width="350" height="100"/><text x="14575" y="1400">d2d_b3</text></g>
+<line class="pin-right" x1="16900" y1="1100" x2="16500" y2="1100"/>
+<text class="pin-name" x="16460" y="1100" text-anchor="end">ext[0]</text>
+<text class="pin-number" x="16700" y="1085">ext[0]</text>
+<line class="wire" x1="16900" y1="1100" x2="17000" y2="1100"/>
+<g class="label-right"><rect x="17000" y="1050" width="500" height="100"/><text x="17025" y="1100">U3_ext[0]</text></g>
+<line class="pin-right" x1="16900" y1="1200" x2="16500" y2="1200"/>
+<text class="pin-name" x="16460" y="1200" text-anchor="end">ext[1]</text>
+<text class="pin-number" x="16700" y="1185">ext[1]</text>
+<line class="wire" x1="16900" y1="1200" x2="17000" y2="1200"/>
+<g class="label-right"><rect x="17000" y="1150" width="500" height="100"/><text x="17025" y="1200">U3_ext[1]</text></g>
+<line class="pin-right" x1="16900" y1="1300" x2="16500" y2="1300"/>
+<text class="pin-name" x="16460" y="1300" text-anchor="end">ext[2]</text>
+<text class="pin-number" x="16700" y="1285">ext[2]</text>
+<line class="wire" x1="16900" y1="1300" x2="17000" y2="1300"/>
+<g class="label-right"><rect x="17000" y="1250" width="500" height="100"/><text x="17025" y="1300">U3_ext[2]</text></g>
+<line class="pin-right" x1="16900" y1="1400" x2="16500" y2="1400"/>
+<text class="pin-name" x="16460" y="1400" text-anchor="end">ext[3]</text>
+<text class="pin-number" x="16700" y="1385">ext[3]</text>
+<line class="wire" x1="16900" y1="1400" x2="17000" y2="1400"/>
+<g class="label-right"><rect x="17000" y="1350" width="500" height="100"/><text x="17025" y="1400">U3_ext[3]</text></g>
+<line class="pin-right" x1="16900" y1="1500" x2="16500" y2="1500"/>
+<text class="pin-name" x="16460" y="1500" text-anchor="end">VDDA_0</text>
+<text class="pin-number" x="16700" y="1485">VDDA_0</text>
+<line class="wire" x1="16900" y1="1500" x2="17000" y2="1500"/>
+<g class="label-right"><rect x="17000" y="1450" width="250" height="100"/><text x="17025" y="1500">VDDA</text></g>
+<line class="pin-right" x1="16900" y1="1600" x2="16500" y2="1600"/>
+<text class="pin-name" x="16460" y="1600" text-anchor="end">VDDA_1</text>
+<text class="pin-number" x="16700" y="1585">VDDA_1</text>
+<line class="wire" x1="16900" y1="1600" x2="17000" y2="1600"/>
+<g class="label-right"><rect x="17000" y="1550" width="250" height="100"/><text x="17025" y="1600">VDDA</text></g>
+<line class="pin-right" x1="16900" y1="1700" x2="16500" y2="1700"/>
+<text class="pin-name" x="16460" y="1700" text-anchor="end">VSSA_0</text>
+<text class="pin-number" x="16700" y="1685">VSSA_0</text>
+<line class="wire" x1="16900" y1="1700" x2="17000" y2="1700"/>
+<g class="label-right"><rect x="17000" y="1650" width="250" height="100"/><text x="17025" y="1700">VSSA</text></g>
+<line class="pin-right" x1="16900" y1="1800" x2="16500" y2="1800"/>
+<text class="pin-name" x="16460" y="1800" text-anchor="end">VSSA_1</text>
+<text class="pin-number" x="16700" y="1785">VSSA_1</text>
+<line class="wire" x1="16900" y1="1800" x2="17000" y2="1800"/>
+<g class="label-right"><rect x="17000" y="1750" width="250" height="100"/><text x="17025" y="1800">VSSA</text></g>
+<rect class="pad" x="3000" y="3950" width="200" height="200"/>
+<text class="reference" x="3100" y="3900">J_IOVDD</text>
+<line class="pin-left" x1="2900" y1="4050" x2="3000" y2="4050"/>
+<line class="wire" x1="2900" y1="4050" x2="2800" y2="4050"/>
+<g class="label-left"><rect x="2500" y="4000" width="300" height="100"/><text x="2775" y="4050">IOVDD</text></g>
+<rect class="pad" x="3000" y="4250" width="200" height="200"/>
+<text class="reference" x="3100" y="4200">J_IOVSS</text>
+<line class="pin-left" x1="2900" y1="4350" x2="3000" y2="4350"/>
+<line class="wire" x1="2900" y1="4350" x2="2800" y2="4350"/>
+<g class="label-left"><rect x="2500" y="4300" width="300" height="100"/><text x="2775" y="4350">IOVSS</text></g>
+<rect class="pad" x="3000" y="4550" width="200" height="200"/>
+<text class="reference" x="3100" y="4500">J_U1_IO_BOND_bidirs[0].bidir_pad</text>
+<line class="pin-left" x1="2900" y1="4650" x2="3000" y2="4650"/>
+<line class="wire" x1="2900" y1="4650" x2="2800" y2="4650"/>
+<g class="label-left"><rect x="1250" y="4600" width="1550" height="100"/><text x="2775" y="4650">U1_IO_BOND_bidirs[0].bidir_pad</text></g>
+<rect class="pad" x="3000" y="4850" width="200" height="200"/>
+<text class="reference" x="3100" y="4800">J_U1_IO_BOND_bidirs[1].bidir_pad</text>
+<line class="pin-left" x1="2900" y1="4950" x2="3000" y2="4950"/>
+<line class="wire" x1="2900" y1="4950" x2="2800" y2="4950"/>
+<g class="label-left"><rect x="1250" y="4900" width="1550" height="100"/><text x="2775" y="4950">U1_IO_BOND_bidirs[1].bidir_pad</text></g>
+<rect class="pad" x="3000" y="5150" width="200" height="200"/>
+<text class="reference" x="3100" y="5100">J_U1_IO_BOND_bidirs[2].bidir_pad</text>
+<line class="pin-left" x1="2900" y1="5250" x2="3000" y2="5250"/>
+<line class="wire" x1="2900" y1="5250" x2="2800" y2="5250"/>
+<g class="label-left"><rect x="1250" y="5200" width="1550" height="100"/><text x="2775" y="5250">U1_IO_BOND_bidirs[2].bidir_pad</text></g>
+<rect class="pad" x="3000" y="5450" width="200" height="200"/>
+<text class="reference" x="3100" y="5400">J_U1_IO_BOND_bidirs[3].bidir_pad</text>
+<line class="pin-left" x1="2900" y1="5550" x2="3000" y2="5550"/>
+<line class="wire" x1="2900" y1="5550" x2="2800" y2="5550"/>
+<g class="label-left"><rect x="1250" y="5500" width="1550" height="100"/><text x="2775" y="5550">U1_IO_BOND_bidirs[3].bidir_pad</text></g>
+<rect class="pad" x="3000" y="5750" width="200" height="200"/>
+<text class="reference" x="3100" y="5700">J_U1_IO_BOND_clk_pad</text>
+<line class="pin-left" x1="2900" y1="5850" x2="3000" y2="5850"/>
+<line class="wire" x1="2900" y1="5850" x2="2800" y2="5850"/>
+<g class="label-left"><rect x="1850" y="5800" width="950" height="100"/><text x="2775" y="5850">U1_IO_BOND_clk_pad</text></g>
+<rect class="pad" x="3000" y="6050" width="200" height="200"/>
+<text class="reference" x="3100" y="6000">J_U1_IO_BOND_inputs[0].input_pad</text>
+<line class="pin-left" x1="2900" y1="6150" x2="3000" y2="6150"/>
+<line class="wire" x1="2900" y1="6150" x2="2800" y2="6150"/>
+<g class="label-left"><rect x="1250" y="6100" width="1550" height="100"/><text x="2775" y="6150">U1_IO_BOND_inputs[0].input_pad</text></g>
+<rect class="pad" x="3000" y="6350" width="200" height="200"/>
+<text class="reference" x="3100" y="6300">J_U1_IO_BOND_inputs[1].input_pad</text>
+<line class="pin-left" x1="2900" y1="6450" x2="3000" y2="6450"/>
+<line class="wire" x1="2900" y1="6450" x2="2800" y2="6450"/>
+<g class="label-left"><rect x="1250" y="6400" width="1550" height="100"/><text x="2775" y="6450">U1_IO_BOND_inputs[1].input_pad</text></g>
+<rect class="pad" x="3000" y="6650" width="200" height="200"/>
+<text class="reference" x="3100" y="6600">J_U1_IO_BOND_inputs[2].input_pad</text>
+<line class="pin-left" x1="2900" y1="6750" x2="3000" y2="6750"/>
+<line class="wire" x1="2900" y1="6750" x2="2800" y2="6750"/>
+<g class="label-left"><rect x="1250" y="6700" width="1550" height="100"/><text x="2775" y="6750">U1_IO_BOND_inputs[2].input_pad</text></g>
+<rect class="pad" x="3000" y="6950" width="200" height="200"/>
+<text class="reference" x="3100" y="6900">J_U1_IO_BOND_inputs[3].input_pad</text>
+<line class="pin-left" x1="2900" y1="7050" x2="3000" y2="7050"/>
+<line class="wire" x1="2900" y1="7050" x2="2800" y2="7050"/>
+<g class="label-left"><rect x="1250" y="7000" width="1550" height="100"/><text x="2775" y="7050">U1_IO_BOND_inputs[3].input_pad</text></g>
+<rect class="pad" x="3000" y="7250" width="200" height="200"/>
+<text class="reference" x="3100" y="7200">J_U1_IO_BOND_inputs[4].input_pad</text>
+<line class="pin-left" x1="2900" y1="7350" x2="3000" y2="7350"/>
+<line class="wire" x1="2900" y1="7350" x2="2800" y2="7350"/>
+<g class="label-left"><rect x="1250" y="7300" width="1550" height="100"/><text x="2775" y="7350">U1_IO_BOND_inputs[4].input_pad</text></g>
+<rect class="pad" x="3000" y="7550" width="200" height="200"/>
+<text class="reference" x="3100" y="7500">J_U1_IO_BOND_inputs[5].input_pad</text>
+<line class="pin-left" x1="2900" y1="7650" x2="3000" y2="7650"/>
+<line class="wire" x1="2900" y1="7650" x2="2800" y2="7650"/>
+<g class="label-left"><rect x="1250" y="7600" width="1550" height="100"/><text x="2775" y="7650">U1_IO_BOND_inputs[5].input_pad</text></g>
+<rect class="pad" x="3000" y="7850" width="200" height="200"/>
+<text class="reference" x="3100" y="7800">J_U1_IO_BOND_inputs[6].input_pad</text>
+<line class="pin-left" x1="2900" y1="7950" x2="3000" y2="7950"/>
+<line class="wire" x1="2900" y1="7950" x2="2800" y2="7950"/>
+<g class="label-left"><rect x="1250" y="7900" width="1550" height="100"/><text x="2775" y="7950">U1_IO_BOND_inputs[6].input_pad</text></g>
+<rect class="pad" x="3000" y="8150" width="200" height="200"/>
+<text class="reference" x="3100" y="8100">J_U1_IO_BOND_inputs[7].input_pad</text>
+<line class="pin-left" x1="2900" y1="8250" x2="3000" y2="8250"/>
+<line class="wire" x1="2900" y1="8250" x2="2800" y2="8250"/>
+<g class="label-left"><rect x="1250" y="8200" width="1550" height="100"/><text x="2775" y="8250">U1_IO_BOND_inputs[7].input_pad</text></g>
+<rect class="pad" x="3000" y="8450" width="200" height="200"/>
+<text class="reference" x="3100" y="8400">J_U1_IO_BOND_outputs[0].output_pad</text>
+<line class="pin-left" x1="2900" y1="8550" x2="3000" y2="8550"/>
+<line class="wire" x1="2900" y1="8550" x2="2800" y2="8550"/>
+<g class="label-left"><rect x="1150" y="8500" width="1650" height="100"/><text x="2775" y="8550">U1_IO_BOND_outputs[0].output_pad</text></g>
+<rect class="pad" x="3000" y="8750" width="200" height="200"/>
+<text class="reference" x="3100" y="8700">J_U1_IO_BOND_outputs[1].output_pad</text>
+<line class="pin-left" x1="2900" y1="8850" x2="3000" y2="8850"/>
+<line class="wire" x1="2900" y1="8850" x2="2800" y2="8850"/>
+<g class="label-left"><rect x="1150" y="8800" width="1650" height="100"/><text x="2775" y="8850">U1_IO_BOND_outputs[1].output_pad</text></g>
+<rect class="pad" x="3000" y="9050" width="200" height="200"/>
+<text class="reference" x="3100" y="9000">J_U1_IO_BOND_outputs[2].output_pad</text>
+<line class="pin-left" x1="2900" y1="9150" x2="3000" y2="9150"/>
+<line class="wire" x1="2900" y1="9150" x2="2800" y2="9150"/>
+<g class="label-left"><rect x="1150" y="9100" width="1650" height="100"/><text x="2775" y="9150">U1_IO_BOND_outputs[2].output_pad</text></g>
+<rect class="pad" x="3000" y="9350" width="200" height="200"/>
+<text class="reference" x="3100" y="9300">J_U1_IO_BOND_outputs[3].output_pad</text>
+<line class="pin-left" x1="2900" y1="9450" x2="3000" y2="9450"/>
+<line class="wire" x1="2900" y1="9450" x2="2800" y2="9450"/>
+<g class="label-left"><rect x="1150" y="9400" width="1650" height="100"/><text x="2775" y="9450">U1_IO_BOND_outputs[3].output_pad</text></g>
+<rect class="pad" x="3000" y="9650" width="200" height="200"/>
+<text class="reference" x="3100" y="9600">J_U1_IO_BOND_rst_n_pad</text>
+<line class="pin-left" x1="2900" y1="9750" x2="3000" y2="9750"/>
+<line class="wire" x1="2900" y1="9750" x2="2800" y2="9750"/>
+<g class="label-left"><rect x="1750" y="9700" width="1050" height="100"/><text x="2775" y="9750">U1_IO_BOND_rst_n_pad</text></g>
+<rect class="pad" x="3000" y="9950" width="200" height="200"/>
+<text class="reference" x="3100" y="9900">J_U2_ext[0]</text>
+<line class="pin-left" x1="2900" y1="10050" x2="3000" y2="10050"/>
+<line class="wire" x1="2900" y1="10050" x2="2800" y2="10050"/>
+<g class="label-left"><rect x="2300" y="10000" width="500" height="100"/><text x="2775" y="10050">U2_ext[0]</text></g>
+<rect class="pad" x="3000" y="10250" width="200" height="200"/>
+<text class="reference" x="3100" y="10200">J_U2_ext[1]</text>
+<line class="pin-left" x1="2900" y1="10350" x2="3000" y2="10350"/>
+<line class="wire" x1="2900" y1="10350" x2="2800" y2="10350"/>
+<g class="label-left"><rect x="2300" y="10300" width="500" height="100"/><text x="2775" y="10350">U2_ext[1]</text></g>
+<rect class="pad" x="3000" y="10550" width="200" height="200"/>
+<text class="reference" x="3100" y="10500">J_U2_ext[2]</text>
+<line class="pin-left" x1="2900" y1="10650" x2="3000" y2="10650"/>
+<line class="wire" x1="2900" y1="10650" x2="2800" y2="10650"/>
+<g class="label-left"><rect x="2300" y="10600" width="500" height="100"/><text x="2775" y="10650">U2_ext[2]</text></g>
+<rect class="pad" x="3000" y="10850" width="200" height="200"/>
+<text class="reference" x="3100" y="10800">J_U2_ext[3]</text>
+<line class="pin-left" x1="2900" y1="10950" x2="3000" y2="10950"/>
+<line class="wire" x1="2900" y1="10950" x2="2800" y2="10950"/>
+<g class="label-left"><rect x="2300" y="10900" width="500" height="100"/><text x="2775" y="10950">U2_ext[3]</text></g>
+<rect class="pad" x="3000" y="11150" width="200" height="200"/>
+<text class="reference" x="3100" y="11100">J_U3_ext[0]</text>
+<line class="pin-left" x1="2900" y1="11250" x2="3000" y2="11250"/>
+<line class="wire" x1="2900" y1="11250" x2="2800" y2="11250"/>
+<g class="label-left"><rect x="2300" y="11200" width="500" height="100"/><text x="2775" y="11250">U3_ext[0]</text></g>
+<rect class="pad" x="3000" y="11450" width="200" height="200"/>
+<text class="reference" x="3100" y="11400">J_U3_ext[1]</text>
+<line class="pin-left" x1="2900" y1="11550" x2="3000" y2="11550"/>
+<line class="wire" x1="2900" y1="11550" x2="2800" y2="11550"/>
+<g class="label-left"><rect x="2300" y="11500" width="500" height="100"/><text x="2775" y="11550">U3_ext[1]</text></g>
+<rect class="pad" x="3000" y="11750" width="200" height="200"/>
+<text class="reference" x="3100" y="11700">J_U3_ext[2]</text>
+<line class="pin-left" x1="2900" y1="11850" x2="3000" y2="11850"/>
+<line class="wire" x1="2900" y1="11850" x2="2800" y2="11850"/>
+<g class="label-left"><rect x="2300" y="11800" width="500" height="100"/><text x="2775" y="11850">U3_ext[2]</text></g>
+<rect class="pad" x="3000" y="12050" width="200" height="200"/>
+<text class="reference" x="3100" y="12000">J_U3_ext[3]</text>
+<line class="pin-left" x1="2900" y1="12150" x2="3000" y2="12150"/>
+<line class="wire" x1="2900" y1="12150" x2="2800" y2="12150"/>
+<g class="label-left"><rect x="2300" y="12100" width="500" height="100"/><text x="2775" y="12150">U3_ext[3]</text></g>
+<rect class="pad" x="3000" y="12350" width="200" height="200"/>
+<text class="reference" x="3100" y="12300">J_VDD</text>
+<line class="pin-left" x1="2900" y1="12450" x2="3000" y2="12450"/>
+<line class="wire" x1="2900" y1="12450" x2="2800" y2="12450"/>
+<g class="label-left"><rect x="2600" y="12400" width="200" height="100"/><text x="2775" y="12450">VDD</text></g>
+<rect class="pad" x="3000" y="12650" width="200" height="200"/>
+<text class="reference" x="3100" y="12600">J_VDDA</text>
+<line class="pin-left" x1="2900" y1="12750" x2="3000" y2="12750"/>
+<line class="wire" x1="2900" y1="12750" x2="2800" y2="12750"/>
+<g class="label-left"><rect x="2550" y="12700" width="250" height="100"/><text x="2775" y="12750">VDDA</text></g>
+<rect class="pad" x="3000" y="12950" width="200" height="200"/>
+<text class="reference" x="3100" y="12900">J_VSS</text>
+<line class="pin-left" x1="2900" y1="13050" x2="3000" y2="13050"/>
+<line class="wire" x1="2900" y1="13050" x2="2800" y2="13050"/>
+<g class="label-left"><rect x="2600" y="13000" width="200" height="100"/><text x="2775" y="13050">VSS</text></g>
+<rect class="pad" x="3000" y="13250" width="200" height="200"/>
+<text class="reference" x="3100" y="13200">J_VSSA</text>
+<line class="pin-left" x1="2900" y1="13350" x2="3000" y2="13350"/>
+<line class="wire" x1="2900" y1="13350" x2="2800" y2="13350"/>
+<g class="label-left"><rect x="2550" y="13300" width="250" height="100"/><text x="2775" y="13350">VSSA</text></g>
+</svg>

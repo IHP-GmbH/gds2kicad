@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "pins": [
+    {
+      "name": "B0",
+      "side": "left",
+      "type": "input",
+      "pad_index": 0,
+      "center_x_dbu": 0,
+      "center_y_dbu": 5,
+      "port": "b0"
+    },
+    {
+      "name": "B1",
+      "side": "left",
+      "type": "output",
+      "pad_index": 0,
+      "center_x_dbu": 0,
+      "center_y_dbu": -5,
+      "port": "b1"
+    },
+    {
+      "name": "VDD",
+      "side": "top",
+      "type": "power_in",
+      "pad_index": 0,
+      "center_x_dbu": 0,
+      "center_y_dbu": 0
+    },
+    {
+      "name": "SPARE",
+      "side": "right",
+      "type": "passive",
+      "pad_index": 0,
+      "center_x_dbu": 0,
+      "center_y_dbu": 0
+    }
+  ]
+}
