@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "pins": [
+    {
+      "name": "A0",
+      "side": "left",
+      "type": "input",
+      "pad_index": 0,
+      "center_x_dbu": 0,
+      "center_y_dbu": 10,
+      "port": "a0"
+    },
+    {
+      "name": "A1",
+      "side": "right",
+      "type": "output",
+      "pad_index": 0,
+      "center_x_dbu": 0,
+      "center_y_dbu": 0,
+      "port": "a1"
+    },
+    {
+      "name": "VDD1",
+      "side": "top",
+      "type": "power_in",
+      "pad_index": 0,
+      "center_x_dbu": -5,
+      "center_y_dbu": 0,
+      "port": "VDD"
+    },
+    {
+      "name": "VDD2",
+      "side": "bottom",
+      "type": "power_in",
+      "pad_index": 0,
+      "center_x_dbu": 0,
+      "center_y_dbu": 0,
+      "port": "VDD"
+    },
+    {
+      "name": "NC1",
+      "side": "left",
+      "type": "passive",
+      "pad_index": 0,
+      "center_x_dbu": 0,
+      "center_y_dbu": -10
+    }
+  ]
+}

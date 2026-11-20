@@ -446,8 +446,8 @@ def command(ap, args) -> int:
         ap.error("--ext-pad-um goes with --dies")
     if args.pins:
         ap.error("--dies takes no --pins")
-    if args.out or args.report or args.setup or args.setup_spec or args.setup_only \
-            or args.check:
+    if args.out or args.svg or args.report or args.setup or args.setup_spec \
+            or args.setup_only or args.check:
         ap.error("--handout writes no sheet and no report")
     refusals = []
     if args.chiplet:

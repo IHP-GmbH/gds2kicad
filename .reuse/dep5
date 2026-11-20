@@ -46,3 +46,10 @@ Copyright: 2026 IHP GmbH
 License: GPL-3.0-or-later
 Comment: Generated from this repository's carrier example; the real KiCad
  netlists and their source sheets are recorded in tests/fixtures/PROVENANCE.
+
+Files: tests/data/connection_sheet/*
+Copyright: 2026 IHP GmbH
+License: GPL-3.0-or-later
+Comment: carrier_system/ is the carrier system of tests/test_chiplet_to_kicad_sch.py
+ written as files; the two connection sheet goldens are what chiplet_to_kicad_sch.py
+ --svg draws for it and for tests/fixtures/draft_pair.

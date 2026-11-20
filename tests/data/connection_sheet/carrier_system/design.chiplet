@@ -1,0 +1,110 @@
+format_version: '1.0'
+assembly:
+  name: sys
+  units: um
+components:
+- id: interposer
+  type: interposer
+  top_cell: CARRIER
+  anchor: bbox_center
+  position:
+    x: 1000.0
+    y: 500.0
+    z: 0.0
+  dimensions:
+    width: 2000.0
+    height: 1000.0
+    thickness: 13.83
+  io_pads:
+  - id: J_VDD
+    io_class: wire_bond
+    position:
+      x: 100
+      y: 500
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+    net: VDD
+  - id: J_S0
+    io_class: wire_bond
+    position:
+      x: 1900
+      y: 600
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+    net: sig0
+  - id: J_P
+    io_class: wire_bond
+    position:
+      x: 1000
+      y: 950
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+    net: probe
+  - id: J_EXT
+    io_class: wire_bond
+    position:
+      x: 1000
+      y: 50
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+    net: ext
+  - id: J_NC
+    io_class: wire_bond
+    position:
+      x: 1900
+      y: 400
+    size:
+      x: 80.0
+      y: 80.0
+    layer: TopMetal2
+- id: U1
+  type: die
+  top_cell: DIE_A
+- id: U2
+  type: die
+  top_cell: DIE_B
+netlist:
+  nets:
+  - name: sig0
+    connections:
+    - component: U1
+      pin: A0
+      layer: TopMetal2
+    - component: U2
+      pin: B0
+      layer: TopMetal2
+  - name: sig1
+    connections:
+    - component: U1
+      pin: A1
+      layer: TopMetal2
+    - component: U2
+      pin: B1
+      layer: TopMetal2
+  - name: VDD
+    connections:
+    - component: U1
+      pin: VDD1
+      layer: TopMetal2
+    - component: U1
+      pin: VDD2
+      layer: TopMetal2
+    - component: U2
+      pin: VDD
+      layer: TopMetal2
+  - name: probe
+    connections:
+    - component: U1
+      pin: NC1
+      layer: TopMetal2
+    - component: interposer
+      pin: J_P
+      layer: TopMetal2
