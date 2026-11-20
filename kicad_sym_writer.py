@@ -32,6 +32,10 @@ class PinType(Enum):
     POWER_IN = "power_in"
     POWER_OUT = "power_out"
     UNSPECIFIED = "unspecified"
+    FREE = "free"
+    OPEN_COLLECTOR = "open_collector"
+    OPEN_EMITTER = "open_emitter"
+    NO_CONNECT = "no_connect"
 
 
 # Pin angles for KiCad S-expression (direction pin points INTO the symbol body)

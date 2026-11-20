@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import chiplet_to_kicad_sch as g  # noqa: E402
 import sexpr_io as sx  # noqa: E402
 import sheet_check as sc  # noqa: E402
+from _vendor.chiplet_format_io.pins import KICAD_PIN_TYPES  # noqa: E402
 
 
 def _pin(name, side, type_="input", port=None, x=0, y=0):
@@ -891,6 +892,198 @@ def test_compare_names_every_difference(tmp_path):
         "terminals unconnected that the description connects: U1.NC1, U7.SPARE",
         f"base digest is {'cd' * 32!r}, not {'ab' * 32}",
     ]
+
+
+# ------------------------------------------ pin type from role and direction
+
+# kicad_type's texts for pin A0 of PINS, as it names it (every _pin has pad_index 0).
+NEITHER_A0 = ("pin A0 (pad_index 0): it has neither a role nor a type, so its KiCad "
+              "type is passive; write a role and a direction.")
+
+
+def _stored(name, word):
+    return (f'pin {name} (pad_index 0): it has no role, so its KiCad type is the stored '
+            f'type "{word}". The type field is deprecated from pins.json 1.1; write a role '
+            f"and a direction instead.")
+
+
+def _t1(inst, said):
+    return f"warning (pin_type): pin list of {inst}: {said}"
+
+
+def _warned(err):
+    return [line for line in err.splitlines() if line.startswith("warning (pin_type): ")]
+
+
+def _a0(mutate):
+    """PINS with A0 changed by ``mutate``."""
+    pins = copy.deepcopy(PINS)
+    mutate(pins["U1"][0])
+    return pins
+
+
+def _untyped(**fields):
+    """A change that removes a pin's type and sets ``fields``."""
+    def mutate(pin):
+        pin.pop("type")
+        pin.update(fields)
+    return mutate
+
+
+def test_a_pin_with_neither_role_nor_type_warns_on_the_sheet(tmp_path, capsys):
+    _generate(tmp_path, pins=_a0(_untyped()))
+    assert _t1("U1", NEITHER_A0) in capsys.readouterr().err.splitlines()
+
+
+def test_a_pin_with_neither_role_nor_type_warns_in_the_handout(tmp_path, capsys):
+    cpath, pins = _inputs(tmp_path, pins=_a0(_untyped()))
+    assert g.handout(cpath, pins, tmp_path / "handout")
+    assert _t1("U1", NEITHER_A0) in capsys.readouterr().err.splitlines()
+
+
+def test_a_pin_with_neither_role_nor_type_warns_on_the_connection_sheet(tmp_path, capsys):
+    cpath, pins = _inputs(tmp_path, pins=_a0(_untyped()))
+    g.generate(cpath, pins, None, svg_path=tmp_path / "sys.svg")
+    assert _t1("U1", NEITHER_A0) in capsys.readouterr().err.splitlines()
+
+
+def test_every_die_pin_row_warns_once_in_list_order(tmp_path, capsys):
+    """A rail's repeated pads are rows of their own, so each warns."""
+    pins = copy.deepcopy(PINS)
+    pins["U2"].append(_pin("VDD", "left", "power_in", y=3))
+    _generate(tmp_path, pins=pins)
+    assert _warned(capsys.readouterr().err) == [
+        _t1(inst, _stored(p["name"], p["type"])) for inst in ("U1", "U2") for p in pins[inst]]
+
+
+# A0's change, its derived type and what kicad_type says of it (C6.3, C6.4).
+PIN_TYPE_CASES = {
+    "signal_over_a_stored_type": (
+        lambda pin: pin.update(role="SIGNAL", direction="OUTPUT"), "output",
+        ['pin A0 (pad_index 0): the stored type "input" is not "output", the KiCad type '
+         'its role and direction give; "output" is used.']),
+    "signal_without_direction": (
+        _untyped(role="SIGNAL"), "passive",
+        ["pin A0 (pad_index 0): role SIGNAL has no direction, so its KiCad type is "
+         "passive; write a direction (INPUT, OUTPUT, INOUT, ANALOG or NONE)."]),
+    "signal_none": (_untyped(role="SIGNAL", direction="NONE"), "passive", []),
+    "power_without_direction": (_untyped(role="POWER"), "power_in", []),
+    "no_connect": (_untyped(role="NO_CONNECT", direction="NONE"), "no_connect", []),
+    "stored_type_without_role": (lambda pin: None, "input", [_stored("A0", "input")]),
+    "neither": (_untyped(), "passive", [NEITHER_A0]),
+}
+
+
+@pytest.mark.parametrize("case", sorted(PIN_TYPE_CASES))
+def test_a_die_pin_type_comes_from_role_and_direction(capsys, case):
+    mutate, word, said = PIN_TYPE_CASES[case]
+    system = g.build_system(copy.deepcopy(CHIPLET), _a0(mutate))
+    u1 = [d for d in system.dies if d.id == "U1"][0]
+    assert {t.name: t.type for t in u1.terminals}["A0"] == word
+    a0 = _t1("U1", "pin A0 (")
+    assert [line for line in _warned(capsys.readouterr().err)
+            if line.startswith(a0)] == [_t1("U1", k) for k in said]
+
+
+ROLE_WORDS = "SIGNAL, POWER, GROUND, NO_CONNECT"
+DIRECTION_WORDS = "INPUT, OUTPUT, INOUT, ANALOG, NONE"
+# A0's change, the refusal's value (the word of the field kicad_type names, in
+# its order: role, direction, type) and kicad_type's text.
+PIN_TYPE_REFUSALS = {
+    "role": (lambda pin: pin.update(role="signal"), "signal",
+             f'pin A0 (pad_index 0): role "signal" is not a pin-list role; write one of '
+             f"{ROLE_WORDS}, in capitals."),
+    "direction": (lambda pin: pin.update(role="SIGNAL", direction="Input"), "Input",
+                  f'pin A0 (pad_index 0): direction "Input" is not a pin-list direction; '
+                  f"write one of {DIRECTION_WORDS}, in capitals."),
+    "role_before_direction": (lambda pin: pin.update(role="Signal", direction="Input"),
+                              "Signal",
+                              f'pin A0 (pad_index 0): role "Signal" is not a pin-list '
+                              f"role; write one of {ROLE_WORDS}, in capitals."),
+    "stored_type": (lambda pin: pin.update(type="INOUT"), "INOUT",
+                    'pin A0 (pad_index 0): it has no role, and its type "INOUT" is not a '
+                    "KiCad pin type. Write a role and a direction, or use one of these "
+                    "types: input, output, bidirectional, tri_state, passive, free, "
+                    "unspecified, power_in, power_out, open_collector, open_emitter, "
+                    "no_connect."),
+}
+
+
+@pytest.mark.parametrize("case", sorted(PIN_TYPE_REFUSALS))
+def test_a_pin_type_kicad_type_refuses_is_refused_by_name(tmp_path, case):
+    mutate, value, said = PIN_TYPE_REFUSALS[case]
+    with pytest.raises(g.SchematicRefused) as exc:
+        _generate(tmp_path, pins=_a0(mutate))
+    assert exc.value.refusals == [{
+        "code": "unknown_pin_type", "message": f"pin list of U1: {said}",
+        "component": "U1", "terminal": "A0", "value": value}]
+    assert not (tmp_path / "pnr").exists()
+
+
+def test_the_pads_of_a_rail_agree_on_the_derived_word(tmp_path):
+    """A pad whose stored type the role overrides agrees with one that stores
+    the word the role gives; one whose role gives another word does not."""
+    pins = copy.deepcopy(PINS)
+    pins["U2"].append({**_pin("VDD", "left", "input"), "role": "POWER"})
+    _, _, result = _generate(tmp_path / "agree", pins=pins)
+    u2 = [d for d in result["system"].dies if d.id == "U2"][0]
+    assert {t.name: t.type for t in u2.terminals}["VDD"] == "power_in"
+
+    pins = copy.deepcopy(PINS)
+    pins["U2"].append({**_pin("VDD", "left", "power_in"), "role": "SIGNAL",
+                       "direction": "INPUT"})
+    with pytest.raises(g.SchematicRefused) as exc:
+        _generate(tmp_path / "disagree", pins=pins)
+    assert [(r["code"], r["terminal"], r["value"]) for r in exc.value.refusals] == [
+        ("conflicting_terminal", "VDD", "input")]
+
+
+def test_a_carrier_pin_never_warns(tmp_path, capsys):
+    _generate(tmp_path, chiplet=CARRIER_CHIPLET)
+    warned = _warned(capsys.readouterr().err)
+    assert len(warned) == sum(len(p) for p in PINS.values())
+    assert not [line for line in warned if line.startswith(_t1("interposer", ""))]
+
+
+def test_cli_warns_before_it_refuses(tmp_path, capsys):
+    chiplet, pins = _mutated(REFUSALS["non_die_endpoint"])
+    code, _, _ = _cli(tmp_path, chiplet=chiplet, pins=pins)
+    assert code == g.EXIT_REFUSED
+    kinds = [line.split(" ", 1)[0] for line in capsys.readouterr().err.splitlines()]
+    assert kinds == ["warning"] * sum(len(p) for p in PINS.values()) + ["refused"]
+
+
+def test_the_report_gains_no_key_for_warnings(tmp_path, capsys):
+    code, _, report = _cli(tmp_path, pins=_a0(_untyped()))
+    assert code == g.EXIT_WRITTEN and report["version"] == "1.3"
+    assert sorted(report) == [
+        "check", "chiplet", "chiplet_sha256", "components", "format", "nets", "pins",
+        "refusals", "schematic", "schematic_sha256", "unconnected_terminals", "version",
+        "word"]
+    assert _t1("U1", NEITHER_A0) in capsys.readouterr().err.splitlines()
+
+
+def test_a_pin_list_stamped_1_1_is_read(tmp_path):
+    cpath, pins = _inputs(tmp_path)
+    for path in pins.values():
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+        Path(path).write_text(json.dumps({**doc, "version": "1.1"}), encoding="utf-8")
+    result = g.generate(cpath, pins, tmp_path / "pnr" / "sys.draft.kicad_sch")
+    assert result["nets"] == _expected()[0]
+
+
+def test_the_sheet_takes_the_shared_kicad_pin_types():
+    assert g.PIN_TYPES is KICAD_PIN_TYPES
+
+
+def test_the_docstring_says_where_a_die_pin_type_comes_from():
+    doc = " ".join(g.__doc__.split())
+    said = ("A die pin's KiCad pin type comes from its role and direction "
+            "(chiplet_format_io.pins.kicad_type). A die pin with no role keeps its stored "
+            "type, which is deprecated, or passive when it has none; each such pin is a "
+            "warning line on stderr, never part of the report. Carrier pins keep the type "
+            "their I/O class gives.")
+    assert "the same (component, terminal) pairs. " + said in doc
 
 
 # ---------------------------------------------------------- KiCad itself

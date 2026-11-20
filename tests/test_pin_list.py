@@ -12,6 +12,9 @@ import klayout.db as db
 
 from pin_list import PinList, PinEntry, VALID_PIN_TYPES, VALID_PIN_SIDES
 from pin_extractor import PadInfo
+from kicad_sym_writer import PinType
+from _vendor.chiplet_format_io import ChipletFormatError
+from _vendor.chiplet_format_io.pins import KICAD_PIN_TYPES
 
 
 class TestPinEntry:
@@ -300,3 +303,116 @@ class TestPinListHelpers:
     def test_len(self):
         pl = PinList(pins=[PinEntry(name="A"), PinEntry(name="B")])
         assert len(pl) == 2
+
+
+# --------------------------------------------- pin type from role and direction
+
+# A SIGNAL input with a key no reader knows added, and a no-connect pad: a pin
+# list stating role, direction, port and ordinal beside the deprecated type.
+ROLE_PINS = [
+    {"name": "PAD_A", "type": "input", "side": "left", "pad_index": 0,
+     "center_x_dbu": 100000.0, "center_y_dbu": 635000.0,
+     "width_dbu": 60000.0, "height_dbu": 60000.0,
+     "port": "in_a", "ordinal": 0, "net": "in_a", "direction": "INPUT",
+     "role": "SIGNAL", "alias": "in_a", "electrode_dbu": None,
+     "x_review_note": "kept as written"},
+    {"name": "PAD_NC", "type": "no_connect", "side": "top", "pad_index": 2,
+     "center_x_dbu": 500000.0, "center_y_dbu": 900000.0,
+     "width_dbu": 60000.0, "height_dbu": 60000.0,
+     "port": "PAD_NC", "ordinal": 0, "net": "NC", "direction": "NONE",
+     "role": "NO_CONNECT", "alias": "PAD_NC", "electrode_dbu": None},
+]
+ROLE_METADATA = {"version": "1.0", "chiplet_name": "fxdie", "gds_source": "layout.gds"}
+NEITHER_A0 = ("pin A0 (pad_index 0): it has neither a role nor a type, so its KiCad "
+              "type is passive; write a role and a direction.")
+
+
+def _stored(label, word):
+    return (f'pin {label}: it has no role, so its KiCad type is the stored type "{word}". '
+            f"The type field is deprecated from pins.json 1.1; write a role and a "
+            f"direction instead.")
+
+
+def _write(path, pins, metadata=ROLE_METADATA):
+    path.write_text(json.dumps({**metadata, "pins": pins}), encoding="utf-8")
+    return str(path)
+
+
+class TestPinTypeFromRole:
+    def test_load_then_save_keeps_role_direction_port_ordinal(self, tmp_path):
+        """Every key of a pin, known or not, comes back as it was read."""
+        src = _write(tmp_path / "in.json", ROLE_PINS)
+        out = tmp_path / "out.json"
+        PinList.load(src).save(str(out))
+        data = json.loads(out.read_text(encoding="utf-8"))
+        assert [p.get("role") for p in data["pins"]] == ["SIGNAL", "NO_CONNECT"]
+        assert data["pins"] == ROLE_PINS
+        assert {k: v for k, v in data.items() if k != "pins"} == ROLE_METADATA
+
+    def test_type_is_never_written_into_a_pin_without_one(self, tmp_path):
+        pin = {"name": "PAD_GND", "side": "bottom", "pad_index": 4,
+               "center_x_dbu": 0.0, "center_y_dbu": 0.0,
+               "width_dbu": 60000.0, "height_dbu": 60000.0, "role": "GROUND"}
+        src = _write(tmp_path / "in.json", [pin])
+        loaded = PinList.load(src)
+        assert loaded.pins[0].type == "power_in"
+        assert loaded.pins[0].to_dict() == pin
+        out = tmp_path / "out.json"
+        loaded.save(str(out))
+        assert json.loads(out.read_text(encoding="utf-8"))["pins"] == [pin]
+
+    def test_role_and_direction_give_the_type(self):
+        entry = PinEntry.from_dict(ROLE_PINS[1])
+        assert (entry.type, entry.read_warnings) == ("no_connect", ())
+        entry = PinEntry.from_dict({k: v for k, v in ROLE_PINS[0].items() if k != "type"})
+        assert (entry.type, entry.read_warnings) == ("input", ())
+
+    def test_a_stored_type_against_the_role_loses_and_is_named(self):
+        entry = PinEntry.from_dict({"name": "P", "pad_index": 1, "role": "POWER",
+                                    "type": "input"})
+        assert entry.type == "power_in"
+        assert entry.read_warnings == (
+            'pin P (pad_index 1): the stored type "input" is not "power_in", the KiCad '
+            'type its role and direction give; "power_in" is used.',)
+        assert entry.to_dict()["type"] == "power_in"
+
+    def test_a_pin_with_no_role_keeps_its_stored_type_and_warns(self):
+        entry = PinEntry.from_dict({"name": "A1", "pad_index": 1, "type": "output"})
+        assert (entry.type, entry.read_warnings) == ("output", (_stored("A1 (pad_index 1)",
+                                                                        "output"),))
+
+    def test_a_pin_with_neither_role_nor_type_is_passive_and_warns(self):
+        entry = PinEntry.from_dict({"name": "A0", "pad_index": 0})
+        assert (entry.type, entry.read_warnings) == ("passive", (NEITHER_A0,))
+
+    def test_validate_gives_the_read_warnings_first_in_pin_order(self, tmp_path):
+        src = _write(tmp_path / "in.json", [
+            {"name": "A0", "pad_index": 0},
+            {"name": "A1", "pad_index": 1, "type": "input"},
+            {"name": "A1", "pad_index": 2, "type": "input"},
+        ])
+        assert PinList.load(src).validate() == [
+            NEITHER_A0, _stored("A1 (pad_index 1)", "input"),
+            _stored("A1 (pad_index 2)", "input"), "Duplicate pin names: 'A1' x2"]
+
+    def test_a_bad_role_is_refused_naming_the_file(self, tmp_path):
+        src = _write(tmp_path / "in.json", [{"name": "A0", "pad_index": 0, "role": "signal"}])
+        with pytest.raises(ChipletFormatError) as exc:
+            PinList.load(src)
+        assert isinstance(exc.value, ValueError)
+        assert str(exc.value) == (
+            f'pin list {src}: pin A0 (pad_index 0): role "signal" is not a pin-list role; '
+            f"write one of SIGNAL, POWER, GROUND, NO_CONNECT, in capitals.")
+
+    def test_a_list_stamped_1_1_reads(self, tmp_path):
+        src = _write(tmp_path / "in.json", ROLE_PINS, {**ROLE_METADATA, "version": "1.1"})
+        loaded = PinList.load(src)
+        assert [p.type for p in loaded.pins] == ["input", "no_connect"]
+        assert loaded.metadata["version"] == "1.1"
+
+    def test_the_type_words_are_kicads_twelve(self):
+        assert set(VALID_PIN_TYPES) == {t.value for t in PinType} == set(KICAD_PIN_TYPES)
+        assert len(VALID_PIN_TYPES) == len(KICAD_PIN_TYPES)
+        # The new words are appended, so the editor's combo keeps its order.
+        assert VALID_PIN_TYPES[:8] == ["passive", "input", "output", "bidirectional",
+                                       "tri_state", "power_in", "power_out", "unspecified"]

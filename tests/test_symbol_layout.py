@@ -9,8 +9,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import pytest
 
 from pin_extractor import PadInfo
+from pin_list import PinList, PinEntry
 from kicad_sym_writer import PinSide, PinType, PIN_SPACING
-from symbol_layout import classify_pin, get_pin_type, create_default_layout
+from symbol_layout import (
+    classify_pin, get_pin_type, create_default_layout, create_layout_from_pin_list,
+)
 
 
 class TestClassifyPin:
@@ -173,3 +176,26 @@ class TestCreateDefaultLayout:
             )
             for i, pin in enumerate(side_pins):
                 assert pin.position_index == i
+
+
+class TestCreateLayoutFromPinList:
+    # A no-connect pad: role NO_CONNECT, direction NONE and the stored type no_connect.
+    PAD_NC = {"name": "PAD_NC", "type": "no_connect", "side": "top", "pad_index": 2,
+              "center_x_dbu": 500000.0, "center_y_dbu": 900000.0,
+              "width_dbu": 60000.0, "height_dbu": 60000.0,
+              "port": "PAD_NC", "ordinal": 0, "net": "NC", "direction": "NONE",
+              "role": "NO_CONNECT", "alias": "PAD_NC", "electrode_dbu": None}
+
+    def test_no_connect_role_gives_a_no_connect_pin(self):
+        pl = PinList(pins=[PinEntry.from_dict(self.PAD_NC)])
+        sym = create_layout_from_pin_list(pl, "fxdie")
+        assert [p.pin_type.value for p in sym.pins] == ["no_connect"]
+
+    def test_a_type_kicad_does_not_have_is_refused_by_name(self):
+        pl = PinList(pins=[PinEntry(name="X", type="bogus")])
+        with pytest.raises(ValueError) as exc:
+            create_layout_from_pin_list(pl, "TEST")
+        assert str(exc.value) == (
+            'pin X: type "bogus" is not a KiCad pin type; use one of input, output, '
+            "bidirectional, tri_state, passive, free, unspecified, power_in, power_out, "
+            "open_collector, open_emitter, no_connect")

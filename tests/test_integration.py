@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Integration tests: full pipeline from GDS to .kicad_sym"""
 
+import re
 import sys
 import json
 import subprocess
@@ -540,3 +541,97 @@ class TestCLIPinListWorkflow:
 
         content = Path(sym_out).read_text()
         assert content.count("(pin ") == 20
+
+
+# A no-connect pad: role NO_CONNECT, direction NONE and the stored type no_connect.
+PAD_NC = {"name": "PAD_NC", "type": "no_connect", "side": "top", "pad_index": 2,
+          "center_x_dbu": 500000.0, "center_y_dbu": 900000.0,
+          "width_dbu": 60000.0, "height_dbu": 60000.0,
+          "port": "PAD_NC", "ordinal": 0, "net": "NC", "direction": "NONE",
+          "role": "NO_CONNECT", "alias": "PAD_NC", "electrode_dbu": None}
+
+
+class TestCLIPinTypeFromRole:
+    """--from-pin-list takes a pin's type from its role and direction."""
+
+    ROOT = str(Path(__file__).parent.parent)
+
+    def _run(self, *argv):
+        return subprocess.run([sys.executable, "gds_to_kicad_symbol.py", *argv],
+                              capture_output=True, text=True, cwd=self.ROOT)
+
+    def _from_pin_list(self, tmp_path, pins, version="1.0"):
+        json_path = tmp_path / "pins.json"
+        json_path.write_text(json.dumps({"version": version, "chiplet_name": "fxdie",
+                                         "pins": pins}), encoding="utf-8")
+        sym_out = tmp_path / "fxdie.kicad_sym"
+        result = self._run("--from-pin-list", str(json_path), "-o", str(sym_out))
+        return result, json_path, sym_out
+
+    def test_no_connect_role_gives_a_no_connect_pin(self, tmp_path):
+        result, _, sym_out = self._from_pin_list(tmp_path, [PAD_NC])
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        content = sym_out.read_text()
+        assert re.findall(r"\(pin (\w+) line", content) == ["no_connect"]
+
+    def test_a_pin_with_neither_role_nor_type_warns(self, tmp_path):
+        result, _, sym_out = self._from_pin_list(
+            tmp_path, [{"name": "A0", "side": "left", "pad_index": 0}])
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert result.stderr.splitlines() == [
+            "Warning: pin A0 (pad_index 0): it has neither a role nor a type, so its "
+            "KiCad type is passive; write a role and a direction."]
+        assert "(pin passive line" in sym_out.read_text()
+
+    def test_a_bad_role_exits_1_naming_the_file(self, tmp_path):
+        result, json_path, sym_out = self._from_pin_list(
+            tmp_path, [{"name": "A0", "side": "left", "pad_index": 0, "role": "signal"}])
+        assert result.returncode == 1
+        assert "Traceback" not in result.stderr
+        assert result.stderr.splitlines() == [
+            f'Error: pin list {json_path}: pin A0 (pad_index 0): role "signal" is not a '
+            f"pin-list role; write one of SIGNAL, POWER, GROUND, NO_CONNECT, in capitals."]
+        assert not sym_out.exists()
+
+    def test_a_list_stamped_1_1_reads(self, tmp_path):
+        result, _, sym_out = self._from_pin_list(tmp_path, [PAD_NC], version="1.1")
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert sym_out.exists()
+
+    def test_help_says_the_type_comes_from_role_and_direction(self):
+        result = self._run("--help")
+        assert result.returncode == 0
+        assert ("\n  # Edit pins.json (rename a pin, change its side; a pin with a role "
+                "takes its type from role and direction)\n") in result.stdout
+
+
+class TestFootprintPinTypeFromRole:
+    """gds_to_kicad.py --from-pad-review reads a pin list stamped 1.1."""
+
+    def test_a_list_stamped_1_1_draws_the_footprint_of_the_1_0_list(self, tmp_path):
+        from tests import test_die_outline_courtyard as oc
+        gds = oc._write_gds(tmp_path / "review.gds", pads=oc.ONE_MM_PADS,
+                            outline=oc.ONE_MM_OUTLINE)
+        old = oc.TestPadReviewPath._pin_list()
+        old.metadata["version"] = "1.0"
+        old.save(str(tmp_path / "old.json"))
+        # The same pins as 1.1 writes them: a role and a direction, no type.
+        doc = json.loads((tmp_path / "old.json").read_text(encoding="utf-8"))
+        doc["version"] = "1.1"
+        for pin in doc["pins"]:
+            del pin["type"]
+            pin.update(role="SIGNAL", direction="NONE")
+        (tmp_path / "new.json").write_text(json.dumps(doc), encoding="utf-8")
+
+        out = tmp_path / "review.kicad_mod"
+        drawn = []
+        for pins in ("old.json", "new.json"):
+            result = subprocess.run(
+                [sys.executable, "gds_to_kicad.py", "--from-pad-review", str(gds),
+                 "--pin-list", str(tmp_path / pins), "-o", str(out),
+                 "--pad-layer-number", "205/0"],
+                capture_output=True, text=True, cwd=str(Path(__file__).parent.parent))
+            assert result.returncode == 0, f"stderr: {result.stderr}"
+            drawn.append(out.read_bytes())
+            out.unlink()
+        assert drawn[0] == drawn[1]

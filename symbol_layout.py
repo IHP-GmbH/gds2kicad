@@ -19,6 +19,7 @@ from pin_extractor import PadInfo
 from kicad_sym_writer import (
     PinSide, PinType, SymbolPin, SymbolDefinition, PIN_SPACING, TB_PIN_SPACING,
 )
+from _vendor.chiplet_format_io.pins import KICAD_PIN_TYPES
 
 # Regex patterns for power pin detection
 POWER_HIGH_PATTERNS = [
@@ -250,6 +251,11 @@ def create_layout_from_pin_list(pin_list, symbol_name: str,
 
     Returns:
         SymbolDefinition ready for KiCadSymWriter
+
+    Raises:
+        ValueError: a pin's type is not a KiCad pin type. A loaded pin list
+            never has one (PinList.load derives the type), so this names a
+            PinEntry built in code instead of drawing it as passive.
     """
     side_groups = {s: [] for s in PinSide}
 
@@ -262,7 +268,9 @@ def create_layout_from_pin_list(pin_list, symbol_name: str,
         try:
             pin_type = PinType(entry.type)
         except ValueError:
-            pin_type = PinType.PASSIVE
+            raise ValueError(
+                f'pin {entry.name}: type "{entry.type}" is not a KiCad pin type; '
+                f"use one of {', '.join(KICAD_PIN_TYPES)}") from None
 
         pin = SymbolPin(
             name=entry.name,
