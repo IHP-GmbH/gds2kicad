@@ -117,14 +117,10 @@ Exit status: 0 the form is written, refusals included; 2 an input is missing
 or is not what it claims to be, and no form is written.
 """
 import argparse
-import glob
 import json
 import os
 import re
-import shutil
-import subprocess
 import sys
-import tempfile
 from collections import Counter
 from pathlib import Path
 from typing import List, NamedTuple, Optional
@@ -660,7 +656,6 @@ def read_form_native(schematic, generator_report, out_form, library=None, *,
     return form
 
 
-
 def _native_model(schematic, mode, model=None):
     """kicad_sch_netlist's model of ``schematic`` (read afresh when ``model``
     is None), raising KicadConstruct for a sheet the native read refuses."""
@@ -673,84 +668,6 @@ def _native_model(schematic, mode, model=None):
         raise exc
     return model
 
-
-def read_both_ways(schematic, generator_report=None, library=None, *, system_library=None,
-                   mode=None, kicad_cli="kicad-cli", timeout=300) -> dict:
-    """Read ``schematic`` with kicad-cli and with the native netlister and compare
-    the two forms, front_end aside. Returns run_check's shape: the word, the
-    differences by place in the form, the kicad-cli version and the netlister."""
-    sources = {"generator_report": generator_report, "library": library,
-               "system_library": system_library}
-    result = {"word": None, "kicad_cli_version": None, "netlister": native.NETLISTER}
-    # Never written: the forms' paths are relative to the sheet, not to a temporary file.
-    out_form = os.path.join(os.path.dirname(os.path.abspath(schematic)), "both_ways.json")
-    keys = {"library": library, "system_library": system_library, "mode": mode}
-    with tempfile.TemporaryDirectory() as tmp:
-        try:
-            _need_files(schematic, *sources.values())
-            try:
-                model = _native_model(str(schematic), _mode(mode, sources))
-            except native.KicadConstruct as exc:
-                return {**result, "word": "refused", "reason": exc.refusal()["message"]}
-            exe = shutil.which(kicad_cli)
-            if exe is None:
-                return {**result, "word": "unavailable", "reason": f"{kicad_cli} is not on PATH"}
-            netlist, erc = os.path.join(tmp, "sheet.net"), os.path.join(tmp, "erc.json")
-            failed = _run_kicad_cli(exe, schematic, netlist, erc, timeout)
-            if failed:
-                return {**result, "word": "failed", "reason": failed}
-            cli = read_form(netlist, schematic, generator_report, out_form, erc=erc, **keys)
-            own = read_form_native(schematic, generator_report, out_form, model=model, **keys)
-        except InputError as exc:
-            return {**result, "word": "failed", "reason": str(exc).replace(tmp + os.sep, "")}
-    result["kicad_cli_version"] = cli["front_end"]["tool_version"]
-    differences = _differences({k: v for k, v in cli.items() if k != "front_end"},
-                               {k: v for k, v in own.items() if k != "front_end"})
-    return {**result, "word": "differs" if differences else "matches",
-            "differences": differences}
-
-
-
-def _run_kicad_cli(exe, schematic, netlist, erc, timeout):
-    """Export ``schematic``'s netlist and ERC report; the reason it failed, or None.
-    kicad-cli leaves its lock files beside the sheet, so the new ones are removed."""
-    pattern = os.path.join(glob.escape(os.path.dirname(os.path.abspath(schematic))), "~*.lck")
-    locks = set(glob.glob(pattern))
-    try:
-        for argv, out, what in (
-                (["sch", "export", "netlist", "--format", "kicadsexpr"], netlist, "netlist"),
-                (["sch", "erc", "--format", "json", "--severity-all"], erc, "ERC report")):
-            try:
-                subprocess.run([exe, *argv, "--output", out, str(schematic)],
-                               capture_output=True, text=True, timeout=timeout)
-            except subprocess.TimeoutExpired:
-                return f"kicad-cli ran over {timeout} s"
-            if not os.path.isfile(out):
-                return f"kicad-cli wrote no {what}"
-        return None
-    finally:
-        for lock in set(glob.glob(pattern)) - locks:
-            os.remove(lock)
-
-def _differences(cli, own, at=""):
-    """Every leaf where two forms part, in document order; a side that lacks
-    the place has no key."""
-    if isinstance(cli, dict) and isinstance(own, dict):
-        places = [(f"{at}.{key}" if at else str(key), key)
-                  for key in [*cli, *(k for k in own if k not in cli)]]
-    elif isinstance(cli, list) and isinstance(own, list):
-        places = [(f"{at}[{i}]", i) for i in range(max(len(cli), len(own)))]
-    else:
-        return [] if cli == own else [{"at": at, "kicad_cli": cli, "native": own}]
-    found = []
-    for place, key in places:
-        sides = [(side, form[key]) for side, form in (("kicad_cli", cli), ("native", own))
-                 if (key in form if isinstance(form, dict) else key < len(form))]
-        if len(sides) == 2:
-            found += _differences(sides[0][1], sides[1][1], place)
-        else:
-            found.append({"at": place, **dict(sides)})
-    return found
 
 def _front_end(mode, out_form, tool_version, inputs, **native_keys):
     """What made the connectivity, the reader, and every file read, each path
