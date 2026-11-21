@@ -2,7 +2,7 @@
 	(version "E")
 	(design
 		(source "/examples/ext_net_names/ext_net_names.kicad_sch")
-		(date "2026-11-20T15:49:01+0000")
+		(date "2026-11-21T17:17:34+0000")
 		(tool "Eeschema 9.99.0-unknown")
 		(sheet
 			(number "1")
@@ -153,7 +153,7 @@
 		)
 		(comp
 			(ref "R1")
-			(value "P1")
+			(value "PART1")
 			(fields
 				(field
 					(name "Footprint")
@@ -167,7 +167,7 @@
 			)
 			(libsource
 				(lib "ext")
-				(part "P1")
+				(part "PART1")
 				(description "")
 			)
 			(property
@@ -196,7 +196,7 @@
 		)
 		(comp
 			(ref "R2")
-			(value "P1")
+			(value "PART1")
 			(fields
 				(field
 					(name "Footprint")
@@ -210,7 +210,7 @@
 			)
 			(libsource
 				(lib "ext")
-				(part "P1")
+				(part "PART1")
 				(description "")
 			)
 			(property
@@ -239,7 +239,7 @@
 		)
 		(comp
 			(ref "R3")
-			(value "P1")
+			(value "PART1")
 			(fields
 				(field
 					(name "Footprint")
@@ -253,7 +253,7 @@
 			)
 			(libsource
 				(lib "ext")
-				(part "P1")
+				(part "PART1")
 				(description "")
 			)
 			(property
@@ -385,12 +385,12 @@
 		)
 		(libpart
 			(lib "ext")
-			(part "P1")
+			(part "PART1")
 			(fields
 				(field
 					(name "Reference") "R")
 				(field
-					(name "Value") "P1")
+					(name "Value") "PART1")
 				(field
 					(name "Footprint")
 				)

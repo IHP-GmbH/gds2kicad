@@ -166,7 +166,7 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "ext:P1"
+		(symbol "ext:PART1"
 			(exclude_from_sim no)
 			(in_bom yes)
 			(on_board yes)
@@ -178,7 +178,7 @@
 					)
 				)
 			)
-			(property "Value" "P1"
+			(property "Value" "PART1"
 				(at 0 0 0)
 				(effects
 					(font
@@ -213,7 +213,7 @@
 					)
 				)
 			)
-			(symbol "P1_1_1"
+			(symbol "PART1_1_1"
 				(pin passive line
 					(at 0 0 0)
 					(length 2.54)
@@ -414,7 +414,7 @@
 		)
 	)
 	(symbol
-		(lib_id "ext:P1")
+		(lib_id "ext:PART1")
 		(at 50.8 50.8 0)
 		(unit 1)
 		(exclude_from_sim no)
@@ -431,7 +431,7 @@
 				)
 			)
 		)
-		(property "Value" "P1"
+		(property "Value" "PART1"
 			(at 50.8 52.07 0)
 			(hide yes)
 			(effects
@@ -531,7 +531,7 @@
 		)
 	)
 	(symbol
-		(lib_id "ext:P1")
+		(lib_id "ext:PART1")
 		(at 50.8 76.2 0)
 		(unit 1)
 		(exclude_from_sim no)
@@ -548,7 +548,7 @@
 				)
 			)
 		)
-		(property "Value" "P1"
+		(property "Value" "PART1"
 			(at 50.8 77.47 0)
 			(hide yes)
 			(effects
@@ -702,7 +702,7 @@
 		)
 	)
 	(symbol
-		(lib_id "ext:P1")
+		(lib_id "ext:PART1")
 		(at 50.8 101.6 0)
 		(unit 1)
 		(exclude_from_sim no)
@@ -719,7 +719,7 @@
 				)
 			)
 		)
-		(property "Value" "P1"
+		(property "Value" "PART1"
 			(at 50.8 102.87 0)
 			(hide yes)
 			(effects
