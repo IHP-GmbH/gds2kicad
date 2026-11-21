@@ -627,3 +627,4 @@ def test_a_jumper_flag_other_than_yes_or_no_is_an_input_error(tmp_path):
     lib = LIB.replace('(symbol "t:R" ', '(symbol "t:R" (duplicate_pin_numbers_are_jumpers maybe) ')
     with pytest.raises(n.InputError, match="neither yes nor no"):
         n.netlist(str(_write(tmp_path / "s.kicad_sch", _part("R1", 10, 10, _uuid(1)), lib=lib)))
+

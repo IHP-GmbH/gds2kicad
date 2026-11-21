@@ -638,13 +638,7 @@ def read_form_native(schematic, generator_report, out_form, library=None, *,
     mode = _mode(mode, sources)
     _need_files(schematic, *sources.values())
     try:
-        model = native.netlist(schematic) if model is None else model
-        # KiCad expands a text variable in the comment (netlist_exporter_xml.cpp:672),
-        # and a generated sheet's base digest is read from it.
-        if not mode.drawn and "${" in model["design"]["title_block_comment_1"]:
-            exc = native.KicadConstruct("title_variable", schematic, None)
-            exc.schematic_version = model["schematic_version"]
-            raise exc
+        model = _native_model(schematic, mode, model)
     except native.KicadConstruct as exc:
         here = os.path.dirname(os.path.abspath(out_form))
         form = {**_head(mode, sources, None, here),
@@ -660,6 +654,19 @@ def read_form_native(schematic, generator_report, out_form, library=None, *,
     form["front_end"] = _front_end(mode, out_form, netlister, inputs,
                                    schematic_version=version, netlister=netlister)
     return form
+
+
+def _native_model(schematic, mode, model=None):
+    """kicad_sch_netlist's model of ``schematic`` (read afresh when ``model``
+    is None), raising KicadConstruct for a sheet the native read refuses."""
+    model = native.netlist(schematic) if model is None else model
+    # KiCad expands a text variable in the comment (netlist_exporter_xml.cpp:672),
+    # and a generated sheet's base digest is read from it.
+    if not mode.drawn and "${" in model["design"]["title_block_comment_1"]:
+        exc = native.KicadConstruct("title_variable", schematic, None)
+        exc.schematic_version = model["schematic_version"]
+        raise exc
+    return model
 
 
 def _front_end(mode, out_form, tool_version, inputs, **native_keys):
