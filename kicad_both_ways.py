@@ -77,10 +77,17 @@ def _export(exe, schematic, netlist, erc, timeout):
                 (["sch", "export", "netlist", "--format", "kicadsexpr"], netlist, "netlist"),
                 (["sch", "erc", "--format", "json", "--severity-all"], erc, "ERC report")):
             try:
-                subprocess.run([exe, *argv, "--output", out, sheet],
-                               capture_output=True, text=True, timeout=timeout)
+                # Nothing it prints is read, so none of it is decoded.
+                run = subprocess.run([exe, *argv, "--output", out, sheet],
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                     timeout=timeout)
             except subprocess.TimeoutExpired:
                 return f"kicad-cli ran over {timeout} s"
+            except OSError:
+                return "kicad-cli could not be run"
+            # ERC violations leave the status 0; a sheet it cannot load does not.
+            if run.returncode != 0:
+                return f"kicad-cli exited with status {run.returncode}"
             if not os.path.isfile(out):
                 return f"kicad-cli wrote no {what}"
         return None

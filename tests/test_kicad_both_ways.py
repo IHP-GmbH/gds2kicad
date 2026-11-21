@@ -28,6 +28,9 @@ if sheet.with_suffix(".kicad_pro").exists():
 act = {act!r}
 if act == "none":
     pass
+elif act == "exit":
+    out.write_text("(export")
+    sys.exit(3)
 elif act == "copy" or "erc" in argv:
     shutil.copy(source, out)
 elif act == "rename":
@@ -40,9 +43,12 @@ else:
 def _fake_kicad_cli(tmp_path, act):
     """A kicad-cli that writes the fixture's own netlist and ERC report
     (``copy``), renames net STK in the netlist (``rename``), writes a netlist
-    that is not one (``garbage``) or writes nothing (``none``)."""
+    that is not one (``garbage``), writes nothing (``none``), writes part of one
+    and exits 3 (``exit``), or has no shebang, so it cannot be run
+    (``unrunnable``)."""
     exe = tmp_path / f"kicad-cli-{act}"
-    exe.write_text(f"#!{sys.executable}\n" + FAKE_KICAD_CLI.format(act=act), encoding="utf-8")
+    shebang = "" if act == "unrunnable" else f"#!{sys.executable}\n"
+    exe.write_text(shebang + FAKE_KICAD_CLI.format(act=act), encoding="utf-8")
     exe.chmod(0o755)
     return str(exe)
 
@@ -101,6 +107,8 @@ def test_a_sheet_the_native_read_refuses_is_refused_with_its_reason(tmp_path):
 @pytest.mark.parametrize("act, word, reason", [
     (None, "unavailable", "no-such-kicad-cli is not on PATH"),
     ("none", "failed", "kicad-cli wrote no netlist"),
+    ("exit", "failed", "kicad-cli exited with status 3"),
+    ("unrunnable", "failed", "kicad-cli could not be run"),
     ("garbage", "failed",
      "kicadsexpr netlist sheet.net is unreadable: unbalanced parenthesis")])
 def test_without_two_reads_the_word_says_why_and_names_no_temporary_file(tmp_path, act, word,
