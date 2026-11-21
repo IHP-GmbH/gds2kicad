@@ -1,0 +1,18 @@
+{
+  "boards": [],
+  "libraries": {
+    "pinned_footprint_libs": [],
+    "pinned_symbol_libs": []
+  },
+  "meta": {
+    "filename": "ext_power_glabel.kicad_pro",
+    "version": 3
+  },
+  "sheets": [
+    [
+      "1c6fbc3b-b75b-5064-a469-34a93e478009",
+      "Root"
+    ]
+  ],
+  "text_variables": {}
+}

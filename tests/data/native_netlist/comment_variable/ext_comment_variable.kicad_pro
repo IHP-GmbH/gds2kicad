@@ -1,0 +1,9 @@
+{
+  "meta": {
+    "filename": "ext_comment_variable.kicad_pro",
+    "version": 3
+  },
+  "text_variables": {
+    "X": "abc"
+  }
+}

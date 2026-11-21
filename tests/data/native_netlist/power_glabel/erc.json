@@ -1,0 +1,83 @@
+{
+    "$schema": "https://schemas.kicad.org/erc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-11-20T15:49:27+0000",
+    "kicad_version": "9.99.0",
+    "sheets": [
+        {
+            "path": "/",
+            "uuid_path": "/1c6fbc3b-b75b-5064-a469-34a93e478009",
+            "violations": [
+                {
+                    "description": "Input Power pin not driven by any Output Power pins",
+                    "items": [
+                        {
+                            "description": "Symbol #PWR01 Pin 1 [PIN_P, Power input, Line]",
+                            "pos": {
+                                "x": 0.762,
+                                "y": 0.508
+                            },
+                            "uuid": "f052da17-cc6d-5f7f-a999-8e82a8cf4159"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "power_pin_not_driven"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'ext'",
+                    "items": [
+                        {
+                            "description": "Symbol R1 [P1]",
+                            "pos": {
+                                "x": 0.508,
+                                "y": 0.508
+                            },
+                            "uuid": "993d9fcf-325b-58f8-9477-0ad9c90caa5d"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'ext'",
+                    "items": [
+                        {
+                            "description": "Symbol #PWR01 [PWRX]",
+                            "pos": {
+                                "x": 0.762,
+                                "y": 0.508
+                            },
+                            "uuid": "2c1016ed-ba02-5d65-ab68-af69b7366905"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "Both SIGA and PWRX are attached to the same items; SIGA will be used in the netlist",
+                    "items": [
+                        {
+                            "description": "Global Label 'SIGA'",
+                            "pos": {
+                                "x": 0.762,
+                                "y": 0.508
+                            },
+                            "uuid": "2d03cf7d-71c5-5693-96be-a8eeda44099c"
+                        },
+                        {
+                            "description": "Symbol #PWR01 Pin 1 [PIN_P, Power input, Line]",
+                            "pos": {
+                                "x": 0.762,
+                                "y": 0.508
+                            },
+                            "uuid": "f052da17-cc6d-5f7f-a999-8e82a8cf4159"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "multiple_net_names"
+                }
+            ]
+        }
+    ],
+    "source": "ext_power_glabel.kicad_sch"
+}

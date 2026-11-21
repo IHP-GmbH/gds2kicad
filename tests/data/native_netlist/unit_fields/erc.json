@@ -1,0 +1,90 @@
+{
+    "$schema": "https://schemas.kicad.org/erc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-11-20T15:50:47+0000",
+    "kicad_version": "9.99.0",
+    "sheets": [
+        {
+            "path": "/",
+            "uuid_path": "/4f227b83-e181-5975-ba28-eb2f53470c94",
+            "violations": [
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'UA'",
+                            "pos": {
+                                "x": 0.6604,
+                                "y": 0.508
+                            },
+                            "uuid": "882bb85f-5664-5005-aea6-00c5d67b159b"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'ext'",
+                    "items": [
+                        {
+                            "description": "Symbol U1 [DUAL]",
+                            "pos": {
+                                "x": 0.762,
+                                "y": 0.508
+                            },
+                            "uuid": "8265c1cb-4e65-5112-a728-a9f2a3ce6951"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'UB'",
+                            "pos": {
+                                "x": 0.6604,
+                                "y": 0.889
+                            },
+                            "uuid": "91b070f2-57f5-52c8-aad5-da7065f0c2d4"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "The current configuration does not include the footprint library 'lib'",
+                    "items": [
+                        {
+                            "description": "Symbol U1 [DUAL]",
+                            "pos": {
+                                "x": 0.762,
+                                "y": 0.889
+                            },
+                            "uuid": "299372a6-6559-55ab-88b8-e278740f80d5"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "footprint_link_issues"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'ext'",
+                    "items": [
+                        {
+                            "description": "Symbol U1 [DUAL]",
+                            "pos": {
+                                "x": 0.762,
+                                "y": 0.889
+                            },
+                            "uuid": "299372a6-6559-55ab-88b8-e278740f80d5"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                }
+            ]
+        }
+    ],
+    "source": "ext_unit_fields.kicad_sch"
+}

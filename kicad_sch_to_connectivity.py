@@ -39,6 +39,8 @@ its die or a name is legal is the import's call, made once for every tool.
       missing_identity     a die-library symbol has no CHIPLET_COMPONENT, or
                            a carrier pad lacks IO_PAD_ID on a sheet using it
       duplicate_reference  two symbols share a reference
+      kicad_construct      with --native, a construct the native netlister
+                           does not read; the form has no symbols and no nets
 
 The form names the generator report, the netlist, the schematic and the ERC
 report by path and sha256, each path relative to the form's directory when the
@@ -88,6 +90,17 @@ ERC is an input, not something this reader runs: pass the JSON report of
 name the same sheet. It does not say which checks ran or at what severity, so
 the check is only as good as the command that wrote it.
 
+``--native`` takes no kicad-cli: kicad_sch_netlist, gds_to_kicad's own
+netlister, reads SCHEMATIC and every sub-sheet file it places. For a sheet it
+does not refuse, the form is the one the kicad-cli read writes from the same
+sheet, with the same arguments less NETLIST and the ERC choice, except as the
+netlister's module states (the second name a multiple_net_names refusal quotes
+when a net has three or more). Those refusals come from the netlister's own
+check, always made unless the sheet's project sets it to ignore.
+``front_end`` names the netlister (``tool_version`` and ``netlister``), the
+root file's ``schematic_version`` and every sheet file read. Nothing but the
+form is written.
+
 Usage:
     kicad_sch_to_connectivity.py NETLIST SCHEMATIC GENERATOR_REPORT OUT_FORM \\
         (--erc ERC_JSON | --no-erc)
@@ -95,13 +108,16 @@ Usage:
         (--erc ERC_JSON | --no-erc)
     kicad_sch_to_connectivity.py NETLIST SCHEMATIC OUT_FORM --classic \\
         --library LIB --system-library SYSTEM_LIB (--erc ERC_JSON | --no-erc)
+    kicad_sch_to_connectivity.py SCHEMATIC GENERATOR_REPORT OUT_FORM --native
+    kicad_sch_to_connectivity.py SCHEMATIC OUT_FORM --blank --library LIB --native
+    kicad_sch_to_connectivity.py SCHEMATIC OUT_FORM --classic --library LIB \\
+        --system-library SYSTEM_LIB --native
 
 Exit status: 0 the form is written, refusals included; 2 an input is missing
 or is not what it claims to be, and no form is written.
 """
 import argparse
 import json
-import math
 import os
 import re
 import sys
@@ -109,11 +125,14 @@ from collections import Counter
 from pathlib import Path
 from typing import List, NamedTuple, Optional
 
+import kicad_sch_netlist as native
 import sexpr_io as sx
 from _paths import atomic_write
 from chiplet_to_kicad_sch import (BASE_DIGEST_PREFIX, IDENTITY_PROPERTY, LIB,
                                   SETUP_MARKER, _report_ref, _sha256)
-from sheet_check import (InputError, UNIT_SUFFIX as _UNIT_SUFFIX, cache_key as _cache_key,
+from kicad_rules import (escape_net, expand_stack, iu, jumpers, properties, unit_letters,
+                         unit_style)
+from sheet_check import (InputError, cache_key as _cache_key,
                          component_placements, duplicate_references, fold_pads, netlist_property,
                          netlist_symbols, pad_carriers, read_schematic as _sheet_data,
                          reference_counts, root_components)
@@ -131,8 +150,6 @@ AUTO_PREFIXES = ("Net-(", "unconnected-(")
 ERC_CHECK = "multiple_net_names"
 _VOLTS = re.compile(r"[0-9]+(?:\.[0-9]+)?")
 _RAILS = {"chiplet_system:GND": "ground", "chiplet_system:SUPPLY": "power"}
-_IU_PER_MM = 10000          # schIUScale.IU_PER_MM
-_JUMPERS = "duplicate_pin_numbers_are_jumpers"
 
 EXIT_WRITTEN = 0
 EXIT_INPUT = 2
@@ -182,11 +199,15 @@ def _erc_refusals(path, schematic) -> List[dict]:
     for sheet in doc["sheets"]:
         for v in (sheet.get("violations") or []) if isinstance(sheet, dict) else []:
             if isinstance(v, dict) and v.get("type") == ERC_CHECK:
-                items = "; ".join(str(i.get("description")) for i in v.get("items") or []
-                                  if isinstance(i, dict))
-                out.append(_refusal(ERC_CHECK, f"ERC: {v.get('description')}"
-                                    + (f" ({items})" if items else "")))
+                out.append(_erc_refusal(v.get("description"), [
+                    str(i.get("description")) for i in v.get("items") or []
+                    if isinstance(i, dict)]))
     return out
+
+
+def _erc_refusal(description, items) -> dict:
+    joined = "; ".join(items)
+    return _refusal(ERC_CHECK, f"ERC: {description}" + (f" ({joined})" if joined else ""))
 
 
 class _Mode(NamedTuple):
@@ -233,63 +254,13 @@ def _sheet_properties(symbol, *, include_private=True):
     one as ``(property private "Name" "Value")``; ``include_private=False``
     leaves those out, as the netlist does (netlist_exporter_xml.cpp:165,203 at
     9.0.2)."""
-    fields = {}
-    for prop in sx.find_all(symbol, "property"):
-        private = len(prop) > 1 and prop[1] == "private" and not isinstance(prop[1], sx.Quoted)
-        offset = 2 if private else 1
-        if len(prop) > offset and (include_private or not private):
-            fields[str(prop[offset])] = str(prop[offset + 1]) if len(prop) > offset + 1 else ""
-    return fields
+    return {name: value for name, value, private in properties(symbol)
+            if include_private or not private}
 
 
 def _netlist_fields(comp):
     return {_value(f, "name"): str(f[-1]) if len(f) > 2 else ""
             for f in sx.find_all(sx.find(comp, "fields") or [], "field")}
-
-
-def _iu(text) -> int:
-    """A coordinate in schematic internal units, rounded as KiROUND rounds."""
-    value = float(text) * _IU_PER_MM
-    return int(math.copysign(math.floor(abs(value) + 0.5), value))
-
-
-def _alnum_pin(number):
-    """``(prefix, value)`` of a pin number with a numeric tail, value -1 when
-    there is none (string_utils.cpp:1514-1537)."""
-    head = len(number.rstrip("0123456789"))
-    return (number[:head], int(number[head:])) if head < len(number) else ("", -1)
-
-
-def _expand(number):
-    """The numbers a pin number stands for: ``[1-3,A5]`` is 1, 2, 3, A5; any
-    other number, a malformed stack included, stands for itself
-    (ExpandStackedPinNotation, string_utils.cpp:1542-1621)."""
-    if not (number.startswith("[") and number.endswith("]")):
-        return [number]
-    out = []
-    for part in (p.strip() for p in number[1:-1].split(",")):
-        if not part:
-            continue
-        if "-" in part:
-            first, _, last = part.partition("-")
-            (prefix, lo), (other, hi) = _alnum_pin(first.strip()), _alnum_pin(last.strip())
-            if prefix != other or lo == -1 or hi == -1 or lo > hi:
-                return [number]
-            out.extend(f"{prefix}{i}" for i in range(lo, hi + 1))
-        else:
-            out.append(part)
-    return out or [number]
-
-
-def _unit_letter(unit):
-    """LIB_SYMBOL::LetterSubReference(unit, 'A'): A..Z, then AA, AB, ..."""
-    suffix = ""
-    while True:
-        u = (unit - 1) % 26
-        suffix = chr(ord("A") + u) + suffix
-        unit = (unit - u) // 26
-        if unit <= 0:
-            return suffix
 
 
 def _unit_pins(cached):
@@ -308,21 +279,17 @@ def _unit_pins(cached):
                          "cache flattened, so save the schematic again in KiCad")
     count, names, pins = 1, {}, []
     for unit in sx.find_all(cached, "symbol"):
-        match = _UNIT_SUFFIX.search(str(unit[1]))
-        if match is None:
-            raise InputError(f"cached symbol {cached[1]} has a unit named {unit[1]}, "
-                             "which KiCad cannot read")
-        index = int(match[1])
+        index = unit_style(cached, unit)[0]
         count = max(count, index)
         label = sx.find(unit, "unit_name")
         if label is not None and len(label) > 1:
             names[index] = str(label[1])
         for pin in sx.find_all(unit, "pin"):
             at = sx.find(pin, "at") or ["at", "0", "0"]     # a pin's default position
-            pins.append((index, (_iu(at[1]), -_iu(at[2])), _expand(_value(pin, "number") or "")))
+            pins.append((index, (iu(at[1]), -iu(at[2])), expand_stack(_value(pin, "number") or "")))
     units, clash = [], None
     for index in range(1, count + 1):
-        name = names.get(index, _unit_letter(index))
+        name = names.get(index, unit_letters(index))
         drawn = sorted((p for p in pins if p[0] in (0, index)), key=lambda p: p[1])
         numbers = []
         for i, (_unit, at, expanded) in enumerate(drawn):
@@ -331,14 +298,6 @@ def _unit_pins(cached):
             numbers.extend(n for n in expanded if n not in numbers)
         units.append({"name": name, "pins": numbers})
     return units, clash
-
-
-def _jumpers(cached) -> bool:
-    flag = _value(cached, _JUMPERS)
-    if flag not in (None, "yes", "no"):
-        raise InputError(f"cached symbol {cached[1]} states {_JUMPERS} {flag!r}, "
-                         "neither yes nor no")
-    return flag == "yes"
 
 
 def _libpins(tree):
@@ -482,7 +441,7 @@ def _split_record(comp, uuid, placed, sheet, libpins):
     if pins is None:
         cached = sheet.cache.get(_cache_key(placed), [])
         pins = list(dict.fromkeys(n for pin in sx.find_all_rec(cached, "pin")
-                                  for n in _expand(_value(pin, "number") or "")))
+                                  for n in expand_stack(_value(pin, "number") or "")))
     lib, name = _lib_id(placed)
     return _classic_record(comp, uuid, lib=lib, name=name, pins=pins, value=value,
                            footprint=fields.get("Footprint", ""), fields=fields)
@@ -505,7 +464,7 @@ def _placed_records(comp, sheet, libpins):
             raise InputError(f"symbol {ref} has no cached library symbol; "
                              "save the schematic again in KiCad")
         units, clash = _unit_pins(cached)
-        row["jumpers"] = _jumpers(cached)
+        row["jumpers"] = jumpers(cached)
         if clash is None:
             row["units"] = units
         else:
@@ -526,7 +485,7 @@ def _rail_name(value):
     # KiCad 9.0.2 sch_pin.cpp:1639 uses EscapeString(Value, CTX_NETNAME).
     # common/string_utils.cpp:179,188-194 replaces '/' and drops CR/LF only.
     # Text variables are not resolved here and may remain a rail_unused refusal.
-    return value.replace("/", "{slash}").replace("\r", "").replace("\n", "")
+    return escape_net(value)
 
 
 class _RailRow(NamedTuple):
@@ -594,8 +553,12 @@ def _classic_pass(components, libpins, schematic, nets, opened, setup):
             multi.append(_value(comp, "ref"))
     symbols, refusals = _checked_symbols(records, multi=multi)
     rails, rail_refusals = _classic_rails(sheet, {n["name"] for n in nets})
-    return symbols, {"rails": rails, "open": [list(ep) for ep in sorted(opened)]}, [
-        *refusals, *refused, *rail_refusals]
+    return symbols, _classic_extra(rails, opened), [*refusals, *refused, *rail_refusals]
+
+
+def _classic_extra(rails=(), opened=()):
+    """The keys only a classic form has: its rails and its open endpoints."""
+    return {"rails": list(rails), "open": [list(ep) for ep in sorted(opened)]}
 
 
 def _nets(tree, setup, pads):
@@ -636,6 +599,12 @@ def _net_refusals(nets, symbols, drawn, pads):
     return refusals
 
 
+def _need_files(*paths):
+    for path in (p for p in paths if p is not None):
+        if not os.path.isfile(path):
+            raise InputError(f"no such file: {path}")
+
+
 def read_form(netlist, schematic, generator_report, out_form, erc=None,
               library=None, *, system_library=None, mode=None) -> dict:
     """Read generated (1.0), blank (1.1), or classic (1.3) connectivity.
@@ -647,11 +616,108 @@ def read_form(netlist, schematic, generator_report, out_form, erc=None,
     sources = {"generator_report": generator_report, "library": library,
                "system_library": system_library}
     mode = _mode(mode, sources)
-    paths = (netlist, schematic, generator_report, library, system_library, erc)
-    for path in (p for p in paths if p is not None):
-        if not os.path.isfile(path):
-            raise InputError(f"no such file: {path}")
+    _need_files(netlist, schematic, *sources.values(), erc)
     tree = _parse(netlist, "export", "kicadsexpr netlist")
+    form = _form(tree, schematic, out_form, sources, mode,
+                 lambda: _erc_refusals(erc, schematic) if erc else [])
+    form["front_end"] = _front_end(mode, out_form, _value(sx.find(tree, "design") or [], "tool"),
+                                   [p for p in (netlist, schematic, erc) if p])
+    return form
+
+
+def read_form_native(schematic, generator_report, out_form, library=None, *,
+                     system_library=None, mode=None, model=None) -> dict:
+    """The form read_form writes from kicad-cli's netlist and ERC report of
+    ``schematic``, written from kicad_sch_netlist's model of it instead (read
+    afresh when ``model`` is None). Its multiple_net_names refusals are the
+    model's violations, and front_end names the netlister and every sheet file
+    it read. A construct the netlister does not read is the one refusal of a
+    form with no symbols and no nets."""
+    sources = {"generator_report": generator_report, "library": library,
+               "system_library": system_library}
+    mode = _mode(mode, sources)
+    _need_files(schematic, *sources.values())
+    try:
+        model = native.netlist(schematic) if model is None else model
+        # KiCad expands a text variable in the comment (netlist_exporter_xml.cpp:672),
+        # and a generated sheet's base digest is read from it.
+        if not mode.drawn and "${" in model["design"]["title_block_comment_1"]:
+            exc = native.KicadConstruct("title_variable", schematic, None)
+            exc.schematic_version = model["schematic_version"]
+            raise exc
+    except native.KicadConstruct as exc:
+        here = os.path.dirname(os.path.abspath(out_form))
+        form = {**_head(mode, sources, None, here),
+                **(_classic_extra() if mode.sheet == "classic" else {}),
+                "symbols": [], "nets": [], "refusals": [exc.refusal()]}
+        version, netlister, inputs = exc.schematic_version, native.NETLISTER, [schematic]
+    else:
+        form = _form(_native_tree(model), schematic, out_form, sources, mode,
+                     lambda: [_erc_refusal(v["description"], v["items"])
+                              for v in model["violations"] if v["type"] == ERC_CHECK])
+        version, netlister = model["schematic_version"], model["netlister"]
+        inputs = model["inputs"]
+    form["front_end"] = _front_end(mode, out_form, netlister, inputs,
+                                   schematic_version=version, netlister=netlister)
+    return form
+
+
+def _front_end(mode, out_form, tool_version, inputs, **native_keys):
+    """What made the connectivity, the reader, and every file read, each path
+    relative to the form's directory."""
+    here = os.path.dirname(os.path.abspath(out_form))
+    return {"tool": "kicad", "tool_version": tool_version, **native_keys,
+            "reader": f"{READER} {mode.reader}",
+            "inputs": [{"path": _report_ref(p, here), "sha256": _sha256(p)} for p in inputs]}
+
+
+def _native_tree(model):
+    """A native model as the parsed kicadsexpr netlist read_form reads."""
+    q = sx.Quoted
+    design = model["design"]
+    sheets = [["sheet", ["name", q(name)]] for name in design["sheets"]]
+    for sheet in sheets:
+        if sheet[1][1] == "/":
+            sheet.append(["title_block", ["comment", ["number", q("1")],
+                                          ["value", q(design["title_block_comment_1"])]]])
+    components = [
+        ["comp", ["ref", q(c["ref"])], ["value", q(c["value"])],
+         *([["footprint", q(c["footprint"])]] if c["footprint"] else []),
+         ["fields", *(["field", ["name", q(k)], *([q(v)] if v else [])]
+                      for k, v in c["fields"].items())],
+         ["libsource", ["lib", q(c["libsource"]["lib"])], ["part", q(c["libsource"]["part"])]],
+         *(["property", ["name", q(k)], ["value", q(v)]] for k, v in c["property"].items()),
+         ["sheetpath", ["names", q(c["sheetpath"])]],
+         ["tstamps", *(q(t) for t in c["tstamps"])]]
+        for c in model["components"]]
+    libparts = [["libpart", ["lib", q(lp["lib"])], ["part", q(lp["part"])],
+                 ["pins", *(["pin", ["num", q(n)]] for n in lp["pins"])]]
+                for lp in model["libparts"]]
+    nets = [["net", ["name", q(n["name"])],
+             *(["node", ["ref", q(d["ref"])], ["pin", q(d["pin"])],
+                ["pintype", q(d["pintype"] + ("+no_connect" if d["no_connect"] else ""))]]
+               for d in n["nodes"])]
+            for n in model["nets"]]
+    return ["export", ["design", ["source", q(design["source"])], *sheets],
+            ["components", *components], ["libparts", *libparts], ["nets", *nets]]
+
+
+def _head(mode, sources, base, here):
+    head = {"format": FORM_FORMAT, "version": mode.version, "base_sha256": base,
+            "generator_report": None}
+    if mode.drawn:
+        head["sheet"] = mode.sheet
+    for name in mode.sources:
+        path = sources[name]
+        head[name] = {"path": _report_ref(path, here), "sha256": _sha256(path)}
+    return head
+
+
+def _form(tree, schematic, out_form, sources, mode, erc_refusals) -> dict:
+    """The form of a parsed netlist of ``schematic``, all but front_end;
+    ``erc_refusals()`` gives its multiple_net_names refusals. It is called last,
+    so they come after every other refusal and a netlist that is not what it
+    claims is reported before an ERC report that is not."""
     design = sx.find(tree, "design") or []
     source = _value(design, "source")
     if source is not None and os.path.basename(source) != os.path.basename(schematic):
@@ -675,7 +741,7 @@ def read_form(netlist, schematic, generator_report, out_form, erc=None,
         placed = netlist_symbols(components, _sheet_data(schematic))
         counts = reference_counts(placed)
     if mode.sheet is None:
-        pads, pad_refusals = _fold(placed, _carrier_pads(generator_report))
+        pads, pad_refusals = _fold(placed, _carrier_pads(sources["generator_report"]))
         refusals.extend(pad_refusals)
     nets, opened = _nets(tree, setup, pads)
     extra = {}
@@ -686,26 +752,12 @@ def read_form(netlist, schematic, generator_report, out_form, erc=None,
         symbols, symbol_refusals = _symbols(components, libpins, mode.drawn, pads, counts)
     refusals.extend(symbol_refusals)
     refusals.extend(_net_refusals(nets, symbols, mode.drawn, pads))
-
-    if erc:
-        refusals.extend(_erc_refusals(erc, schematic))
+    refusals.extend(erc_refusals())
 
     here = os.path.dirname(os.path.abspath(out_form))
-    inputs = [p for p in (netlist, schematic, erc) if p]
-    head = {"format": FORM_FORMAT, "version": mode.version, "base_sha256": base,
-            "generator_report": None}
-    if mode.drawn:
-        head["sheet"] = mode.sheet
-    for name in mode.sources:
-        path = sources[name]
-        head[name] = {"path": _report_ref(path, here), "sha256": _sha256(path)}
     return {
-        **head,
+        **_head(mode, sources, base, here),
         **extra,
-        "front_end": {"tool": "kicad", "tool_version": _value(design, "tool"),
-                      "reader": f"{READER} {mode.reader}",
-                      "inputs": [{"path": _report_ref(p, here), "sha256": _sha256(p)}
-                                 for p in inputs]},
         "symbols": sorted(symbols, key=_drawn_key if mode.drawn else lambda s: s["ref"]),
         "nets": sorted(nets, key=lambda n: n["name"]),
         "refusals": refusals,
@@ -732,12 +784,16 @@ def main(argv=None) -> int:
                 "       %(prog)s NETLIST SCHEMATIC OUT_FORM --blank --library LIB "
                 "(--erc ERC | --no-erc)\n"
                 "       %(prog)s NETLIST SCHEMATIC OUT_FORM --classic --library LIB "
-                "--system-library SYSTEM_LIB (--erc ERC | --no-erc)")
+                "--system-library SYSTEM_LIB (--erc ERC | --no-erc)\n"
+                "       %(prog)s SCHEMATIC GENERATOR_REPORT OUT_FORM --native\n"
+                "       %(prog)s SCHEMATIC OUT_FORM --blank --library LIB --native\n"
+                "       %(prog)s SCHEMATIC OUT_FORM --classic --library LIB "
+                "--system-library SYSTEM_LIB --native")
     ap.add_argument("paths", nargs="+", metavar="PATH",
-                    help="NETLIST (kicadsexpr netlist of the edited sheet), SCHEMATIC "
-                         "(the .kicad_sch it came from), GENERATOR_REPORT (the report "
-                         "chiplet_to_kicad_sch wrote; generated sheets only), OUT_FORM "
-                         "(connectivity form to write, JSON)")
+                    help="NETLIST (kicadsexpr netlist of the edited sheet; none with "
+                         "--native), SCHEMATIC (the .kicad_sch it came from), "
+                         "GENERATOR_REPORT (the report chiplet_to_kicad_sch wrote; generated "
+                         "sheets only), OUT_FORM (connectivity form to write, JSON)")
     drawing = ap.add_argument_group("sheet mode and libraries")
     choice = drawing.add_mutually_exclusive_group()
     choice.add_argument("--blank", dest="mode", action="store_const", const="blank",
@@ -749,30 +805,50 @@ def main(argv=None) -> int:
     drawing.add_argument("--system-library", metavar="SYSTEM_LIB",
                          help="with --classic, chiplet_system.kicad_sym")
     ap.set_defaults(mode="generated")
-    erc = ap.add_mutually_exclusive_group(required=True)
+    ap.add_argument("--native", action="store_true",
+                    help="read SCHEMATIC with gds_to_kicad's own netlister, no kicad-cli; "
+                         "takes no NETLIST and no --erc/--no-erc, and always checks "
+                         "multiple_net_names")
+    # Required unless --native, which takes neither; checked below.
+    erc = ap.add_mutually_exclusive_group()
     erc.add_argument("--erc", help="kicad-cli sch erc JSON report (--severity-all)")
     erc.add_argument("--no-erc", action="store_true",
                      help="read without ERC; multiple_net_names is not checked")
     # Intermixed, so options may sit between the paths.
     args = ap.parse_intermixed_args(argv)
     drawn = args.mode != "generated"
-    if len(args.paths) != (3 if drawn else 4):
-        ap.error("expected NETLIST SCHEMATIC OUT_FORM with --blank or --classic, else "
-                 "NETLIST SCHEMATIC GENERATOR_REPORT OUT_FORM")
-    if drawn:
-        args.netlist, args.schematic, args.out_form = args.paths
-        args.generator_report = None
+    if args.native:
+        if args.erc is not None or args.no_erc:
+            ap.error("--native takes no --erc or --no-erc; the native read always checks "
+                     "multiple_net_names")
+        if len(args.paths) != (2 if drawn else 3):
+            ap.error("with --native, give SCHEMATIC OUT_FORM and --blank or --classic, or "
+                     "SCHEMATIC GENERATOR_REPORT OUT_FORM")
     else:
-        args.netlist, args.schematic, args.generator_report, args.out_form = args.paths
+        if args.erc is None and not args.no_erc:
+            # argparse's own wording, from when the group was required.
+            ap.error("one of the arguments --erc --no-erc is required")
+        if len(args.paths) != (3 if drawn else 4):
+            ap.error("expected NETLIST SCHEMATIC OUT_FORM with --blank or --classic, else "
+                     "NETLIST SCHEMATIC GENERATOR_REPORT OUT_FORM")
+    paths = list(args.paths)
+    args.netlist = None if args.native else paths.pop(0)
+    args.schematic, args.out_form = paths[0], paths[-1]
+    args.generator_report = None if drawn else paths[1]
     try:
         _mode(args.mode, {"generator_report": args.generator_report, "library": args.library,
                           "system_library": args.system_library})
     except ValueError as exc:
         ap.error(str(exc))
     try:
-        form = read_form(args.netlist, args.schematic, args.generator_report,
-                         args.out_form, erc=args.erc, library=args.library,
-                         mode=args.mode, system_library=args.system_library)
+        if args.native:
+            form = read_form_native(args.schematic, args.generator_report, args.out_form,
+                                    library=args.library, mode=args.mode,
+                                    system_library=args.system_library)
+        else:
+            form = read_form(args.netlist, args.schematic, args.generator_report,
+                             args.out_form, erc=args.erc, library=args.library,
+                             mode=args.mode, system_library=args.system_library)
     except InputError as exc:
         print(f"{READER}: {exc}", file=sys.stderr)
         return EXIT_INPUT

@@ -58,13 +58,18 @@ def cache_key(symbol):
     return _value(symbol, "lib_name") or _value(symbol, "lib_id")
 
 
-def read_schematic(path):
+def schematic_tree(path):
     try:
         tree = sx.parse(Path(path).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValueError) as exc:
         raise InputError(f"KiCad schematic {path} is unreadable: {exc}") from exc
     if not isinstance(tree, list) or sx.head(tree) != "kicad_sch":
         raise InputError(f"{path} is not a KiCad schematic")
+    return tree
+
+
+def read_schematic(path):
+    tree = schematic_tree(path)
     cache, multi = {}, set()
     for symbol in sx.find_all(sx.find(tree, "lib_symbols") or [], "symbol"):
         name = str(symbol[1])

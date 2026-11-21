@@ -1,0 +1,187 @@
+(export
+	(version "E")
+	(design
+		(source "/examples/ext_unit_fields/ext_unit_fields.kicad_sch")
+		(date "2026-11-20T15:50:39+0000")
+		(tool "Eeschema 9.99.0-unknown")
+		(sheet
+			(number "1")
+			(name "/")
+			(tstamps "/")
+			(title_block
+				(title "ext_unit_fields")
+				(company)
+				(rev)
+				(date)
+				(source "ext_unit_fields.kicad_sch")
+				(comment
+					(number "1")
+					(value "")
+				)
+				(comment
+					(number "2")
+					(value "")
+				)
+				(comment
+					(number "3")
+					(value "")
+				)
+				(comment
+					(number "4")
+					(value "")
+				)
+				(comment
+					(number "5")
+					(value "")
+				)
+				(comment
+					(number "6")
+					(value "")
+				)
+				(comment
+					(number "7")
+					(value "")
+				)
+				(comment
+					(number "8")
+					(value "")
+				)
+				(comment
+					(number "9")
+					(value "")
+				)
+			)
+		)
+	)
+	(components
+		(comp
+			(ref "U1")
+			(value "VAL_U1")
+			(footprint "lib:FP_U2")
+			(fields
+				(field
+					(name "Tag") "TAG_U1")
+				(field
+					(name "Blank1")
+				)
+				(field
+					(name "Only2") "O2")
+				(field
+					(name "Footprint") "lib:FP_U2")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "ext")
+				(part "DUAL")
+				(description "")
+			)
+			(property
+				(name "Tag")
+				(value "TAG_U2")
+			)
+			(property
+				(name "Blank1")
+				(value "B2")
+			)
+			(property
+				(name "Only2")
+				(value "O2")
+			)
+			(property
+				(name "Sheetname")
+				(value "")
+			)
+			(property
+				(name "Sheetfile")
+				(value "ext_unit_fields.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "8265c1cb-4e65-5112-a728-a9f2a3ce6951" "299372a6-6559-55ab-88b8-e278740f80d5")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+					)
+				)
+				(unit
+					(name "B")
+					(pins
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+	)
+	(groups)
+	(libparts
+		(libpart
+			(lib "ext")
+			(part "DUAL")
+			(fields
+				(field
+					(name "Reference") "U")
+				(field
+					(name "Value") "DUAL")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "PA")
+					(type "passive")
+				)
+				(pin
+					(num "2")
+					(name "PB")
+					(type "passive")
+				)
+			)
+		)
+	)
+	(libraries)
+	(nets
+		(net
+			(code "1")
+			(name "UA")
+			(class "Default")
+			(node
+				(ref "U1")
+				(pin "1")
+				(pinfunction "PA_1")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "2")
+			(name "UB")
+			(class "Default")
+			(node
+				(ref "U1")
+				(pin "2")
+				(pinfunction "PB_2")
+				(pintype "passive")
+			)
+		)
+	)
+)

@@ -1,0 +1,33 @@
+{
+  "boards": [],
+  "erc": {
+    "meta": {
+      "version": 0
+    },
+    "rule_severities": {
+      "multiple_net_names": "ignore"
+    }
+  },
+  "libraries": {
+    "pinned_footprint_libs": [],
+    "pinned_symbol_libs": []
+  },
+  "meta": {
+    "filename": "ext_pro_settings.kicad_pro",
+    "version": 3
+  },
+  "schematic": {
+    "meta": {
+      "version": 1
+    },
+    "subpart_first_id": 49,
+    "subpart_id_separator": 46
+  },
+  "sheets": [
+    [
+      "041c4d52-6712-5ee5-b886-7727e65e298f",
+      "Root"
+    ]
+  ],
+  "text_variables": {}
+}

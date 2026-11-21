@@ -1,0 +1,360 @@
+{
+    "$schema": "https://schemas.kicad.org/erc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-11-20T15:49:54+0000",
+    "kicad_version": "9.99.0",
+    "sheets": [
+        {
+            "path": "/",
+            "uuid_path": "/ebfb557b-0861-5b96-9dc8-80f8b9efd8c7",
+            "violations": [
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U1_A'",
+                            "pos": {
+                                "x": 0.2286,
+                                "y": 0.2794
+                            },
+                            "uuid": "9cbd4c22-bb73-547a-bd5c-de5db0f51dd8"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'ext'",
+                    "items": [
+                        {
+                            "description": "Symbol U1 [ASYM]",
+                            "pos": {
+                                "x": 0.3048,
+                                "y": 0.3048
+                            },
+                            "uuid": "1bc281ef-f84c-5f27-a214-5e8fae6adbce"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U1_B'",
+                            "pos": {
+                                "x": 0.3556,
+                                "y": 0.381
+                            },
+                            "uuid": "e96879ea-a733-59f1-97bc-23999b2384df"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U5_B'",
+                            "pos": {
+                                "x": 0.3556,
+                                "y": 0.5334
+                            },
+                            "uuid": "f52b8d07-9898-5edf-8a7f-464bc12dbb1c"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U2_A'",
+                            "pos": {
+                                "x": 0.5588,
+                                "y": 0.3556
+                            },
+                            "uuid": "4f607213-3a59-5613-b589-73b504d966b1"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U5_A'",
+                            "pos": {
+                                "x": 0.2286,
+                                "y": 0.635
+                            },
+                            "uuid": "0ecc502a-d26a-5be9-8fc4-1f787916f3c8"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'ext'",
+                    "items": [
+                        {
+                            "description": "Symbol U5 [ASYM]",
+                            "pos": {
+                                "x": 0.3048,
+                                "y": 0.6096
+                            },
+                            "uuid": "fdb5bdad-4fb1-5ab0-9488-215e9549e1ae"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U2_B'",
+                            "pos": {
+                                "x": 0.7112,
+                                "y": 0.2794
+                            },
+                            "uuid": "804d107c-b0dc-53f8-997d-747bd3cb2174"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'ext'",
+                    "items": [
+                        {
+                            "description": "Symbol U6 [ASYM]",
+                            "pos": {
+                                "x": 0.6096,
+                                "y": 0.6096
+                            },
+                            "uuid": "a1fc22f2-09e3-5370-b5fc-0ab0c1fd3667"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U6_B'",
+                            "pos": {
+                                "x": 0.5588,
+                                "y": 0.6858
+                            },
+                            "uuid": "e647c431-3660-59e3-b59b-7e29c73dc382"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U3_B'",
+                            "pos": {
+                                "x": 0.8636,
+                                "y": 0.2286
+                            },
+                            "uuid": "f8ddc8ce-aff7-55a8-b64e-6bfaa5882750"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U6_A'",
+                            "pos": {
+                                "x": 0.6858,
+                                "y": 0.5842
+                            },
+                            "uuid": "00cd260c-4461-5e24-8005-666fe5a44a20"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'ext'",
+                    "items": [
+                        {
+                            "description": "Symbol U3 [ASYM]",
+                            "pos": {
+                                "x": 0.9144,
+                                "y": 0.3048
+                            },
+                            "uuid": "d3dd6b0b-4f40-524a-a149-c0fb24f77459"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U7_A'",
+                            "pos": {
+                                "x": 0.8636,
+                                "y": 0.5588
+                            },
+                            "uuid": "ec48909e-30db-5a27-bdcd-4969708cb9eb"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U3_A'",
+                            "pos": {
+                                "x": 0.9906,
+                                "y": 0.3302
+                            },
+                            "uuid": "0b5646d0-1458-5aac-bdcc-fc503d38c573"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'ext'",
+                    "items": [
+                        {
+                            "description": "Symbol U7 [ASYM]",
+                            "pos": {
+                                "x": 0.9144,
+                                "y": 0.6096
+                            },
+                            "uuid": "e228c7b7-5017-54dd-b9fc-ff657ea2046a"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U4_B'",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.3302
+                            },
+                            "uuid": "dcfe54ac-665e-50aa-bbb0-e297d9d7c4f3"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U7_B'",
+                            "pos": {
+                                "x": 1.016,
+                                "y": 0.635
+                            },
+                            "uuid": "f6129694-2c2b-5afd-9654-2479b976d64b"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'ext'",
+                    "items": [
+                        {
+                            "description": "Symbol U4 [ASYM]",
+                            "pos": {
+                                "x": 1.2192,
+                                "y": 0.3048
+                            },
+                            "uuid": "12180fac-67a4-5ee5-93c9-93adf098386c"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U8_B'",
+                            "pos": {
+                                "x": 1.1176,
+                                "y": 0.5842
+                            },
+                            "uuid": "78fb8878-b2bf-58ef-b108-8fe3a37c09e9"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U4_A'",
+                            "pos": {
+                                "x": 1.27,
+                                "y": 0.254
+                            },
+                            "uuid": "4451d245-ece6-5fef-b3d8-9cbfe55548d7"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'ext'",
+                    "items": [
+                        {
+                            "description": "Symbol U8 [ASYM]",
+                            "pos": {
+                                "x": 1.2192,
+                                "y": 0.6096
+                            },
+                            "uuid": "bbd5bf61-3075-5607-8a9b-5cb4d824717b"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'U8_A'",
+                            "pos": {
+                                "x": 1.27,
+                                "y": 0.6604
+                            },
+                            "uuid": "9ea22e4c-07c4-56dc-ac69-0715465d0b4f"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                }
+            ]
+        }
+    ],
+    "source": "ext_rot_mirror.kicad_sch"
+}

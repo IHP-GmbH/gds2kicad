@@ -7,6 +7,7 @@ import pytest
 
 import chiplet_to_kicad_sch as g
 import die_handout as dh
+import kicad_rules
 import kicad_sch_to_connectivity as k
 import sexpr_io as sx
 from tests import test_kicad_sch_to_connectivity as bt
@@ -524,7 +525,7 @@ def _part(name, *units, flag=None):
     body = [["symbol", sx.Quoted(f"{name.split(':')[-1]}_{unit}_{style}"),
              *([["unit_name", sx.Quoted(label)]] if label else []), *pins]
             for unit, style, label, pins in units]
-    return ["symbol", sx.Quoted(name), *([[k._JUMPERS, flag]] if flag else []), *body]
+    return ["symbol", sx.Quoted(name), *([[kicad_rules.JUMPERS, flag]] if flag else []), *body]
 
 
 def _die_a(*units, flag=None):
@@ -555,11 +556,11 @@ def test_units_take_common_pins_names_stacks_and_each_number_once():
     ("[A1-B2]", ["[A1-B2]"]), ("[1-", ["[1-"]), ("[]", ["[]"]), ("[,]", ["[,]"]),
     ("12", ["12"])])
 def test_stacked_numbers_expand_as_kicad_expands_them(number, expanded):
-    assert k._expand(number) == expanded
+    assert kicad_rules.expand_stack(number) == expanded
 
 
 def test_unit_letters_run_past_z():
-    assert [k._unit_letter(u) for u in (1, 26, 27, 28, 52, 53)] == [
+    assert [kicad_rules.unit_letters(u) for u in (1, 26, 27, 28, 52, 53)] == [
         "A", "Z", "AA", "AB", "AZ", "BA"]
 
 
@@ -630,7 +631,7 @@ def netlist_units(net):
         [{"name": k._value(unit, "name"),
           "pins": [k._value(pin, "num") for pin in sx.find_all(sx.find(unit, "pins") or [], "pin")]}
          for unit in sx.find_all(sx.find(comp, "units") or [], "unit")],
-        k._value(comp, k._JUMPERS) == "1")
+        k._value(comp, kicad_rules.JUMPERS) == "1")
         for comp in sx.find_all(sx.find(tree, "components"), "comp")}
 
 

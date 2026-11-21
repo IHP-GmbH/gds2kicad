@@ -1,0 +1,18 @@
+{
+  "boards": [],
+  "libraries": {
+    "pinned_footprint_libs": [],
+    "pinned_symbol_libs": []
+  },
+  "meta": {
+    "filename": "ext_k_rotation_label45.kicad_pro",
+    "version": 3
+  },
+  "sheets": [
+    [
+      "8c4d3ca1-9bfe-5785-912c-49c2510c59dc",
+      "Root"
+    ]
+  ],
+  "text_variables": {}
+}
