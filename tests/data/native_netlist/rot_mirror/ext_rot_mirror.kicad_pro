@@ -1,0 +1,18 @@
+{
+  "boards": [],
+  "libraries": {
+    "pinned_footprint_libs": [],
+    "pinned_symbol_libs": []
+  },
+  "meta": {
+    "filename": "ext_rot_mirror.kicad_pro",
+    "version": 3
+  },
+  "sheets": [
+    [
+      "ebfb557b-0861-5b96-9dc8-80f8b9efd8c7",
+      "Root"
+    ]
+  ],
+  "text_variables": {}
+}

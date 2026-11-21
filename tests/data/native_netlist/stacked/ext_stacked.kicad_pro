@@ -1,0 +1,18 @@
+{
+  "boards": [],
+  "libraries": {
+    "pinned_footprint_libs": [],
+    "pinned_symbol_libs": []
+  },
+  "meta": {
+    "filename": "ext_stacked.kicad_pro",
+    "version": 3
+  },
+  "sheets": [
+    [
+      "a11e69fe-6dd2-5c26-9f44-4d5ceb8d4b1b",
+      "Root"
+    ]
+  ],
+  "text_variables": {}
+}

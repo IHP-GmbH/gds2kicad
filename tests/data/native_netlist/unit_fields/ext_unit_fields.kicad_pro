@@ -1,0 +1,18 @@
+{
+  "boards": [],
+  "libraries": {
+    "pinned_footprint_libs": [],
+    "pinned_symbol_libs": []
+  },
+  "meta": {
+    "filename": "ext_unit_fields.kicad_pro",
+    "version": 3
+  },
+  "sheets": [
+    [
+      "4f227b83-e181-5975-ba28-eb2f53470c94",
+      "Root"
+    ]
+  ],
+  "text_variables": {}
+}

@@ -1,0 +1,45 @@
+{
+    "$schema": "https://schemas.kicad.org/erc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-11-20T15:50:03+0000",
+    "kicad_version": "9.99.0",
+    "sheets": [
+        {
+            "path": "/",
+            "uuid_path": "/a11e69fe-6dd2-5c26-9f44-4d5ceb8d4b1b",
+            "violations": [
+                {
+                    "description": "The current configuration does not include the symbol library 'ext'",
+                    "items": [
+                        {
+                            "description": "Symbol U1 [STK]",
+                            "pos": {
+                                "x": 0.762,
+                                "y": 0.508
+                            },
+                            "uuid": "f4c3805e-a7d8-5e43-9a16-fbfa45a34403"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'ext'",
+                    "items": [
+                        {
+                            "description": "Symbol R1 [P1]",
+                            "pos": {
+                                "x": 1.016,
+                                "y": 0.508
+                            },
+                            "uuid": "250a93ef-b1cb-5287-845a-b956a0a8bf8b"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                }
+            ]
+        }
+    ],
+    "source": "ext_stacked.kicad_sch"
+}

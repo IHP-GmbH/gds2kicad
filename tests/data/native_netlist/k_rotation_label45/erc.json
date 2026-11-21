@@ -1,0 +1,45 @@
+{
+    "$schema": "https://schemas.kicad.org/erc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-11-20T15:48:00+0000",
+    "kicad_version": "9.99.0",
+    "sheets": [
+        {
+            "path": "/",
+            "uuid_path": "/8c4d3ca1-9bfe-5785-912c-49c2510c59dc",
+            "violations": [
+                {
+                    "description": "The current configuration does not include the symbol library 'ext'",
+                    "items": [
+                        {
+                            "description": "Symbol R1 [P1]",
+                            "pos": {
+                                "x": 0.508,
+                                "y": 0.508
+                            },
+                            "uuid": "190512d0-ada7-52e0-b12f-0abd46d8b1c7"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'ROT45'",
+                            "pos": {
+                                "x": 0.5588,
+                                "y": 0.508
+                            },
+                            "uuid": "bfe3008e-df31-5620-87e6-8fabe5afcf7e"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                }
+            ]
+        }
+    ],
+    "source": "ext_k_rotation_label45.kicad_sch"
+}

@@ -1,0 +1,18 @@
+{
+  "boards": [],
+  "libraries": {
+    "pinned_footprint_libs": [],
+    "pinned_symbol_libs": []
+  },
+  "meta": {
+    "filename": "ext_k_bus.kicad_pro",
+    "version": 3
+  },
+  "sheets": [
+    [
+      "81c5aab8-3246-5ba0-a087-78513e742f29",
+      "Root"
+    ]
+  ],
+  "text_variables": {}
+}

@@ -1,0 +1,18 @@
+{
+  "boards": [],
+  "libraries": {
+    "pinned_footprint_libs": [],
+    "pinned_symbol_libs": []
+  },
+  "meta": {
+    "filename": "ext_power_hidden.kicad_pro",
+    "version": 3
+  },
+  "sheets": [
+    [
+      "3194484a-a468-5d74-8091-fc3195ecb18a",
+      "Root"
+    ]
+  ],
+  "text_variables": {}
+}
