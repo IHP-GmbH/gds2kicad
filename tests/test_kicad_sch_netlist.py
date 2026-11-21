@@ -104,7 +104,8 @@ def _canon(model):
 
 
 CLAIMS = ["stacked", "net_names", "power_hidden", "power_glabel", "subsheet_local",
-          "unit_fields", "label_tolerance", "pro_settings", "rot_mirror"]
+          "unit_fields", "label_tolerance", "pro_settings", "rot_mirror",
+          "instance_missing", "instance_single", "instance_carried"]
 
 
 @pytest.mark.parametrize("case", CLAIMS)
@@ -194,6 +195,26 @@ def test_native_read_keeps_the_hierarchy_refusal(tmp_path):
     form = k.read_form_native(sheet, None, tmp_path / "form.json", library, mode="blank")
     assert [r["message"] for r in form["refusals"] if r["code"] == "hierarchical_sheet"] == [
         "sub-sheet /sub/: only the root sheet is read"]
+
+
+def test_a_text_variable_in_comment_1_is_refused_where_the_form_reads_it(tmp_path):
+    """KiCad expands it (comment_variable's sheet.net holds base-sha256:abc), the
+    netlister does not; only a generated sheet's form reads comment 1."""
+    sheet, library = _copy(tmp_path, "comment_variable")
+    model = n.netlist(str(sheet))
+    assert _reference("comment_variable")["design"]["title_block_comment_1"] == "base-sha256:abc"
+    assert model["design"]["title_block_comment_1"] == "base-sha256:${X}"
+    report = tmp_path / "report.json"
+    report.write_text("{}", encoding="utf-8")
+    form = k.read_form_native(sheet, report, tmp_path / "form.json", model=model)
+    assert (form["symbols"], form["nets"]) == ([], [])
+    assert form["refusals"] == [{"code": "kicad_construct", "message": (
+        "ext_comment_variable.kicad_sch: text variable (${...}) in title block comment 1 is not "
+        "read by the native netlister. Remove it from the sheet, or read the sheet without "
+        "--native (that read needs kicad-cli).")}]
+    assert form["front_end"]["schematic_version"] == "20250114"
+    blank = k.read_form_native(sheet, None, tmp_path / "form.json", library, mode="blank")
+    assert "kicad_construct" not in [r["code"] for r in blank["refusals"]]
 
 
 def test_native_read_reports_multiple_net_names_from_the_model(tmp_path):
@@ -443,6 +464,65 @@ def test_a_net_named_as_an_unconnected_pin_like_another_is_refused(tmp_path):
     assert ("is on one of two nets KiCad names alike (unconnected-(R1-Pad1)). KiCad's netlist "
             "then holds two nets of that name. Connect the two nets, or read the sheet without "
             "--native (that read needs kicad-cli).") in str(raised.value)
+
+
+def _placed_twice(tmp_path, child, root=""):
+    """A root that places child.kicad_sch on sheet paths a and b."""
+    _write(tmp_path / "child.kicad_sch", child, uuid="20000000-0000-4000-8000-000000000000")
+    sheets = "".join(f'(sheet (at {x} 50) (size 10 10) (uuid "{_uuid(x)}")\n'
+                     f'  (property "Sheetname" "{name}")\n'
+                     f'  (property "Sheetfile" "child.kicad_sch"))\n'
+                     for x, name in ((10, "a"), (40, "b")))
+    return _write(tmp_path / "root.kicad_sch", sheets + root)
+
+
+def _instances(*paths):
+    return "(instances " + "".join(
+        f'(project "{project}" (path "{path}" (reference "{ref}") (unit {unit})))'
+        for project, path, ref, unit in paths) + ")"
+
+
+PATH_A, PATH_B = f"/{ROOT}/{_uuid(10)}", f"/{ROOT}/{_uuid(40)}"
+
+
+def test_a_symbol_without_an_instance_on_one_path_is_refused_when_another_path_differs(
+        tmp_path):
+    """KiCad sets its reference and unit from the first instance loaded, then from
+    each sheet path that has one, in page order (sch_symbol.cpp:603-608,
+    sch_sheet_path.cpp:434-435): on b, U1 unit 1 or U9 unit 2."""
+    child = (f'(symbol (lib_id "t:DUAL") (at 10 10 0) (unit 1) (uuid "{_uuid(1)}")\n'
+             '  (property "Reference" "U9")\n'
+             + _instances(("other", "/x", "U9", 2), ("p", PATH_A, "U1", 1)) + ")\n")
+    with pytest.raises(n.KicadConstruct) as raised:
+        n.netlist(str(_placed_twice(tmp_path, child)))
+    assert (raised.value.construct, raised.value.at) == ("instance_missing", (100000, 100000))
+    assert str(raised.value) == (
+        "child.kicad_sch: symbol U9 at (10, 10) mm has no instance for the sheet path /b/. "
+        "KiCad's netlist then depends on the page order of the sheets that place it. Annotate "
+        "the schematic in KiCad, or read the sheet without --native (that read needs kicad-cli).")
+
+
+def test_units_seen_from_another_path_that_differ_by_path_are_refused_where_fields_differ(
+        tmp_path):
+    """Seen from the root, the sub-sheet's U1 has no instance, so KiCad reads its
+    m_unit, which the last sheet path updated leaves at 1 or 2."""
+    child = (f'(symbol (lib_id "t:DUAL") (at 10 10 0) (unit 1) (uuid "{_uuid(1)}")\n'
+             '  (property "Reference" "U1") (property "Value" "VB")\n'
+             + _instances(("p", PATH_A, "U1", 2), ("p", PATH_B, "U2", 1)) + ")\n")
+    root = _part("U1", 10, 80, _uuid(2), "t:DUAL", 2, '(property "Value" "VA")')
+    with pytest.raises(n.KicadConstruct) as raised:
+        n.netlist(str(_placed_twice(tmp_path, child, root)))
+    assert (raised.value.construct, raised.value.at) == ("instance_unit", (100000, 100000))
+    assert str(raised.value) == (
+        "child.kicad_sch: symbol U1 at (10, 10) mm takes different units on the sheet paths "
+        "that place it, and its units give the field Value different values. KiCad's netlist "
+        "then depends on the page order of those sheets. Give it one unit on every sheet path, "
+        "or read the sheet without --native (that read needs kicad-cli).")
+    agreed = (tmp_path / "child.kicad_sch").read_text(encoding="utf-8").replace('"VB"', '"VA"')
+    (tmp_path / "child.kicad_sch").write_text(agreed, encoding="utf-8")
+    (comp,) = [c for c in n.netlist(str(tmp_path / "root.kicad_sch"))["components"]
+               if c["ref"] == "U1"]
+    assert comp["value"] == "VA"
 
 
 def test_two_weak_nets_of_a_shared_reference_are_read(tmp_path):

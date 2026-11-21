@@ -31,17 +31,23 @@ this reads them in file order, and sub-sheets depth first in file order rather
 than by page number. Where that could change the netlist it refuses, as
 KicadConstruct, instead of guessing: two weak nets that take one name (one
 keeps it, the other takes ``_1``), and units of one symbol whose fields KiCad
-would pick by walk order (_walk_free). It also refuses a net that takes, once
-named as an unconnected pin, the name of another net: KiCad keeps the two apart
-under one name. The weak names of a shared reference are left: their suffixes
-can follow file order, but the reader refuses that form with
-duplicate_reference. What is left changes no form the reader writes: the order of
-three or more units in ``tstamps`` (the reader keys placements by UUID), and
-which secondary name a multiple_net_names violation quotes when a net has
-three or more (the lowest is taken; KiCad's own pick is pointer order). Both
-reads refuse such a sheet with that code; only the quoted name can differ.
+would pick by walk order (_walk_free). KiCad gives a symbol with no instance
+for a sheet path the reference and unit of the last sheet path it updated, in
+page order; that is refused where another sheet path placing it gives another
+(_instances_free), or where such a unit picks a field (_unit_seen). It also
+refuses a net that takes, once named as an unconnected pin, the name of another
+net: KiCad keeps the two apart under one name. The weak names of a shared
+reference are left: their suffixes can follow file order, but the reader
+refuses that form with duplicate_reference. What is left changes no form the
+reader writes: the order of three or more units in ``tstamps`` (the reader
+keys placements by UUID), and which secondary name a multiple_net_names
+violation quotes when a net has three or more (the lowest is taken; KiCad's
+own pick is pointer order). Both reads refuse such a sheet with that code;
+only the quoted name can differ.
 The root sheet's Sheetfile property is the file's basename, where KiCad
-writes the path it loaded; the reader does not read it.
+writes the path it loaded; the reader does not read it. Title block comment 1
+is returned as written, where KiCad expands its text variables; the reader
+refuses one where it reads the comment.
 """
 import json
 import math
@@ -89,6 +95,9 @@ CONSTRUCT_WHAT = {
     "unit_fields": "units that disagree on a field",
     "weak_name": "two nets KiCad names alike",
     "lib_id_escape": "escaped character such as {slash} in a symbol's lib_id or lib_name",
+    "instance_missing": "symbol with no instance for its sheet path",
+    "instance_unit": "symbol whose sheet paths give it different units",
+    "title_variable": "text variable (${...}) in title block comment 1",
     "rotation_label": "rotation not a multiple of 90",
     "rotation_symbol": "rotation not a multiple of 90",
 }
@@ -118,7 +127,8 @@ _PIN_SHAPES = {
 
 class KicadConstruct(Exception):
     """A construct the native netlister does not read, and where it is: ``path``
-    as opened, ``at`` in internal units of that file. ``told``, for one it reads
+    as opened, ``at`` in internal units of that file (None for the title
+    block). ``told``, for one it reads
     but where KiCad's result depends on its walk order, is (subject, what KiCad
     does, what to do). ``schematic_version`` is the root file's (version), once
     netlist() has read it."""
@@ -129,9 +139,9 @@ class KicadConstruct(Exception):
         subject, why, fix = told or (CONSTRUCT_WHAT[construct],
                                      "is not read by the native netlister.",
                                      "Remove it from the sheet")
-        super().__init__(f"{os.path.basename(self.path)}: {subject} at ({_mm(at[0])}, "
-                         f"{_mm(at[1])}) mm {why} {fix}, or read the sheet without --native "
-                         "(that read needs kicad-cli).")
+        where = f" at ({_mm(at[0])}, {_mm(at[1])}) mm" if at is not None else ""
+        super().__init__(f"{os.path.basename(self.path)}: {subject}{where} {why} {fix}, or read "
+                         "the sheet without --native (that read needs kicad-cli).")
 
     def refusal(self) -> dict:
         return {"code": "kicad_construct", "message": str(self)}
@@ -341,7 +351,8 @@ class _Placed:
         # and its pins drive no net, though it is still listed. Its reference
         # is then the Reference field, which the first instance KiCad loads
         # sets (SCH_SYMBOL::AddHierarchicalReference).
-        self.annotated = instance is not None and bool(_text(instance, "reference"))
+        self.instanced = instance is not None
+        self.annotated = self.instanced and bool(_text(instance, "reference"))
         self.ref = (_text(instance or self._first(), "reference")
                     or self.fields.get("Reference") or "?")
         if self.ref.endswith("?"):
@@ -839,13 +850,14 @@ def _symbol_fields(primary, sheets):
     if primary.units == 1:
         group = [primary]
     else:
-        group = sorted((p for _, _, placed in sheets for p in placed
-                        if p.ref.lower() == primary.ref.lower()),
-                       key=lambda p: p.unit_on(primary.sheet.uuids))
+        seen = sorted(((_unit_seen(p, primary, sheets), p) for _, _, placed in sheets
+                       for p in placed if p.ref.lower() == primary.ref.lower()),
+                      key=lambda up: up[0] or 0)
+        group = [p for _, p in seen]
         for name in _MANDATORY[1:]:
-            _walk_free(primary, group, name, [p.fields.get(name) or None for p in group])
+            _walk_free(primary, seen, name, [p.fields.get(name) or None for p in group])
         for name in sorted({k for p in group for k in p.user}):
-            _walk_free(primary, group, name, [p.user.get(name) for p in group])
+            _walk_free(primary, seen, name, [p.user.get(name) for p in group])
     mandatory = dict.fromkeys(_MANDATORY[1:], "")
     user = {}
     for other in group:
@@ -857,16 +869,61 @@ def _symbol_fields(primary, sheets):
     return value or "~", mandatory["Footprint"], {**user, **mandatory}
 
 
-def _walk_free(primary, group, name, given):
+def _unit_seen(placed, primary, sheets):
+    """SCH_SYMBOL::GetUnitSelection of ``placed`` for the primary's sheet path:
+    its instance there, else m_unit, which UpdateAllScreenReferences leaves at
+    the unit of the last sheet path placing it that has an instance
+    (eeschema_helpers.cpp:211-214, sch_sheet_path.cpp:434-435). None where the
+    sheet paths give it different units, which page order picks from."""
+    if placed._instance(primary.sheet.uuids) is not None:
+        return placed.unit_on(primary.sheet.uuids)
+    units = {p.unit for _, _, others in sheets for p in others
+             if p.node is placed.node and p.instanced}
+    if len(units) > 1:
+        return None
+    return units.pop() if units else placed.unit
+
+
+def _instances_free(sheets):
+    """Raise for a placement with no instance for its sheet path where another
+    sheet path placing the same symbol gives it another reference or unit:
+    KiCad then takes those of the last path it updated, in page order
+    (SCH_SYMBOL::GetRef and GetUnitSelection, sch_sheet_path.cpp:434-435)."""
+    by_node = {}
+    for _, _, placed in sheets:
+        for p in placed:
+            by_node.setdefault(id(p.node), []).append(p)
+    for group in by_node.values():
+        for p in group:
+            if not p.instanced and any(q.instanced and (q.ref, q.unit) != (p.ref, p.unit)
+                                       for q in group):
+                raise KicadConstruct("instance_missing", p.sheet.path, p.at, (
+                    f"symbol {p.ref}",
+                    f"has no instance for the sheet path {p.sheet.human}. KiCad's netlist "
+                    "then depends on the page order of the sheets that place it.",
+                    "Annotate the schematic in KiCad"))
+
+
+def _walk_free(primary, seen, name, given):
     """Raise unless every walk order gives KiCad's pick of the field ``name``
     (netlist_exporter_xml.cpp:121-176): the units agree on it, or the lowest
     unit is below the primary's and each of its placements gives one value.
-    ``given`` is, per placement of ``group``, its value, None where it leaves
-    the field blank (Value, Footprint, Datasheet, Description) or lacks it."""
+    ``seen`` is, by ascending unit, each placement with its unit seen from the
+    primary's sheet path (_unit_seen); ``given`` is its value, None where it
+    leaves the field blank (Value, Footprint, Datasheet, Description) or lacks
+    it."""
     values = {v for v in given if v is not None}
     if len(values) < 2:
         return
-    units = [p.unit_on(primary.sheet.uuids) for p in group]
+    for unit, placed in seen:
+        if unit is None:
+            raise KicadConstruct("instance_unit", placed.sheet.path, placed.at, (
+                f"symbol {placed.ref}",
+                "takes different units on the sheet paths that place it, and its units give the "
+                f"field {name} different values. KiCad's netlist then depends on the page order "
+                "of those sheets.",
+                "Give it one unit on every sheet path"))
+    units = [u for u, _ in seen]
     lowest = {v for u, v in zip(units, given) if u == units[0]}
     if units[0] < primary.unit_on(primary.sheet.uuids) and len(lowest) == 1 and None not in lowest:
         return
@@ -978,6 +1035,7 @@ def netlist(schematic, project=None) -> dict:
                          "again in KiCad")
     try:
         sheets, inputs = _hierarchy(schematic, tree, settings)
+        _instances_free(sheets)
         subgraphs = [_Subgraph(sheet, group) for sheet, items, placed in sheets
                      for group in _connect(items, placed)]
         driven = _name_nets(subgraphs, _shared_refs(sheets))

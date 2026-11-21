@@ -1,0 +1,80 @@
+{
+    "$schema": "https://schemas.kicad.org/erc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-11-21T16:15:22+0000",
+    "kicad_version": "9.99.0",
+    "sheets": [
+        {
+            "path": "/",
+            "uuid_path": "/10000000-0000-4000-8000-000000000000",
+            "violations": [
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'GA'",
+                            "pos": {
+                                "x": 0.508,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-4000-8000-000000000901"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'p'",
+                    "items": [
+                        {
+                            "description": "Symbol U1 [DUAL]",
+                            "pos": {
+                                "x": 0.508,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-4000-8000-000000000001"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "Label connected to only one pin",
+                    "items": [
+                        {
+                            "description": "Global Label 'GB'",
+                            "pos": {
+                                "x": 0.508,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-4000-8000-000000000902"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "isolated_pin_label"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'p'",
+                    "items": [
+                        {
+                            "description": "Symbol U1 [DUAL]",
+                            "pos": {
+                                "x": 0.508,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-4000-8000-000000000002"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                }
+            ]
+        },
+        {
+            "path": "/a/",
+            "uuid_path": "/10000000-0000-4000-8000-000000000000/30000000-0000-4000-8000-00000000000a",
+            "violations": []
+        }
+    ],
+    "source": "ext_instance_carried.kicad_sch"
+}

@@ -639,6 +639,12 @@ def read_form_native(schematic, generator_report, out_form, library=None, *,
     _need_files(schematic, *sources.values())
     try:
         model = native.netlist(schematic) if model is None else model
+        # KiCad expands a text variable in the comment (netlist_exporter_xml.cpp:672),
+        # and a generated sheet's base digest is read from it.
+        if not mode.drawn and "${" in model["design"]["title_block_comment_1"]:
+            exc = native.KicadConstruct("title_variable", schematic, None)
+            exc.schematic_version = model["schematic_version"]
+            raise exc
     except native.KicadConstruct as exc:
         here = os.path.dirname(os.path.abspath(out_form))
         form = {**_head(mode, sources, None, here),
