@@ -8,7 +8,7 @@
 		(title "ext_power_hidden")
 	)
 	(lib_symbols
-		(symbol "ext:P1"
+		(symbol "ext:PART1"
 			(exclude_from_sim no)
 			(in_bom yes)
 			(on_board yes)
@@ -20,7 +20,7 @@
 					)
 				)
 			)
-			(property "Value" "P1"
+			(property "Value" "PART1"
 				(at 0 0 0)
 				(effects
 					(font
@@ -55,7 +55,7 @@
 					)
 				)
 			)
-			(symbol "P1_1_1"
+			(symbol "PART1_1_1"
 				(pin passive line
 					(at 0 0 0)
 					(length 2.54)
@@ -232,7 +232,7 @@
 		(uuid "38b2e588-64c8-5c78-a0af-58b8dfdb8059")
 	)
 	(symbol
-		(lib_id "ext:P1")
+		(lib_id "ext:PART1")
 		(at 50.8 50.8 0)
 		(unit 1)
 		(exclude_from_sim no)
@@ -249,7 +249,7 @@
 				)
 			)
 		)
-		(property "Value" "P1"
+		(property "Value" "PART1"
 			(at 50.8 52.07 0)
 			(hide yes)
 			(effects
@@ -363,7 +363,7 @@
 				)
 			)
 		)
-		(property "Value" "P2"
+		(property "Value" "PART2"
 			(at 76.2 52.07 0)
 			(hide yes)
 			(effects

@@ -2,7 +2,7 @@
 	(version "E")
 	(design
 		(source "/examples/ext_label_tolerance/ext_label_tolerance.kicad_sch")
-		(date "2026-11-20T15:48:35+0000")
+		(date "2026-11-21T17:17:26+0000")
 		(tool "Eeschema 9.99.0-unknown")
 		(sheet
 			(number "1")
@@ -56,7 +56,7 @@
 	(components
 		(comp
 			(ref "R1")
-			(value "P1")
+			(value "PART1")
 			(fields
 				(field
 					(name "Footprint")
@@ -70,7 +70,7 @@
 			)
 			(libsource
 				(lib "ext")
-				(part "P1")
+				(part "PART1")
 				(description "")
 			)
 			(property
@@ -99,7 +99,7 @@
 		)
 		(comp
 			(ref "R2")
-			(value "P1")
+			(value "PART1")
 			(fields
 				(field
 					(name "Footprint")
@@ -113,7 +113,7 @@
 			)
 			(libsource
 				(lib "ext")
-				(part "P1")
+				(part "PART1")
 				(description "")
 			)
 			(property
@@ -142,7 +142,7 @@
 		)
 		(comp
 			(ref "R3")
-			(value "P1")
+			(value "PART1")
 			(fields
 				(field
 					(name "Footprint")
@@ -156,7 +156,7 @@
 			)
 			(libsource
 				(lib "ext")
-				(part "P1")
+				(part "PART1")
 				(description "")
 			)
 			(property
@@ -185,7 +185,7 @@
 		)
 		(comp
 			(ref "R4")
-			(value "P1")
+			(value "PART1")
 			(fields
 				(field
 					(name "Footprint")
@@ -199,7 +199,7 @@
 			)
 			(libsource
 				(lib "ext")
-				(part "P1")
+				(part "PART1")
 				(description "")
 			)
 			(property
@@ -231,12 +231,12 @@
 	(libparts
 		(libpart
 			(lib "ext")
-			(part "P1")
+			(part "PART1")
 			(fields
 				(field
 					(name "Reference") "R")
 				(field
-					(name "Value") "P1")
+					(name "Value") "PART1")
 				(field
 					(name "Footprint")
 				)
