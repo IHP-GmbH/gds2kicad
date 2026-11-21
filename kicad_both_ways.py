@@ -83,11 +83,11 @@ def _export(exe, schematic, netlist, erc, timeout):
                                      timeout=timeout)
             except subprocess.TimeoutExpired:
                 return f"kicad-cli ran over {timeout} s"
-            except OSError:
-                return "kicad-cli could not be run"
+            except OSError as exc:
+                return f"kicad-cli could not be started: {exe}: {exc.strerror or exc}"
             # ERC violations leave the status 0; a sheet it cannot load does not.
             if run.returncode != 0:
-                return f"kicad-cli exited with status {run.returncode}"
+                return f"kicad-cli exited with status {run.returncode} while writing the {what}"
             if not os.path.isfile(out):
                 return f"kicad-cli wrote no {what}"
         return None

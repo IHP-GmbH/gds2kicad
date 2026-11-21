@@ -107,8 +107,8 @@ def test_a_sheet_the_native_read_refuses_is_refused_with_its_reason(tmp_path):
 @pytest.mark.parametrize("act, word, reason", [
     (None, "unavailable", "no-such-kicad-cli is not on PATH"),
     ("none", "failed", "kicad-cli wrote no netlist"),
-    ("exit", "failed", "kicad-cli exited with status 3"),
-    ("unrunnable", "failed", "kicad-cli could not be run"),
+    ("exit", "failed", "kicad-cli exited with status 3 while writing the netlist"),
+    ("unrunnable", "failed", "kicad-cli could not be started: {exe}: Exec format error"),
     ("garbage", "failed",
      "kicadsexpr netlist sheet.net is unreadable: unbalanced parenthesis")])
 def test_without_two_reads_the_word_says_why_and_names_no_temporary_file(tmp_path, act, word,
@@ -116,7 +116,7 @@ def test_without_two_reads_the_word_says_why_and_names_no_temporary_file(tmp_pat
     exe = _fake_kicad_cli(tmp_path, act) if act else "no-such-kicad-cli"
     result = _both_ways(tmp_path, "stacked", exe)
     assert result == {"word": word, "kicad_cli_version": None, "netlister": n.NETLISTER,
-                      "reason": reason}
+                      "reason": reason.format(exe=exe)}
 
 
 @pytest.mark.parametrize("act", ["copy", "none"])
