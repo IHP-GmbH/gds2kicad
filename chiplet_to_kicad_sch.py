@@ -58,6 +58,15 @@ their own (``<stem>.system.kicad_sch``, beside the others), and the .chiplet
 only names the system. It takes no ``--pins`` and no ``--check``, and the
 report's ``schematic`` is null.
 
+``--svg PATH`` also draws the system sheet as an SVG, the connection sheet
+(connection_sheet_svg.py, form ``connection-sheet/1``): the
+same symbols, pins, labels, no-connect marks and carrier pads at the same
+places, without the setup band. Its bytes depend only on the design. Without
+``--out`` it is the only file written, and it takes no ``--setup`` or
+``--check``. A refusal writes no SVG. It draws the texts as the .kicad_sch
+shows them; a character no SVG can hold, in the assembly name or a port name,
+is refused (``undrawable_text``) when ``--svg`` is given.
+
 ``--handout DIR`` draws no sheet. It writes what a student needs to draw the
 system on a blank sheet: ``chiplet_dies.kicad_sym``, one symbol per top cell
 with the sheet's shape (link pins on the right, every pin passive, no
@@ -78,6 +87,9 @@ Usage:
         --pins U1=pins/U1.json --pins U2=pins/U2.json \\
         --out pnr/sys.draft.kicad_sch --report pnr/schematic.json \\
         [--setup cosim.setup.json --setup-spec cosim_setup_symbols.json] [--check]
+    chiplet_to_kicad_sch.py --chiplet design.chiplet \\
+        --pins U1=pins/U1.json --pins U2=pins/U2.json \\
+        --svg pnr/sys.connection-sheet.svg --report pnr/connection-sheet.json
     chiplet_to_kicad_sch.py --chiplet design.chiplet --setup-only \\
         --setup cosim.setup.json --setup-spec cosim_setup_symbols.json \\
         --out pnr/sys.draft.kicad_sch --report pnr/schematic.json
@@ -103,7 +115,7 @@ import sys
 import uuid
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import sexpr_io as sx
 from _paths import atomic_write
@@ -179,12 +191,14 @@ GRID = 2.54
 CHAR_W = 1.27              # generous width of one 1.27 mm glyph
 NAME_OFFSET = 1.016        # pin name inset from the body edge
 WIRE = 2.54                # pin end to label anchor
+FIELD_DY = 1.27            # a placed Reference or Value off its symbol's body
 MARGIN = 25.4
 GAP = 12.7
 TITLE_BLOCK_H = 38.1
 LABEL_ROOM = 4             # glyphs beyond the port name kept free for a label
 POWER_TYPES = ("power_in", "power_out")
-_FONT = ["effects", ["font", ["size", "1.27", "1.27"]]]
+FONT_SIZE = 1.27           # every text of the sheet
+_FONT = ["effects", ["font", ["size", sx.num(FONT_SIZE), sx.num(FONT_SIZE)]]]
 _PAPERS = (("A4", 297, 210), ("A3", 420, 297), ("A2", 594, 420),
            ("A1", 841, 594), ("A0", 1189, 841))
 
@@ -802,6 +816,7 @@ def _shape(die: Die, cols: Dict[str, List[Terminal]],
 # Reference above it. Each pad's symbol sits PAD_OFFSET right of its pin end.
 PAD_PITCH = 3 * GRID
 PAD_OFFSET = 2 * GRID
+PAD_HALF = GRID            # half the EXT_PAD body's side
 
 
 def _pad_column(die: Die, pads: List[Terminal],
@@ -926,7 +941,7 @@ def ext_pad_symbol(footprint: str, name: str = EXT_PAD) -> list:
     ``footprint``, and an ``Edge`` left empty for the student. Designer sheets
     and the draft sheet draw an external pad with it; ``name`` is the library's
     own (``EXT_PAD``) or a sheet's cached ``chiplet_system:EXT_PAD``."""
-    half = GRID
+    half = PAD_HALF
     return ["symbol", _q(name),
             ["pin_names", ["offset", sx.num(NAME_OFFSET)]],
             ["exclude_from_sim", "no"], ["in_bom", "yes"], ["on_board", "yes"],
@@ -965,6 +980,19 @@ _LABEL = {"left": ((-WIRE, 0), "180", "right"),
           "bottom": ((0, WIRE), "270", "right")}
 
 
+def label_at(end: Tuple[float, float], side: str) -> Tuple[float, float]:
+    """Where the label of the pin ending at ``end`` on ``side`` is anchored."""
+    (dx, dy), _angle, _justify = _LABEL[side]
+    return end[0] + dx, end[1] + dy
+
+
+def field_places(at: Tuple[float, float], half: float = 0.0):
+    """(Reference, Value) places of a symbol at ``at`` whose body is ``half``
+    high above and below it: FIELD_DY above and below the body."""
+    x, y = at
+    return (x, y - half - FIELD_DY), (x, y + half + FIELD_DY)
+
+
 def _hookup(ex: float, ey: float, side: str, net: Optional[str], *key,
             flag: bool = True) -> list:
     """What goes on a pin end: a no-connect flag when ``net`` is None (nothing
@@ -975,8 +1003,8 @@ def _hookup(ex: float, ey: float, side: str, net: Optional[str], *key,
             return []
         return [["no_connect", ["at", sx.num(ex), sx.num(ey)],
                  ["uuid", _q(uid("nc", *key))]]]
-    (dx, dy), angle, justify = _LABEL[side]
-    lx, ly = ex + dx, ey + dy
+    _offset, angle, justify = _LABEL[side]
+    lx, ly = label_at((ex, ey), side)
     return [_wire((ex, ey), (lx, ly), *key),
             ["global_label", _q(net),
              ["shape", "passive"],
@@ -990,11 +1018,85 @@ def _hookup(ex: float, ey: float, side: str, net: Optional[str], *key,
               [*_FONT, ["justify", justify]]]]]
 
 
-def schematic_node(system: System, base_sha256: str, project: str,
-                   source_name: str, setup=None) -> list:
-    """The sheet as a node. ``setup``, when given, draws a band below the dies:
-    called as setup(sheet_uuid, project, top), it returns the band's library
-    symbols, its items, the page width it needs and the page height."""
+# What goes on a pin end of the system sheet, decided once by the layout:
+# a wire out to the net's label, a no-connect mark, or nothing.
+LABEL, NO_CONNECT, BARE = "label", "no-connect", "bare"
+
+
+class PinEnd(NamedTuple):
+    """One pin of a die symbol, sheet frame."""
+    side: str
+    terminal: Terminal
+    end: Tuple[float, float]        # the pin's outer end
+    net: Optional[str]
+    hookup: str                     # LABEL, NO_CONNECT or BARE
+
+
+class PadPlace(NamedTuple):
+    """One carrier pad, drawn as an EXT_PAD whose pin is on its left."""
+    carrier: Die
+    terminal: Terminal
+    at: Tuple[float, float]         # the EXT_PAD's origin, its body's centre
+    end: Tuple[float, float]        # its pin's outer end
+    net: Optional[str]
+    hookup: str                     # LABEL or NO_CONNECT
+
+
+class Body(NamedTuple):
+    """A die symbol's body box, centred on its origin, and its pin length."""
+    origin: Tuple[float, float]
+    half_w: float
+    half_h: float
+    pin_len: float
+
+
+@dataclass
+class SheetLayout:
+    """Where the system sheet puts everything, sheet frame (y down, mm): the
+    one model the .kicad_sch and the connection sheet SVG are both drawn from
+    (connection_sheet_svg.py). The setup band is not part of it."""
+    row: List[Die]                                  # the dies, .chiplet order
+    below: List[Die]                                # the carriers
+    inner: Dict[str, str]                           # die -> side facing its neighbour
+    cols: Dict[str, Dict[str, List[Terminal]]]      # die -> side -> pins, top down
+    stacks: Dict[str, List[Terminal]]               # carrier -> pads, top down
+    shapes: Dict[str, _Shape]
+    origins: Dict[str, Tuple[float, float]]
+    net_of: Dict[Tuple[str, str], str]
+    page_w: float
+    page_h: float
+
+    def body(self, d: Die) -> Body:
+        s = self.shapes[d.id]
+        return Body(self.origins[d.id], s.half_w, s.half_h, s.pin_len)
+
+    def die_pins(self, d: Die):
+        """A PinEnd per pin of die ``d``, in drawing order. An open link pin
+        is left bare: it is there to be wired, and KiCad's list of unconnected
+        pins is then the list still to wire. Any other open pin is marked."""
+        ox, oy = self.origins[d.id]
+        for side, items in self.cols[d.id].items():
+            for t in items:
+                px, py, _angle = self.shapes[d.id].pins[t.name]
+                net = self.net_of.get((d.id, t.name))
+                hookup = LABEL if net is not None else (
+                    BARE if side == self.inner.get(d.id) else NO_CONNECT)
+                # library y up, sheet y down
+                yield PinEnd(side, t, (ox + px, oy - py), net, hookup)
+
+    def pads(self):
+        """A PadPlace per carrier pad, in drawing order."""
+        for d in self.below:
+            ox, oy = self.origins[d.id]
+            for t in self.stacks[d.id]:
+                px, py, _angle = self.shapes[d.id].pins[t.name]
+                net = self.net_of.get((d.id, t.name))
+                yield PadPlace(d, t, (ox + px + PAD_OFFSET, oy - py), (ox + px, oy - py),
+                               net, LABEL if net is not None else NO_CONNECT)
+
+
+def sheet_layout(system: System) -> SheetLayout:
+    """The system sheet's placement, without the setup band."""
     nets, _free = expected_connectivity(system)
     net_of = {ep: name for name, eps in nets.items() for ep in eps}
     # The dies in one row in .chiplet order, the first facing right and the
@@ -1010,6 +1112,18 @@ def schematic_node(system: System, base_sha256: str, project: str,
     stacks = {d.id: sorted(d.terminals, key=_port_order) for d in below}
     shapes.update({d.id: _pad_column(d, stacks[d.id], net_of) for d in below})
     origins, page_w, page_h = _place(system.dies, shapes, rows=[row, below])
+    return SheetLayout(row, below, inner, cols, stacks, shapes, origins, net_of,
+                       page_w, page_h)
+
+
+def schematic_node(system: System, base_sha256: str, project: str,
+                   source_name: str, setup=None) -> list:
+    """The sheet as a node. ``setup``, when given, draws a band below the dies:
+    called as setup(sheet_uuid, project, top), it returns the band's library
+    symbols, its items, the page width it needs and the page height."""
+    lay = sheet_layout(system)
+    row, shapes, origins = lay.row, lay.shapes, lay.origins
+    page_w, page_h = lay.page_w, lay.page_h
     sym_names = _symbol_names(row, shapes)
     sheet = uid("sheet", system.name)
     band_libs, band_items = [], []
@@ -1023,11 +1137,11 @@ def schematic_node(system: System, base_sha256: str, project: str,
         if sym_names[d.id] not in emitted:
             emitted.add(sym_names[d.id])
             lib_symbols.append(_lib_symbol(sym_names[d.id], d, shapes[d.id]))
-    pads = [(d, t) for d in below for t in stacks[d.id]]
+    pads = list(lay.pads())
     if pads:
         # The sheet caches the library symbol once, with the first pad's
         # footprint; each pad's own footprint is its instance's.
-        lib_symbols.append(ext_pad_symbol(pads[0][1].footprint,
+        lib_symbols.append(ext_pad_symbol(pads[0].terminal.footprint,
                                           name=f"{SYSTEM_LIB}:{EXT_PAD}"))
     lib_symbols += band_libs
 
@@ -1045,16 +1159,16 @@ def schematic_node(system: System, base_sha256: str, project: str,
             lib_symbols]
 
     for d in row:
-        s = shapes[d.id]
         ox, oy = origins[d.id]
+        ref_at, value_at = field_places((ox, oy))
         inst = ["symbol", ["lib_id", _q(f"{LIB}:{sym_names[d.id]}")],
                 ["at", sx.num(ox), sx.num(oy), "0"],
                 ["unit", "1"],
                 ["exclude_from_sim", "no"], ["in_bom", "yes"],
                 ["on_board", "yes"], ["dnp", "no"],
                 ["uuid", _q(uid("symbol", d.id))],
-                _prop("Reference", d.id, (ox, oy - 1.27)),
-                _prop("Value", d.top_cell, (ox, oy + 1.27)),
+                _prop("Reference", d.id, ref_at),
+                _prop("Value", d.top_cell, value_at),
                 _prop("Footprint", d.footprint, (ox, oy), hide=True),
                 _prop("Datasheet", "", (ox, oy), hide=True),
                 _prop("Description", f"chiplet {d.kind}", (ox, oy), hide=True),
@@ -1066,22 +1180,14 @@ def schematic_node(system: System, base_sha256: str, project: str,
                                     ["reference", _q(d.id)], ["unit", "1"]]]])
         node.append(inst)
 
-        # An open link pin is left bare: it is there to be wired, and KiCad's
-        # list of unconnected pins is then the list still to wire.
-        for side, items in cols[d.id].items():
-            for t in items:
-                px, py, _angle = s.pins[t.name]
-                # library y up, sheet y down
-                node += _hookup(ox + px, oy - py, side, net_of.get((d.id, t.name)),
-                                d.id, t.name, flag=side != inner.get(d.id))
+        for p in lay.die_pins(d):
+            node += _hookup(*p.end, p.side, p.net, d.id, p.terminal.name,
+                            flag=p.hookup != BARE)
 
-    for d, t in pads:
-        ox, oy = origins[d.id]
-        px, py, _angle = shapes[d.id].pins[t.name]
-        node.append(_pad_instance(d.id, t.name, t.footprint,
-                                  (ox + px + PAD_OFFSET, oy - py), sheet, project))
-        node += _hookup(ox + px, oy - py, "left", net_of.get((d.id, t.name)),
-                        d.id, t.name)
+    for p in pads:
+        t = p.terminal
+        node.append(_pad_instance(p.carrier.id, t.name, t.footprint, p.at, sheet, project))
+        node += _hookup(*p.end, "left", p.net, p.carrier.id, t.name)
 
     node += band_items
     node.append(["sheet_instances", ["path", _q("/"), ["page", _q("1")]]])
@@ -1095,18 +1201,18 @@ def _pad_instance(cid: str, pad: str, footprint: str, at: Tuple[float, float],
     carrying the carrier's identity, the footprint the board draws the pad
     with, and the uuids the carrier's pin had."""
     x, y = at
-    half = GRID
+    ref_at, value_at = field_places(at, PAD_HALF)
     return ["symbol", ["lib_id", _q(f"{SYSTEM_LIB}:{EXT_PAD}")],
             ["at", sx.num(x), sx.num(y), "0"],
             ["unit", "1"],
             ["exclude_from_sim", "no"], ["in_bom", "yes"],
             ["on_board", "yes"], ["dnp", "no"],
             ["uuid", _q(uid("symbol", cid, pad))],
-            _prop("Reference", pad, (x, y - half - 1.27)),
-            _prop("Value", EXT_PAD, (x, y + half + 1.27), hide=True),
+            _prop("Reference", pad, ref_at),
+            _prop("Value", EXT_PAD, value_at, hide=True),
             _prop("Footprint", footprint, (x, y), hide=True),
             _prop("Datasheet", "", (x, y), hide=True),
-            _prop("Edge", "", (x, y + half + 3.81), hide=True),
+            _prop("Edge", "", (x, y + PAD_HALF + 3.81), hide=True),
             _prop(IDENTITY_PROPERTY, cid, (x, y), hide=True),
             _prop(PAD_ID_PROPERTY, pad, (x, y), hide=True),
             ["pin", _q("1"), ["uuid", _q(uid("pin", cid, pad))]],
@@ -1128,16 +1234,25 @@ def _load_pin_lists(pins: Dict[str, str]) -> Tuple[List[dict], Dict[str, Optiona
 
 
 def generate(chiplet_path, pins: Dict[str, str], out_path, setup_path=None,
-             spec_path=None, setup_only=False) -> dict:
+             spec_path=None, setup_only=False, svg_path=None) -> dict:
     """Write the schematic for ``chiplet_path``; returns a summary. Raises
     SchematicRefused (nothing written) when it cannot be drawn verbatim. With
     ``setup_path``, a co-simulation setup projection, and ``spec_path``, the
     symbol spec it is drawn with, the system sheet also gets its setup symbols
     and every other setup sheet is written beside it (cosim_setup_sheets.py).
     ``setup_only`` writes no system sheet: the system setup symbols go on a
-    setup sheet of their own, and the system has no dies."""
+    setup sheet of their own, and the system has no dies.
+
+    ``svg_path`` also writes the connection sheet there, the system sheet as
+    an SVG without the setup band (connection_sheet_svg.py). ``out_path`` may
+    then be None: the SVG is the only file written, and no setup is drawn."""
     if setup_only and (setup_path is None or pins):
         raise ValueError("setup_only takes a setup projection and no pin lists")
+    if svg_path is not None and setup_only:
+        raise ValueError("setup_only draws no system sheet, so no connection sheet")
+    if out_path is None and (svg_path is None or setup_path is not None):
+        raise ValueError("without out_path, only a connection sheet is drawn: "
+                         "svg_path and no setup")
     chiplet, digest = load_chiplet(chiplet_path)
     refusals, pin_lists = _load_pin_lists(pins)
     system = None
@@ -1157,7 +1272,7 @@ def generate(chiplet_path, pins: Dict[str, str], out_path, setup_path=None,
         if projection is not None:
             plan, errors = cs.plan(projection, system.references() if system else [], spec)
             refusals += errors
-    out_path = Path(out_path)
+    out_path = Path(out_path) if out_path is not None else None
     table = out_path.parent / cs.LIB_TABLE if setup_path is not None else None
     if table is not None and os.path.lexists(table) and (
             not table.is_file() or table.read_bytes() != cs.table_text().encode("utf-8")):
@@ -1165,13 +1280,46 @@ def generate(chiplet_path, pins: Dict[str, str], out_path, setup_path=None,
             "library_table", f"{table} is there and is not the table this generator "
             f"writes; add {cs.LIB} (uri ${{KIPRJMOD}}/{cs.LIB_FILE}) to it by hand, or "
             f"move it away"))
+    if svg_path is not None and system is not None:
+        import connection_sheet_svg     # it imports this module
+        refusals += connection_sheet_svg.refusals(system)
     if refusals:
         raise SchematicRefused(refusals)
 
+    # Drawn before any file is written.
+    svg_text = connection_sheet_svg.render(system, digest) if svg_path is not None else None
+    written = {"schematic_sha256": None, "carrier_pins": {}, "setup_sheets": [],
+               "setup_library": {}}
+    if out_path is not None:
+        setup = None if plan is None else (plan, spec, Path(setup_path).name, table)
+        written = _write_sheets(system, digest, Path(chiplet_path).name, out_path,
+                                setup_only, setup)
+    if svg_text is not None:
+        svg_path = Path(svg_path)
+        svg_path.parent.mkdir(parents=True, exist_ok=True)
+        with atomic_write(svg_path) as f:
+            f.write(svg_text)
+    nets, free = expected_connectivity(system)
+    return {"system": system, "chiplet_sha256": digest,
+            "schematic_sha256": written["schematic_sha256"],
+            "nets": nets, "unconnected": free, "carrier_pins": written["carrier_pins"],
+            "setup_sheets": written["setup_sheets"],
+            "setup_library": written["setup_library"]}
+
+
+def _write_sheets(system: System, digest: str, source_name: str, out_path: Path,
+                  setup_only: bool, setup) -> dict:
+    """Write the .kicad_sch set at ``out_path``: the system sheet (none when
+    ``setup_only``), the setup sheets and their library when ``setup`` is
+    (plan, spec, projection file name, library table path), and each
+    carrier's pin file. Returns what generate reports of them."""
+    plan, spec, setup_name, table = setup or (None, None, None, None)
+    if plan is not None:
+        import cosim_setup_sheets as cs     # it imports this module
     stem = (out_path.name[:-len(".kicad_sch")] if out_path.name.endswith(".kicad_sch")
             else out_path.stem)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    text, setup_sheets = None, []
+    text, setup_sheets, setup_library, carrier_pins = None, [], {}, {}
     if setup_only:
         sheets = [("system", None, plan.system)] + plan.sheets
     else:
@@ -1179,7 +1327,7 @@ def generate(chiplet_path, pins: Dict[str, str], out_path, setup_path=None,
         if plan is not None and plan.system:
             def band(sheet, project, top):
                 return cs.draw(plan.system, sheet, project, "system", top)
-        node = schematic_node(system, digest, stem, Path(chiplet_path).name, setup=band)
+        node = schematic_node(system, digest, stem, source_name, setup=band)
         text = sx.dumps(node) + "\n"
         sheets = plan.sheets if plan is not None else []
         if plan is not None:
@@ -1189,21 +1337,18 @@ def generate(chiplet_path, pins: Dict[str, str], out_path, setup_path=None,
         for role, name, parts in sheets:
             path = out_path.parent / cs.sheet_file(stem, role, name, alone=setup_only)
             body = sx.dumps(cs.sheet_node(system.name, role, name, parts, path,
-                                          Path(setup_path).name)) + "\n"
+                                          setup_name)) + "\n"
             with atomic_write(path) as f:
                 f.write(body)
             setup_sheets.append({"role": role, **({cs.SHEET_KEY[role]: name} if name else {}),
                                  "path": path,
                                  "sha256": hashlib.sha256(body.encode("utf-8")).hexdigest()})
-    setup_library = {}
-    if plan is not None:
         for key, path, body in (("library", out_path.parent / cs.LIB_FILE, cs.library_text(spec)),
                                 ("library_table", table, cs.table_text())):
             with atomic_write(path) as f:
                 f.write(body)
             setup_library[key] = {"path": path,
                                   "sha256": hashlib.sha256(body.encode("utf-8")).hexdigest()}
-    carrier_pins = {}
     for cid, plist in sorted(system.carrier_pins.items()):
         path = out_path.parent / f"{cid}.carrier_pins.json"
         body = json.dumps({"format": CARRIER_PINS_FORMAT, "version": CARRIER_PINS_VERSION,
@@ -1215,12 +1360,10 @@ def generate(chiplet_path, pins: Dict[str, str], out_path, setup_path=None,
     if text is not None:
         with atomic_write(out_path) as f:
             f.write(text)
-    nets, free = expected_connectivity(system)
-    return {"system": system, "chiplet_sha256": digest,
-            "schematic_sha256": (hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return {"schematic_sha256": (hashlib.sha256(text.encode("utf-8")).hexdigest()
                                  if text is not None else None),
-            "nets": nets, "unconnected": free, "carrier_pins": carrier_pins,
-            "setup_sheets": setup_sheets, "setup_library": setup_library}
+            "carrier_pins": carrier_pins, "setup_sheets": setup_sheets,
+            "setup_library": setup_library}
 
 
 # ----------------------------------------------------------------- handout
@@ -1440,7 +1583,10 @@ def main(argv=None) -> int:
     ap.add_argument("--chiplet", help="system description (.chiplet)")
     ap.add_argument("--pins", action="append", default=[], metavar="INSTANCE=PATH",
                     help="pin list of one die, once per die (the export's --pins)")
-    ap.add_argument("--out", help="schematic to write (.kicad_sch)")
+    ap.add_argument("--out", help="schematic to write (.kicad_sch); optional with --svg")
+    ap.add_argument("--svg", metavar="PATH",
+                    help="also draw the system sheet as an SVG at PATH (the connection "
+                         "sheet); without --out it is the only file written")
     ap.add_argument("--report", help="JSON report to write")
     ap.add_argument("--setup", metavar="PROJECTION",
                     help="co-simulation setup projection (chiplet_cosim.cosim_setup "
@@ -1477,8 +1623,8 @@ def main(argv=None) -> int:
     if not os.path.isfile(args.chiplet):
         ap.error(f"no such .chiplet: {args.chiplet}")
     if args.handout is not None:
-        if args.out or args.report or args.setup or args.setup_spec or args.setup_only \
-                or args.check:
+        if args.out or args.svg or args.report or args.setup or args.setup_spec \
+                or args.setup_only or args.check:
             ap.error("--handout writes no sheet and no report: it takes --chiplet, "
                      "--pins and --name only")
         try:
@@ -1492,8 +1638,16 @@ def main(argv=None) -> int:
         return EXIT_WRITTEN
     if args.name is not None:
         ap.error("--name goes with --handout")
-    if args.out is None or args.report is None:
-        ap.error("--out and --report are required, unless --handout")
+    if (args.out is None and args.svg is None) or args.report is None:
+        ap.error("--out (or --svg) and --report are required, unless --handout")
+    if args.svg is not None and args.setup_only:
+        ap.error("--setup-only draws no system sheet, so it takes no --svg")
+    if args.out is None and (args.setup is not None or args.setup_only or args.check):
+        ap.error("without --out, --svg draws the connection sheet alone: it takes no "
+                 "--setup or --check")
+    if args.svg is not None and os.path.abspath(args.svg) in {
+            os.path.abspath(p) for p in (args.out, args.report) if p is not None}:
+        ap.error("--svg names a file of its own, not the --out or the --report file")
     if (args.setup is None) != (args.setup_spec is None):
         ap.error("--setup and --setup-spec go together")
     if args.setup_only and (args.setup is None or pins or args.check):
@@ -1518,7 +1672,8 @@ def main(argv=None) -> int:
     code = EXIT_WRITTEN
     try:
         result = generate(args.chiplet, pins, args.out, setup_path=args.setup,
-                          spec_path=args.setup_spec, setup_only=args.setup_only)
+                          spec_path=args.setup_spec, setup_only=args.setup_only,
+                          svg_path=args.svg)
     except SchematicRefused as exc:
         report.update({"word": "refused", "schematic": None,
                        "refusals": exc.refusals})
@@ -1532,7 +1687,7 @@ def main(argv=None) -> int:
         report.update({"word": "written", "schematic": None, "refusals": []})
         if not args.setup_only:
             report.update({
-                "schematic": _report_ref(args.out, here),
+                "schematic": _report_ref(args.out, here) if args.out else None,
                 "schematic_sha256": result["schematic_sha256"],
                 "components": [{"id": d.id, "type": d.kind, "top_cell": d.top_cell,
                                 "terminals": len(d.terminals)} for d in system.dies],

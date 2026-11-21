@@ -369,6 +369,10 @@ def test_cli_writes_and_refuses_the_flag_combinations(out, capsys):
     with pytest.raises(SystemExit):
         g.main(["--handout", str(out), "--dies", str(folder), "--ext-pad-um", "80",
                 "--pins", "U1=pins.json"])
+    with pytest.raises(SystemExit):
+        g.main(["--handout", str(out), "--dies", str(folder), "--ext-pad-um", "80",
+                "--svg", str(out / "sheet.svg")])
+    assert not (out / "sheet.svg").exists()
 
 
 @pytest.mark.kicad_cli
