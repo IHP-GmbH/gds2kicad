@@ -32,9 +32,9 @@ than by page number. Where that could change the netlist it refuses, as
 KicadConstruct, instead of guessing: two weak nets that take one name (one
 keeps it, the other takes ``_1``), and units of one symbol whose fields KiCad
 would pick by walk order (_walk_free). KiCad gives a symbol with no instance
-for a sheet path the reference and unit of the last sheet path it updated, in
-page order; that is refused where another sheet path placing it gives another
-(_instances_free), or where such a unit picks a field (_unit_seen). It also
+for a sheet path the reference and unit of the last sheet path with one that it
+updated, in page order (_carried); that is refused where those sheet paths
+disagree, or where such a unit picks a field (_unit_seen). It also
 refuses a net that takes, once named as an unconnected pin, the name of another
 net: KiCad keeps the two apart under one name. The weak names of a shared
 reference are left: their suffixes can follow file order, but the reader
@@ -59,7 +59,7 @@ from typing import NamedTuple
 
 import sexpr_io as sx
 from kicad_rules import (ESCAPE_TOKEN, IU_PER_MM, blank_tilde, escape_net, expand_stack,
-                         is_bus_label, iu, jumpers, properties, str_num_cmp, unit_letters,
+                         is_bus_label, iu, jumpers, property_of, str_num_cmp, unit_letters,
                          unit_style)
 from sheet_check import InputError, cache_key, schematic_tree
 
@@ -73,6 +73,10 @@ FORMAT_FLOOR = 20230221
 
 _DIGITS = "0123456789"
 _MANDATORY = ("Reference", "Value", "Footprint", "Datasheet", "Description")
+# Each name, lower case, to the mandatory field KiCad reads it as in any case (parseSchField).
+_SYMBOL_FIELDS = {name.lower(): name for name in _MANDATORY}
+_SHEET_FIELDS = {"sheetname": "Sheetname", "sheetfile": "Sheetfile",
+                 "sheet name": "Sheetname", "sheet file": "Sheetfile"}
 _LABELS = ("label", "global_label")
 _CELL = 10 * IU_PER_MM      # the grid _connect files wires under
 
@@ -308,18 +312,69 @@ def _lib_pins(lib, version):
     return pins
 
 
-def _properties(node, version):
+def _properties(node, version, names=_SYMBOL_FIELDS):
     """``(fields, private)``: a symbol's or sheet's property names to text, as
     KiCad loads them from a file of ``version``, and the names of its private
-    ones."""
-    found = properties(node, version)
-    return {name: value for name, value, _ in found}, {name for name, _, p in found if p}
+    ones. ``names`` gives its mandatory fields (_field)."""
+    fields, private = {}, set()
+    for prop in sx.find_all(node, "property"):
+        _field(fields, private, property_of(prop, version), names)
+    return fields, private
+
+
+def _field(fields, private, found, names):
+    """Load one property, ``(name, value, private)`` or None, into ``fields`` and
+    ``private``: a name in ``names`` (lower case) is that mandatory field, which
+    is never private; a later property of a name replaces the earlier one."""
+    if found is None:
+        return
+    name, value, hidden = found
+    name = names.get(name.lower(), name)
+    fields[name] = value
+    if hidden and name not in names.values():
+        private.add(name)
+    else:
+        private.discard(name)
+
+
+def _loaded(node, version):
+    """``(fields, private, instances, unit)`` of a placed symbol as KiCad's
+    parser leaves it, reading its properties, (unit) and (instances) in file
+    order (parseSchematicSymbol). ``instances`` maps each instance path, lower
+    case, to its ``(reference, unit)``, a repeated path keeping the last. The
+    first instance added sets the Reference field and the unit
+    (SCH_SYMBOL::AddHierarchicalReference); an instance's value and footprint
+    set those fields."""
+    fields, private, instances, unit = {}, set(), {}, 1
+    for child in node[1:]:
+        tag = sx.head(child)
+        if tag == "property":
+            _field(fields, private, property_of(child, version), _SYMBOL_FIELDS)
+        elif tag == "unit":
+            unit = int(child[1])
+        elif tag == "instances":
+            for path in sx.find_all_rec(child, "path"):
+                if len(path) < 2:
+                    continue
+                ref, at = "", 1
+                for item in path[2:]:
+                    if sx.head(item) == "reference":
+                        ref = str(item[1])
+                    elif sx.head(item) == "unit":
+                        at = int(item[1])
+                    elif sx.head(item) in ("value", "footprint"):
+                        fields[item[0].title()] = blank_tilde(str(item[1]), version)
+                instances.pop(str(path[1]).lower(), None)
+                instances[str(path[1]).lower()] = (ref, at)
+                if len(instances) == 1:
+                    fields["Reference"], unit = ref, at
+    return fields, private, instances, unit
 
 
 class _Placed:
     """A placed symbol on one sheet path, with its pins there."""
 
-    def __init__(self, node, sheet, cache, settings, refs):
+    def __init__(self, node, sheet, cache, settings, refs, carried):
         self.node, self.sheet = node, sheet
         at = sx.find(node, "at")
         self.at = _xy(at)
@@ -343,18 +398,23 @@ class _Placed:
                 raise KicadConstruct(construct, sheet.path, self.at)
         self.power = power is not None
         self.uuid = (_text(node, "uuid") or "").lower()
-        self.fields, private = _properties(node, sheet.version)
+        self.fields, private, self.instances, unit = _loaded(node, sheet.version)
         self.user = {k: v for k, v in self.fields.items()
                      if k not in _MANDATORY and k not in private}
-        instance = self._instance(sheet.uuids)
         # Without an instance for this path the symbol is not annotated here
         # and its pins drive no net, though it is still listed. Its reference
-        # is then the Reference field, which the first instance KiCad loads
-        # sets (SCH_SYMBOL::AddHierarchicalReference).
-        self.instanced = instance is not None
-        self.annotated = self.instanced and bool(_text(instance, "reference"))
-        self.ref = (_text(instance or self._first(), "reference")
-                    or self.fields.get("Reference") or "?")
+        # and unit are then those the other sheet paths placing it leave.
+        own = self.instances.get(sheet.uuids.lower())
+        self.annotated = own is not None and bool(own[0])
+        self.carried = carried.get(id(node), (self.fields.get("Reference", ""), unit))
+        if own is None and None in self.carried:
+            raise KicadConstruct("instance_missing", sheet.path, self.at, (
+                f"symbol {self.fields.get('Reference') or '?'}",
+                f"has no instance for the sheet path {sheet.human}. KiCad's netlist "
+                "then depends on the page order of the sheets that place it.",
+                "Annotate the schematic in KiCad"))
+        ref, self.unit = own or self.carried
+        self.ref = ref or "?"
         if self.ref.endswith("?"):
             raise KicadConstruct("ref_question", sheet.path, self.at)
         if refs.setdefault(self.ref.upper(), self.ref) != self.ref:
@@ -368,7 +428,6 @@ class _Placed:
             raise KicadConstruct("field_escape", sheet.path, self.at)
         if any(sx.find(pin, "alternate") is not None for pin in sx.find_all(node, "pin")):
             raise KicadConstruct("pin_alternate", sheet.path, self.at)
-        self.unit = self.unit_on(sheet.uuids)
         self.lib_pins = _lib_pins(self.lib, sheet.version) if self.lib is not None else []
         self.units = max([1] + [unit_style(self.lib, u)[0]
                                 for u in sx.find_all(self.lib or [], "symbol")])
@@ -399,27 +458,13 @@ class _Placed:
             pins.append(_Item("pin", (at,), (id(self.node), k), placed=self, pin=pin))
         return pins
 
-    def _paths(self):
-        return [p for p in sx.find_all_rec(sx.find(self.node, "instances") or [], "path")
-                if len(p) > 1]
 
-    def _instance(self, uuids):
-        return next((p for p in self._paths() if str(p[1]) == uuids), None)
-
-    def _first(self):
-        return next(iter(self._paths()), None)
-
-    def unit_on(self, uuids):
-        """SCH_SYMBOL::GetUnitSelection for the sheet path ``uuids``: without an
-        instance for it, the unit the first instance loaded sets."""
-        instance = self._instance(uuids) or self._first()
-        return int(_text(instance, "unit") or _text(self.node, "unit") or 1)
-
-
-def _sheet_items(sheet, settings, refs):
+def _sheet_items(sheet, settings, refs, carried):
     """The connectable items and placed symbols of one sheet, in file order, and
     its sub-sheet nodes. The first construct met raises."""
-    cache = {str(s[1]): s for s in sx.find_all(sx.find(sheet.tree, "lib_symbols") or [], "symbol")}
+    # KiCad reads {slash} in a cached symbol's name as / (sch_io_kicad_sexpr_parser.cpp:343).
+    cache = {str(s[1]).replace("{slash}", "/"): s
+             for s in sx.find_all(sx.find(sheet.tree, "lib_symbols") or [], "symbol")}
     items, placed, children = [], [], []
     for node in sheet.tree[1:]:
         tag = sx.head(node)
@@ -449,7 +494,7 @@ def _sheet_items(sheet, settings, refs):
                 raise KicadConstruct("bus", sheet.path, _xy(at))
             items.append(_Item(tag, (_xy(at),), id(node), text=text))
         elif tag == "symbol":
-            symbol = _Placed(node, sheet, cache, settings, refs)
+            symbol = _Placed(node, sheet, cache, settings, refs, carried)
             placed.append(symbol)
             items.extend(symbol.pins)
         elif tag == "sheet":
@@ -467,24 +512,26 @@ def _hierarchy(schematic, tree, settings):
     placed symbols, and every file read, root first."""
     sheets, inputs, refs = [], [schematic], {}
     trees = {os.path.abspath(schematic): tree}
+    carried = _carried(schematic, tree, trees)
+    read = {os.path.abspath(schematic)}
 
     def visit(sheet, ancestors):
         try:
-            items, placed, children = _sheet_items(sheet, settings, refs)
+            items, placed, children = _sheet_items(sheet, settings, refs, carried)
         except (TypeError, AttributeError, ValueError, IndexError) as exc:
             # A node that parses but lacks what KiCad requires of it.
             raise InputError(f"{sheet.path}: not a readable schematic: {exc}") from exc
         sheets.append((sheet, items, placed))
         for node in children:
-            fields = _properties(node, sheet.version)[0]
-            path = os.path.join(os.path.dirname(sheet.path), fields.get("Sheetfile", ""))
-            key = os.path.abspath(path)
+            fields, path, key = _sub_sheet(node, sheet.path, sheet.version)
             if key in ancestors:
                 raise InputError(f"{sheet.path}: sub-sheet {fields.get('Sheetname', '')} "
                                  f"places {os.path.basename(path)}, which already contains this "
                                  "sheet, so the sheets form a loop. Remove that sub-sheet.")
             if key not in trees:
                 trees[key] = schematic_tree(path)
+            if key not in read:
+                read.add(key)
                 inputs.append(path)
             visit(_Sheet(path, trees[key], _version(trees[key], path),
                          f"{sheet.uuids}/{_text(node, 'uuid')}",
@@ -495,6 +542,58 @@ def _hierarchy(schematic, tree, settings):
                  "/", {"Sheetname": "", "Sheetfile": os.path.basename(schematic)}),
           {os.path.abspath(schematic)})
     return sheets, inputs
+
+
+def _sub_sheet(node, parent, version):
+    """``(fields, path, key)`` of a sub-sheet node of the file ``parent``: its
+    fields, the file it places and that file's absolute path."""
+    fields = _properties(node, version, _SHEET_FIELDS)[0]
+    path = os.path.join(os.path.dirname(parent), fields.get("Sheetfile", ""))
+    return fields, path, os.path.abspath(path)
+
+
+def _carried(schematic, tree, trees):
+    """id(node) to the ``(reference, unit)`` KiCad leaves on each placed symbol
+    once it has updated every sheet path, in page order (eeschema_helpers.cpp:
+    211-214, sch_sheet_path.cpp:434-435): those of the sheet paths placing it
+    that have an instance, the ones it loaded where none has; None where those
+    paths disagree, so page order picks. Files read here stay in ``trees``; a
+    file that cannot be read, or a sheet that loops, is left to _hierarchy."""
+    placements = {}
+
+    def walk(path, tree, uuids, ancestors):
+        try:
+            version = _version(tree, path)
+            for node in tree[1:]:
+                if sx.head(node) == "symbol":
+                    placements.setdefault(id(node), (node, version, []))[2].append(uuids.lower())
+                elif sx.head(node) == "sheet":
+                    _, child, key = _sub_sheet(node, path, version)
+                    if key not in ancestors:
+                        if key not in trees:
+                            trees[key] = schematic_tree(child)
+                        walk(child, trees[key], f"{uuids}/{_text(node, 'uuid')}",
+                             ancestors | {key})
+        except (InputError, TypeError, AttributeError, ValueError, IndexError):
+            return
+
+    walk(schematic, tree, f"/{_text(tree, 'uuid')}", {os.path.abspath(schematic)})
+    carried = {}
+    for key, (node, version, paths) in placements.items():
+        try:
+            fields, _, instances, unit = _loaded(node, version)
+        except (TypeError, AttributeError, ValueError, IndexError):
+            continue
+        own = [instances[p] for p in paths if p in instances]
+        refs, units = {r for r, _ in own if r}, {u for _, u in own}
+        carried[key] = (_agreed(refs, fields.get("Reference", "")), _agreed(units, unit))
+    return carried
+
+
+def _agreed(values, loaded):
+    """The one of ``values``, ``loaded`` where there are none, None where they
+    differ."""
+    return loaded if not values else next(iter(values)) if len(values) == 1 else None
 
 
 # ------------------------------------------------------------------ connectivity
@@ -850,7 +949,7 @@ def _symbol_fields(primary, sheets):
     if primary.units == 1:
         group = [primary]
     else:
-        seen = sorted(((_unit_seen(p, primary, sheets), p) for _, _, placed in sheets
+        seen = sorted(((_unit_seen(p, primary), p) for _, _, placed in sheets
                        for p in placed if p.ref.lower() == primary.ref.lower()),
                       key=lambda up: up[0] or 0)
         group = [p for _, p in seen]
@@ -869,39 +968,12 @@ def _symbol_fields(primary, sheets):
     return value or "~", mandatory["Footprint"], {**user, **mandatory}
 
 
-def _unit_seen(placed, primary, sheets):
+def _unit_seen(placed, primary):
     """SCH_SYMBOL::GetUnitSelection of ``placed`` for the primary's sheet path:
-    its instance there, else m_unit, which UpdateAllScreenReferences leaves at
-    the unit of the last sheet path placing it that has an instance
-    (eeschema_helpers.cpp:211-214, sch_sheet_path.cpp:434-435). None where the
-    sheet paths give it different units, which page order picks from."""
-    if placed._instance(primary.sheet.uuids) is not None:
-        return placed.unit_on(primary.sheet.uuids)
-    units = {p.unit for _, _, others in sheets for p in others
-             if p.node is placed.node and p.instanced}
-    if len(units) > 1:
-        return None
-    return units.pop() if units else placed.unit
-
-
-def _instances_free(sheets):
-    """Raise for a placement with no instance for its sheet path where another
-    sheet path placing the same symbol gives it another reference or unit:
-    KiCad then takes those of the last path it updated, in page order
-    (SCH_SYMBOL::GetRef and GetUnitSelection, sch_sheet_path.cpp:434-435)."""
-    by_node = {}
-    for _, _, placed in sheets:
-        for p in placed:
-            by_node.setdefault(id(p.node), []).append(p)
-    for group in by_node.values():
-        for p in group:
-            if not p.instanced and any(q.instanced and (q.ref, q.unit) != (p.ref, p.unit)
-                                       for q in group):
-                raise KicadConstruct("instance_missing", p.sheet.path, p.at, (
-                    f"symbol {p.ref}",
-                    f"has no instance for the sheet path {p.sheet.human}. KiCad's netlist "
-                    "then depends on the page order of the sheets that place it.",
-                    "Annotate the schematic in KiCad"))
+    its instance there, else the unit the sheet paths placing it leave
+    (_carried), None where page order picks it."""
+    own = placed.instances.get(primary.sheet.uuids.lower())
+    return own[1] if own is not None else placed.carried[1]
 
 
 def _walk_free(primary, seen, name, given):
@@ -925,7 +997,7 @@ def _walk_free(primary, seen, name, given):
                 "Give it one unit on every sheet path"))
     units = [u for u, _ in seen]
     lowest = {v for u, v in zip(units, given) if u == units[0]}
-    if units[0] < primary.unit_on(primary.sheet.uuids) and len(lowest) == 1 and None not in lowest:
+    if units[0] < primary.unit and len(lowest) == 1 and None not in lowest:
         return
     shown = ", ".join(f'"{v}"' for v in sorted(values))
     raise KicadConstruct("unit_fields", primary.sheet.path, primary.at, (
@@ -1035,7 +1107,6 @@ def netlist(schematic, project=None) -> dict:
                          "again in KiCad")
     try:
         sheets, inputs = _hierarchy(schematic, tree, settings)
-        _instances_free(sheets)
         subgraphs = [_Subgraph(sheet, group) for sheet, items, placed in sheets
                      for group in _connect(items, placed)]
         driven = _name_nets(subgraphs, _shared_refs(sheets))
@@ -1043,7 +1114,9 @@ def netlist(schematic, project=None) -> dict:
     except KicadConstruct as exc:
         exc.schematic_version = str(version)
         raise
-    comment = next((c for c in sx.find_all(sx.find(tree, "title_block") or [], "comment")
+    # KiCad keeps the last title block, and its last comment 1 (parseTITLE_BLOCK).
+    blocks = sx.find_all(tree, "title_block")
+    comment = next((c for c in reversed(sx.find_all(blocks[-1], "comment") if blocks else [])
                     if len(c) > 2 and str(c[1]) == "1"), None)
     return {
         "netlister": NETLISTER,

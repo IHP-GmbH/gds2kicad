@@ -1,0 +1,191 @@
+(export
+	(version "E")
+	(design
+		(source "/w/field_name_case/ext_field_name_case.kicad_sch")
+		(date "2026-11-21T16:46:40+0000")
+		(tool "Eeschema 9.99.0-unknown")
+		(sheet
+			(number "1")
+			(name "/")
+			(tstamps "/")
+			(title_block
+				(title)
+				(company)
+				(rev)
+				(date)
+				(source "ext_field_name_case.kicad_sch")
+				(comment
+					(number "1")
+					(value "")
+				)
+				(comment
+					(number "2")
+					(value "")
+				)
+				(comment
+					(number "3")
+					(value "")
+				)
+				(comment
+					(number "4")
+					(value "")
+				)
+				(comment
+					(number "5")
+					(value "")
+				)
+				(comment
+					(number "6")
+					(value "")
+				)
+				(comment
+					(number "7")
+					(value "")
+				)
+				(comment
+					(number "8")
+					(value "")
+				)
+				(comment
+					(number "9")
+					(value "")
+				)
+			)
+		)
+		(sheet
+			(number "2")
+			(name "/s/")
+			(tstamps "/30000000-0000-4000-8000-00000000000a/")
+			(title_block
+				(title)
+				(company)
+				(rev)
+				(date)
+				(source "ext_field_name_case_child.kicad_sch")
+				(comment
+					(number "1")
+					(value "")
+				)
+				(comment
+					(number "2")
+					(value "")
+				)
+				(comment
+					(number "3")
+					(value "")
+				)
+				(comment
+					(number "4")
+					(value "")
+				)
+				(comment
+					(number "5")
+					(value "")
+				)
+				(comment
+					(number "6")
+					(value "")
+				)
+				(comment
+					(number "7")
+					(value "")
+				)
+				(comment
+					(number "8")
+					(value "")
+				)
+				(comment
+					(number "9")
+					(value "")
+				)
+			)
+		)
+	)
+	(components
+		(comp
+			(ref "R1")
+			(value "VV")
+			(footprint "F:L")
+			(fields
+				(field
+					(name "Footprint") "F:L")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "p")
+				(part "R")
+				(description "")
+			)
+			(property
+				(name "Sheetname")
+				(value "s")
+			)
+			(property
+				(name "Sheetfile")
+				(value "ext_field_name_case_child.kicad_sch")
+			)
+			(sheetpath
+				(names "/s/")
+				(tstamps "/30000000-0000-4000-8000-00000000000a/")
+			)
+			(tstamps "00000000-0000-4000-8000-000000000001")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+					)
+				)
+			)
+		)
+	)
+	(groups)
+	(libparts
+		(libpart
+			(lib "p")
+			(part "R")
+			(fields
+				(field
+					(name "Reference") "R")
+				(field
+					(name "Value") "R")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "")
+					(type "passive")
+				)
+			)
+		)
+	)
+	(libraries)
+	(nets
+		(net
+			(code "1")
+			(name "G")
+			(class "Default")
+			(node
+				(ref "R1")
+				(pin "1")
+				(pintype "passive")
+			)
+		)
+	)
+)

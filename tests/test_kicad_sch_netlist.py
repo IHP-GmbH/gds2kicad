@@ -103,9 +103,11 @@ def _canon(model):
     return design, comps, libparts, nets, violations
 
 
-CLAIMS = ["stacked", "net_names", "power_hidden", "power_glabel", "subsheet_local",
-          "unit_fields", "label_tolerance", "pro_settings", "rot_mirror",
-          "instance_missing", "instance_single", "instance_carried"]
+CLAIMS = ["stacked", "net_names", "power_hidden", "power_glabel", "subsheet_local", "unit_fields",
+          "label_tolerance", "pro_settings", "rot_mirror", "instance_missing", "instance_single",
+          "instance_carried", "instance_agreed", "instance_first_sets", "instance_path_case",
+          "instance_path_twice", "instance_value", "instance_without_unit",
+          "fields_after_instances", "field_name_case", "cache_slash", "title_last"]
 
 
 @pytest.mark.parametrize("case", CLAIMS)
@@ -403,6 +405,7 @@ SYMBOL_CONSTRUCTS = {
     "field_name_escape": ("field_escape", "t:R", '(property "a{slash}b" "V")'),
     "lib_id_escape": ("lib_id_escape", "t:R{slash}S", ""),
     "lib_name_escape": ("lib_id_escape", "t:R", ""),
+    "private_value_escape": ("field_escape", "t:R", '(property private "Value" "a{slash}b")'),
     "pin_alternate": ("pin_alternate", "t:R", f'(pin "1" (uuid "{_uuid(7)}") (alternate "ALT"))')}
 
 
@@ -410,7 +413,8 @@ SYMBOL_CONSTRUCTS = {
 def test_an_escape_and_an_alternate_pin_are_refused(tmp_path, case):
     """KiCad unescapes field names and values (string_utils.cpp:308-388),
     reads {slash} in a lib_id or lib_name as / (sch_io_kicad_sexpr_parser.cpp:
-    3135,3150) and shows a pin's alternate name and type (sch_pin.cpp:577)."""
+    3135,3150) and shows a pin's alternate name and type (sch_pin.cpp:577). Only
+    a user field can be private (parseSchField)."""
     construct, lib_id, fields = SYMBOL_CONSTRUCTS[case]
     body = _part("R1", 10, 10, _uuid(1), lib_id, fields=fields)
     if case == "lib_name_escape":
@@ -418,6 +422,14 @@ def test_an_escape_and_an_alternate_pin_are_refused(tmp_path, case):
     with pytest.raises(n.KicadConstruct) as raised:
         n.netlist(str(_write(tmp_path / "s.kicad_sch", body)))
     assert (raised.value.construct, raised.value.at) == (construct, (100000, 100000))
+
+
+def test_an_instance_without_a_reference_is_refused(tmp_path):
+    """KiCad writes it unannotated, R? (SCH_SYMBOL::GetRef, IsAnnotated)."""
+    body = _part("R1", 10, 10, _uuid(1)).replace('(reference "R1")', '(reference "")')
+    with pytest.raises(n.KicadConstruct) as raised:
+        n.netlist(str(_write(tmp_path / "s.kicad_sch", body)))
+    assert (raised.value.construct, raised.value.at) == ("ref_question", (100000, 100000))
 
 
 def test_a_private_field_may_hold_an_escape(tmp_path):
@@ -466,13 +478,13 @@ def test_a_net_named_as_an_unconnected_pin_like_another_is_refused(tmp_path):
             "--native (that read needs kicad-cli).") in str(raised.value)
 
 
-def _placed_twice(tmp_path, child, root=""):
-    """A root that places child.kicad_sch on sheet paths a and b."""
+def _placed_twice(tmp_path, child, root="", names="ab"):
+    """A root that places child.kicad_sch on sheet paths a and b (or ``names``)."""
     _write(tmp_path / "child.kicad_sch", child, uuid="20000000-0000-4000-8000-000000000000")
     sheets = "".join(f'(sheet (at {x} 50) (size 10 10) (uuid "{_uuid(x)}")\n'
                      f'  (property "Sheetname" "{name}")\n'
                      f'  (property "Sheetfile" "child.kicad_sch"))\n'
-                     for x, name in ((10, "a"), (40, "b")))
+                     for x, name in zip((10, 40, 70), names))
     return _write(tmp_path / "root.kicad_sch", sheets + root)
 
 
@@ -485,19 +497,19 @@ def _instances(*paths):
 PATH_A, PATH_B = f"/{ROOT}/{_uuid(10)}", f"/{ROOT}/{_uuid(40)}"
 
 
-def test_a_symbol_without_an_instance_on_one_path_is_refused_when_another_path_differs(
+def test_a_symbol_without_an_instance_on_one_path_is_refused_when_other_paths_differ(
         tmp_path):
-    """KiCad sets its reference and unit from the first instance loaded, then from
-    each sheet path that has one, in page order (sch_symbol.cpp:603-608,
-    sch_sheet_path.cpp:434-435): on b, U1 unit 1 or U9 unit 2."""
+    """Each sheet path, in page order, leaves its reference and unit on the
+    symbol (sch_sheet_path.cpp:434-435), and a path without an instance shows
+    those of the last (SCH_SYMBOL::GetRef): on c, U1 unit 1 or U2 unit 2."""
     child = (f'(symbol (lib_id "t:DUAL") (at 10 10 0) (unit 1) (uuid "{_uuid(1)}")\n'
-             '  (property "Reference" "U9")\n'
-             + _instances(("other", "/x", "U9", 2), ("p", PATH_A, "U1", 1)) + ")\n")
+             '  (property "Reference" "U1")\n'
+             + _instances(("p", PATH_A, "U1", 1), ("p", PATH_B, "U2", 2)) + ")\n")
     with pytest.raises(n.KicadConstruct) as raised:
-        n.netlist(str(_placed_twice(tmp_path, child)))
+        n.netlist(str(_placed_twice(tmp_path, child, names="abc")))
     assert (raised.value.construct, raised.value.at) == ("instance_missing", (100000, 100000))
     assert str(raised.value) == (
-        "child.kicad_sch: symbol U9 at (10, 10) mm has no instance for the sheet path /b/. "
+        "child.kicad_sch: symbol U1 at (10, 10) mm has no instance for the sheet path /c/. "
         "KiCad's netlist then depends on the page order of the sheets that place it. Annotate "
         "the schematic in KiCad, or read the sheet without --native (that read needs kicad-cli).")
 

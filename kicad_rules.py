@@ -187,14 +187,19 @@ def properties(node, version=None):
     order. KiCad 9 writes a private one as ``(property private "Name" "Value")``
     (parseSchField); with ``version``, values load as a file of that version
     gives them."""
-    out = []
-    for prop in sx.find_all(node, "property"):
-        private = len(prop) > 1 and prop[1] == "private" and not isinstance(prop[1], sx.Quoted)
-        at = 2 if private else 1
-        if len(prop) > at:
-            value = str(prop[at + 1]) if len(prop) > at + 1 else ""
-            out.append((str(prop[at]), blank_tilde(value, version), private))
-    return out
+    found = (property_of(prop, version) for prop in sx.find_all(node, "property"))
+    return [p for p in found if p is not None]
+
+
+def property_of(prop, version=None):
+    """``(name, value, private)`` of one property node, as ``properties`` gives
+    it; None for one without a name."""
+    private = len(prop) > 1 and prop[1] == "private" and not isinstance(prop[1], sx.Quoted)
+    at = 2 if private else 1
+    if len(prop) <= at:
+        return None
+    value = str(prop[at + 1]) if len(prop) > at + 1 else ""
+    return str(prop[at]), blank_tilde(value, version), private
 
 
 def unit_style(cached, unit):
