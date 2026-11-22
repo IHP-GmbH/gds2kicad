@@ -260,6 +260,17 @@ def test_a_direction_that_is_no_word_is_refused(out):
     assert "no word" in refusals[0]["message"]
 
 
+@pytest.mark.parametrize("role", ["power", "ground", "no_connect"])
+def test_a_pad_with_an_unknown_direction_is_refused(out, role):
+    folder = _folder(out / "A", "A", [("CLK", "CLK", 0, "signal", "input"),
+                                      ("P", "P", 0, role, "bidir")])
+    _edit(folder, "die-contract.json",
+          lambda d: d["terminals"][1].update(direction="tristate"))
+    refusals = _refused(out, [folder])
+    assert [r["code"] for r in refusals] == ["not_expressible"]
+    assert "draws no pin" in refusals[0]["message"]
+
+
 def test_a_handout_path_that_cannot_be_read_is_refused(out):
     folder = _folder(out / "ECHO", "ECHO", ECHO)
     with pytest.raises(g.SchematicRefused) as exc:
