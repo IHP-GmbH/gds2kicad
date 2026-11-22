@@ -229,10 +229,12 @@ def _pin(number: str, terms: List[dict], port: str) -> c.Terminal:
         raise _Refused("not_expressible",
                        f"pad {number} is stated with more than one role or direction")
     role, direction = roles.pop(), directions.pop()
-    indexes = sorted(t["pad_index"] for t in terms if t.get("pad_index") is not None)
-    pad = f"{number} (pad_index {', '.join(map(str, indexes))})" if indexes else number
-    # The contract reader refuses a role that is no contract word, and checks a
-    # direction only on a newer minor, so the direction is checked here.
+    indexes = ", ".join(str(i) for i in sorted(t["pad_index"] for t in terms))
+    pad = f"{number} (pad_index {indexes})"
+    # The contract reader refuses a role that is no contract word but checks a
+    # direction only on a newer minor, and schema admission is not run here, so
+    # the direction is checked here: a copy to drop once the reader checks
+    # directions as it checks roles.
     if direction is not None and direction not in TERMINAL_DIRECTIONS:
         raise _Refused("not_expressible",
                        f"pad {pad} has direction {direction!r}, which the die contract does "
