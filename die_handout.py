@@ -50,8 +50,8 @@ import sexpr_io as sx
 from _vendor.chiplet_format_io import (
     ChipletFormatError, _parse_contract_version, check_contract_version)
 from _vendor.chiplet_format_io.die_contract import (
-    ACCEPTED_DIE_CONTRACT_VERSIONS, BoundContract, DieContractError, check_terminals,
-    inventory_identities)
+    ACCEPTED_DIE_CONTRACT_VERSIONS, TERMINAL_DIRECTIONS, BoundContract, DieContractError,
+    check_terminals, inventory_identities)
 from _vendor.chiplet_format_io.footprint_ids import (
     FootprintIdError, die_footprint, ext_pad_footprint)
 from _vendor.chiplet_format_io.pad_numbers import pad_numbers
@@ -229,6 +229,17 @@ def _pin(number: str, terms: List[dict], port: str) -> c.Terminal:
         raise _Refused("not_expressible",
                        f"pad {number} is stated with more than one role or direction")
     role, direction = roles.pop(), directions.pop()
+    indexes = ", ".join(str(i) for i in sorted(t["pad_index"] for t in terms))
+    pad = f"{number} (pad_index {indexes})"
+    # The contract reader refuses a role that is no contract word but checks a
+    # direction only on a newer minor, and schema admission is not run here, so
+    # the direction is checked here: a copy to drop once the reader checks
+    # directions as it checks roles.
+    if direction is not None and direction not in TERMINAL_DIRECTIONS:
+        raise _Refused("not_expressible",
+                       f"pad {pad} has direction {direction!r}, which the die contract does "
+                       f"not have. A direction is one of {', '.join(TERMINAL_DIRECTIONS)}. "
+                       f"Correct it in {CONTRACT}.")
     # A signal with no direction is not a key of the table; it is passive.
     if (role, direction) == ("signal", None):
         kind = "passive"
@@ -236,8 +247,9 @@ def _pin(number: str, terms: List[dict], port: str) -> c.Terminal:
         kind = KICAD_TYPE_OF_TERMINAL.get((role, direction))
     if kind is None:
         raise _Refused("not_expressible",
-                       f"pad {number} has role {role!r} and direction {direction!r}, "
-                       "which this handout draws no pin for")
+                       f"pad {pad} has role {role!r} and direction {direction!r}, "
+                       "which this handout draws no pin for. Report it as a defect of the "
+                       "flow.")
     return c.Terminal(number, port, kind, "")
 
 
