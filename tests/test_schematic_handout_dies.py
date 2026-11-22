@@ -268,7 +268,33 @@ def test_a_pad_with_an_unknown_direction_is_refused(out, role):
           lambda d: d["terminals"][1].update(direction="tristate"))
     refusals = _refused(out, [folder])
     assert [r["code"] for r in refusals] == ["not_expressible"]
-    assert "draws no pin" in refusals[0]["message"]
+    assert refusals[0]["message"].endswith(
+        "pad P (pad_index 1) has direction 'tristate', which the die contract does not have. "
+        "A direction is one of input, output, bidir, analog, none. Correct it in "
+        "die-contract.json.")
+
+
+def test_an_unknown_direction_names_every_pad_of_the_pin(out):
+    folder = _folder(out / "A", "A", DRIVER)
+
+    def change(d):
+        for term in d["terminals"]:
+            if term["name"] == "VDD":
+                term["direction"] = "tristate"
+    _edit(folder, "die-contract.json", change)
+    refusals = _refused(out, [folder])
+    assert "pad VDD (pad_index 4, 5) has direction 'tristate'" in refusals[0]["message"]
+
+
+def test_a_pair_with_no_pin_is_a_defect_of_the_flow(out, monkeypatch):
+    # Every pair of contract words has a pin today; one dropped from the table
+    # stands for a table that misses one.
+    monkeypatch.setattr(dh, "KICAD_TYPE_OF_TERMINAL", {})
+    refusals = _refused(out, [_folder(out / "A", "A", [("CLK", "CLK", 0, "signal", "input")])])
+    assert [r["code"] for r in refusals] == ["not_expressible"]
+    assert refusals[0]["message"].endswith(
+        "pad CLK (pad_index 0) has role 'signal' and direction 'input', which this handout "
+        "draws no pin for. Report it as a defect of the flow.")
 
 
 def test_a_handout_path_that_cannot_be_read_is_refused(out):
