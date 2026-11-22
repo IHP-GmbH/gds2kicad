@@ -230,8 +230,10 @@ def _pin(number: str, terms: List[dict], port: str) -> c.Terminal:
                        f"pad {number} is stated with more than one role or direction")
     role, direction = roles.pop(), directions.pop()
     # A signal with no direction is not a key of the table; it is passive.
-    kind = KICAD_TYPE_OF_TERMINAL.get(
-        (role, direction), "passive" if (role, direction) == ("signal", None) else None)
+    if (role, direction) == ("signal", None):
+        kind = "passive"
+    else:
+        kind = KICAD_TYPE_OF_TERMINAL.get((role, direction))
     if kind is None:
         raise _Refused("not_expressible",
                        f"pad {number} has role {role!r} and direction {direction!r}, "
