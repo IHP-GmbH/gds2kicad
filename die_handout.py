@@ -55,6 +55,7 @@ from _vendor.chiplet_format_io.die_contract import (
 from _vendor.chiplet_format_io.footprint_ids import (
     FootprintIdError, die_footprint, ext_pad_footprint)
 from _vendor.chiplet_format_io.pad_numbers import pad_numbers
+from _vendor.chiplet_format_io.pins import KICAD_TYPE_OF_TERMINAL
 from _vendor.chiplet_format_io.sheet_names import SHEET_NAME_WORDS, is_sheet_name
 from _vendor.chiplet_format_io.supply_domains import SupplyDomainError, read_supply_domains
 from _vendor.chiplet_format_io.technology import TECHNOLOGY_OF_PDK
@@ -64,10 +65,6 @@ SYSTEM_LIB_FILE = f"{SYSTEM_LIB}.kicad_sym"
 _SYSTEM_ROW = (SYSTEM_LIB, SYSTEM_LIB_FILE, "chiplet system symbols")
 _LIBS = (_SYSTEM_ROW, c._HANDOUT_ROW)
 CONTRACT = "die-contract.json"
-
-_DIRECTION_TYPES = {"input": "input", "output": "output", "bidir": "bidirectional",
-                    "analog": "passive", "none": "passive", None: "passive"}
-_ROLE_TYPES = {"power": "power_in", "ground": "power_in", "no_connect": "no_connect"}
 
 
 class _Refused(Exception):
@@ -232,10 +229,9 @@ def _pin(number: str, terms: List[dict], port: str) -> c.Terminal:
         raise _Refused("not_expressible",
                        f"pad {number} is stated with more than one role or direction")
     role, direction = roles.pop(), directions.pop()
-    if role == "signal":
-        kind = _DIRECTION_TYPES.get(direction)
-    else:
-        kind = _ROLE_TYPES.get(role)
+    # A signal with no direction is not a key of the table; it is passive.
+    kind = KICAD_TYPE_OF_TERMINAL.get(
+        (role, direction), "passive" if (role, direction) == ("signal", None) else None)
     if kind is None:
         raise _Refused("not_expressible",
                        f"pad {number} has role {role!r} and direction {direction!r}, "
